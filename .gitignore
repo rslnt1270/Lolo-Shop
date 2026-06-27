@@ -3,3 +3,5 @@ node_modules
 .env*.local
 coverage
 *.log
+public/sw.js
+public/workbox-*.js
