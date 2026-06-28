@@ -136,6 +136,43 @@ levante la pausa):
 
 ---
 
+## Módulo Facebook Ads (nuevo — por integrar)
+
+Capa de adquisición que alimenta al bot. Acoplado al bot porque el destino del
+anuncio es la conversación de WhatsApp.
+
+**Alcance propuesto:**
+1. **Click-to-WhatsApp Ads (CTWA):** anuncios en Facebook/Instagram con CTA
+   "Enviar WhatsApp" que abren un chat con el número del bot. El `ref`/contexto
+   del anuncio puede llegar en el primer mensaje para atribuir la conversación.
+2. **Conversions API (CAPI):** al confirmarse un pago (webhook de Mercado Pago en
+   N8N), reportar el evento `Purchase` a Meta para optimización y atribución.
+   El nodo/HTTP de N8N envía el evento con el identificador de la conversación.
+3. **Catálogo de productos:** sincronizar Shopify → Meta (catálogo de
+   Facebook/Instagram). Shopify ya ofrece el canal de Meta; preferir esa vía
+   sobre reimplementar.
+4. **Panel de resultados (mínimo):** gasto, nº de chats iniciados y ventas
+   atribuidas. Puede ser un reporte simple, no una BI completa.
+
+**Costos:** el **presupuesto publicitario** que se paga a Meta es un gasto
+variable que define el dueño (ej. $100–200 MXN/día), **no** entra en el costo
+fijo del sistema. La integración (montaje + optimización) es trabajo del
+desarrollador.
+
+**Decisiones a confirmar (antes de implementar):**
+- ¿La atribución de venta se hace por `ref` del anuncio, por número de WhatsApp,
+  o ambos?
+- ¿El catálogo se sincroniza por el canal nativo de Shopify-Meta o por API?
+- ¿Quién administra el Business Manager y la cuenta publicitaria (cliente vs
+  desarrollador)?
+
+**Prerrequisitos adicionales:** Meta Business Manager, cuenta publicitaria,
+Pixel/Dataset para CAPI, y el número de WhatsApp ya verificado (compartido con
+el bot).
+
+**Fase:** posterior al bot (el anuncio necesita un bot funcional como destino).
+Ver el roadmap `2026-06-28-loloshop-roadmap.md`.
+
 ## Decisiones tomadas (2026-06-28)
 
 | Decisión | Elección | Razón |
