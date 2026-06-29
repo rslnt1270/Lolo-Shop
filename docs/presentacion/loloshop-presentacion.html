@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>LoloShop — Inventario + Bot de WhatsApp · Propuesta</title>
+<link rel="icon" type="image/png" href="assets/loloshop-logo.png" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
@@ -261,8 +262,8 @@
   .bg-ink .src{color:#A9CFC6}.bg-ink .src a{color:var(--teal)}
 
   /* brand mark (mascota guiño) */
-  .dot,.lg,.ava{overflow:hidden}
-  .dot>svg,.lg>svg,.ava>svg{width:100%;height:100%;display:block}
+  .dot,.lg,.ava{overflow:hidden;border-radius:50%!important;background:transparent!important}
+  .dot>img,.lg>img,.ava>img{width:100%;height:100%;display:block;object-fit:cover}
   @media(prefers-reduced-motion:reduce){
     *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
     .msg{opacity:1;transform:none}
@@ -285,7 +286,7 @@
 <!-- ===== NAV ===== -->
 <header class="topnav">
   <div class="wrap">
-    <div class="brand"><span class="dot"><svg viewBox="0 0 100 100"><use href="#lolo"/></svg></span> LoloShop</div>
+    <div class="brand"><span class="dot"><img src="assets/loloshop-logo.png" alt="LoloShop" /></span> LoloShop</div>
     <nav>
       <a href="#solucion">Solución</a>
       <a href="#arquitectura">Arquitectura</a>
@@ -317,7 +318,7 @@
     <div class="hero-art">
       <div class="chat-card" aria-hidden="true">
         <div class="chat-head">
-          <span class="ava"><svg viewBox="0 0 100 100"><use href="#lolo"/></svg></span>
+          <span class="ava"><img src="assets/loloshop-logo.png" alt="LoloShop" /></span>
           <span class="who">LoloShop · Bot<small>en línea</small></span>
         </div>
         <div class="chat-body">
@@ -421,7 +422,7 @@
             <!-- login -->
             <div class="pwa-view" data-view="login">
               <div class="login">
-                <div class="lg"><svg viewBox="0 0 100 100"><use href="#lolo"/></svg></div>
+                <div class="lg"><img src="assets/loloshop-logo.png" alt="LoloShop" /></div>
                 <h4>LoloShop</h4>
                 <div class="field">Usuario <b>colab1</b></div>
                 <div class="field">Contraseña <b>••••••</b></div>
@@ -484,7 +485,7 @@
         <div class="phone">
           <div class="phone-screen">
             <div class="wa-head">
-              <span class="ava"><svg viewBox="0 0 100 100"><use href="#lolo"/></svg></span>
+              <span class="ava"><img src="assets/loloshop-logo.png" alt="LoloShop" /></span>
               <span class="who">LoloShop<small>chatbot · en línea</small></span>
             </div>
             <div class="wa-chat" id="waChat" aria-label="Conversación de ejemplo con el bot">
@@ -644,7 +645,7 @@
 
 <footer>
   <div class="wrap">
-    <div class="brand"><span class="dot"><svg viewBox="0 0 100 100"><use href="#lolo"/></svg></span> LoloShop</div>
+    <div class="brand"><span class="dot"><img src="assets/loloshop-logo.png" alt="LoloShop" /></span> LoloShop</div>
     <div class="mono">Inventario + Bot de WhatsApp · Propuesta comercial · 2026</div>
   </div>
 </footer>
