@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LoloShop · Propuesta v2 — Sistema, flujos, premortem y negocio</title>
+<link rel="icon" type="image/png" href="assets/loloshop-logo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#12211F;--ink-soft:#3A4D4A;
+    --teal:#3CBFBF;--teal-deep:#147E7E;--teal-ink:#0C5C5C;
+    --mist:#E9F6F5;--mist-2:#D7EFEE;
+    --paper:#FFFFFF;--sand:#F6F4EF;--wa:#25D366;--wa-bubble:#DCF8C6;
+    --alert:#C23A2B;--alert-bg:#FFE7E2;--warn:#C77B16;--warn-bg:#FFF3DD;
+    --line:rgba(18,33,31,.12);--shadow:0 18px 50px -22px rgba(12,92,92,.45);
+    --font-display:"Bricolage Grotesque",system-ui,sans-serif;
+    --font-body:"Hanken Grotesk",system-ui,sans-serif;
+    --font-mono:"Space Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:var(--font-body);color:var(--ink);background:var(--paper);line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  .wrap{max-width:1140px;margin:0 auto;padding:0 24px}
+  h1,h2,h3,.display{font-family:var(--font-display);font-weight:800;line-height:1.04;letter-spacing:-.02em}
+  .mono{font-family:var(--font-mono)}
+  .eyebrow{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--teal-deep);display:inline-flex;align-items:center;gap:.7ch}
+  .eyebrow .n{background:var(--ink);color:#fff;border-radius:5px;padding:1px 7px;font-size:.7rem}
+  a{color:inherit}
+
+  /* nav */
+  .topnav{position:sticky;top:0;z-index:60;backdrop-filter:blur(10px);background:rgba(255,255,255,.86);border-bottom:1px solid var(--line)}
+  .topnav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:800;font-size:1.12rem}
+  .brand .dot{width:34px;height:34px;border-radius:50%;overflow:hidden;flex:none}
+  .brand .dot img{width:100%;height:100%;object-fit:cover;display:block}
+  .brand .v{font-family:var(--font-mono);font-size:.62rem;background:var(--teal);color:var(--ink);padding:2px 6px;border-radius:5px;margin-left:2px}
+  .topnav nav{display:flex;gap:20px;flex-wrap:wrap}
+  .topnav nav a{font-size:.86rem;font-weight:600;color:var(--ink-soft);text-decoration:none;transition:color .2s}
+  .topnav nav a:hover{color:var(--teal-deep)}
+  @media(max-width:920px){.topnav nav{display:none}}
+
+  /* hero */
+  .hero{position:relative;padding:78px 0 60px;background:radial-gradient(1100px 480px at 82% -10%,var(--mist) 0%,transparent 60%),radial-gradient(820px 460px at -8% 35%,#EAF6F6 0%,transparent 55%);overflow:hidden}
+  .hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:46px;align-items:center}
+  @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:36px}}
+  .hero h1{font-size:clamp(2.4rem,5.6vw,4.1rem)}
+  .hero h1 em{font-style:normal;background:var(--teal);color:var(--ink);padding:0 .14em;border-radius:8px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+  .hero .lede{font-size:1.14rem;color:var(--ink-soft);max-width:36ch;margin-top:20px}
+  .hero .cta-row{display:flex;gap:12px;margin-top:26px;flex-wrap:wrap}
+  .btn{font-weight:700;font-size:.92rem;padding:12px 20px;border-radius:999px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;border:1.6px solid transparent;transition:transform .15s,box-shadow .2s;cursor:pointer}
+  .btn-primary{background:var(--teal-deep);color:#fff;box-shadow:var(--shadow)}
+  .btn-primary:hover{transform:translateY(-2px)}
+  .btn-ghost{border-color:var(--line);color:var(--ink);background:transparent}
+  .btn-ghost:hover{border-color:var(--teal-deep);color:var(--teal-deep)}
+  .hero-logo{display:grid;place-items:center}
+  .hero-logo img{width:min(330px,80%);filter:drop-shadow(0 30px 50px rgba(12,92,92,.35))}
+
+  /* TOC */
+  .toc{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:42px}
+  @media(max-width:820px){.toc{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:480px){.toc{grid-template-columns:1fr}}
+  .toc a{display:block;text-decoration:none;border:1px solid var(--line);border-radius:13px;padding:14px 15px;background:rgba(255,255,255,.6);transition:.2s}
+  .toc a:hover{border-color:var(--teal);transform:translateY(-3px);box-shadow:var(--shadow)}
+  .toc a .k{font-family:var(--font-mono);font-size:.66rem;color:var(--teal-deep)}
+  .toc a .t{font-family:var(--font-display);font-weight:700;font-size:1rem;margin-top:3px;color:var(--ink)}
+
+  /* section scaffold */
+  section{padding:74px 0}
+  .section-head{max-width:64ch}
+  .section-head h2{font-size:clamp(1.8rem,3.8vw,2.8rem);margin-top:12px}
+  .section-head p{color:var(--ink-soft);font-size:1.05rem;margin-top:13px}
+  .bg-mist{background:linear-gradient(180deg,#fff,var(--mist) 28%,var(--mist) 72%,#fff)}
+  .bg-ink{background:var(--ink);color:#EAF6F2}
+  .bg-ink .section-head p{color:#A9CFC6}.bg-ink .eyebrow{color:var(--teal)}.bg-ink .eyebrow .n{background:var(--teal);color:var(--ink)}
+  .bg-sand{background:var(--sand)}
+
+  /* generic cards */
+  .cols-2{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-top:38px}
+  .cols-3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:38px}
+  @media(max-width:820px){.cols-3{grid-template-columns:1fr}}
+  @media(max-width:720px){.cols-2{grid-template-columns:1fr}}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:17px;padding:24px;transition:transform .2s,box-shadow .2s}
+  .card:hover{transform:translateY(-4px);box-shadow:var(--shadow)}
+  .card h3{font-size:1.15rem;margin-bottom:7px}
+  .card p{color:var(--ink-soft);font-size:.95rem}
+  .tag{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 9px;border-radius:999px;display:inline-block}
+  .tag.bad{background:var(--alert-bg);color:var(--alert)}.tag.good{background:var(--mist-2);color:var(--teal-ink)}.tag.warn{background:var(--warn-bg);color:var(--warn)}
+  ul.ticks{list-style:none;margin-top:12px;display:flex;flex-direction:column;gap:8px}
+  ul.ticks li{padding-left:24px;position:relative;color:var(--ink-soft);font-size:.95rem}
+  ul.ticks li::before{content:"›";position:absolute;left:5px;top:-1px;color:var(--teal-deep);font-weight:700;font-size:1.1rem}
+  .bg-ink ul.ticks li{color:#Bfe0d8}
+
+  /* architecture */
+  .arch{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:42px}
+  .node{border:1.5px solid rgba(60,191,191,.4);border-radius:15px;padding:18px;background:rgba(255,255,255,.04)}
+  .node .lab{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--teal)}
+  .node h4{font-family:var(--font-display);font-size:1.05rem;margin:5px 0}
+  .node p{font-size:.84rem;color:#A9CFC6;line-height:1.4}
+  .node.span6{grid-column:span 6}.node.span4{grid-column:span 4}.node.span12{grid-column:span 12}
+  .node.key{border-color:var(--teal);background:rgba(60,191,191,.1)}
+  @media(max-width:760px){.node.span6,.node.span4{grid-column:span 12}}
+  .flowdown{grid-column:span 12;text-align:center;color:var(--teal);font-family:var(--font-mono);font-size:1.3rem;opacity:.6}
+  .rule-note{margin-top:24px;border-left:3px solid var(--teal);padding:12px 18px;background:rgba(60,191,191,.1);border-radius:0 12px 12px 0;font-size:.94rem}
+
+  /* technical flows */
+  .flow{margin-top:30px;border:1px solid var(--line);border-radius:16px;padding:22px;background:var(--paper)}
+  .flow .ft{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+  .flow .ft .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:1rem;flex:none}
+  .flow .ft h4{font-family:var(--font-display);font-size:1.1rem}
+  .flow .steps-h{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .fstep{flex:1;min-width:120px;background:var(--mist);border:1px solid var(--mist-2);border-radius:11px;padding:12px;position:relative;margin:4px}
+  .fstep .s{font-family:var(--font-mono);font-size:.6rem;color:var(--teal-deep);letter-spacing:.08em}
+  .fstep b{display:block;font-family:var(--font-display);font-size:.92rem;margin:3px 0 4px}
+  .fstep span{font-size:.78rem;color:var(--ink-soft)}
+  .fstep.api{background:#EAF6F6}.fstep.ext{background:#FFF3DD;border-color:#F4E2BA}.fstep.pay{background:#E7F7EE;border-color:#CFEBD9}
+  .farrow{align-self:center;color:var(--teal-deep);font-weight:700;font-size:1.2rem;padding:0 2px}
+  @media(max-width:680px){.farrow{transform:rotate(90deg)}.fstep{min-width:100%}}
+  .flow .note{margin-top:12px;font-size:.84rem;color:var(--ink-soft)}
+  .flow .note code{font-family:var(--font-mono);background:var(--mist);padding:1px 6px;border-radius:5px;color:var(--teal-ink)}
+
+  /* simulation phones */
+  .sim-grid{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:46px;align-items:start}
+  @media(max-width:900px){.sim-grid{grid-template-columns:1fr;gap:54px}}
+  .phone{width:312px;max-width:100%;margin:0 auto;background:#0B141A;border-radius:38px;padding:10px;box-shadow:0 36px 80px -34px rgba(12,92,92,.65);border:7px solid #0C2A27;position:relative}
+  .phone::before{content:"";position:absolute;top:14px;left:50%;transform:translateX(-50%);width:92px;height:6px;border-radius:99px;background:#06322E;z-index:3}
+  .phone-screen{background:#F4FBFA;border-radius:29px;overflow:hidden;min-height:560px;position:relative}
+  .sim-cap{text-align:center;margin-top:16px}
+  .sim-cap .t{font-family:var(--font-display);font-weight:800;font-size:1.12rem}
+  .sim-cap .d{font-size:.88rem;color:var(--ink-soft);margin-top:3px}
+
+  .pwa-tabs{display:flex;gap:5px;padding:30px 12px 0;background:#fff}
+  .pwa-tabs button{flex:1;font-family:var(--font-body);font-weight:700;font-size:.74rem;padding:9px 3px;border:none;border-radius:9px 9px 0 0;background:transparent;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;transition:.2s}
+  .pwa-tabs button[aria-selected="true"]{color:var(--teal-ink);border-bottom-color:var(--teal);background:var(--mist)}
+  .pwa-view{display:none;padding:15px 15px 22px;animation:fade .35s both}
+  .pwa-view.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .pwa-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .pwa-bar .logo{font-family:var(--font-display);font-weight:800;color:var(--teal-deep);font-size:1.05rem}
+  .pwa-bar .pill{font-family:var(--font-mono);font-size:.6rem;background:var(--mist-2);color:var(--teal-ink);padding:3px 8px;border-radius:99px}
+  .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px 8px;text-align:center}
+  .kpi .n{font-family:var(--font-display);font-weight:800;font-size:1.3rem;color:var(--teal-deep);line-height:1}
+  .kpi .l{font-size:.62rem;color:var(--ink-soft);margin-top:3px}
+  .kpi.alert .n{color:var(--alert)}
+  .blk-title{font-family:var(--font-display);font-weight:700;font-size:.88rem;margin:15px 0 8px;display:flex;justify-content:space-between;align-items:center}
+  .blk-title .mini{font-family:var(--font-mono);font-size:.6rem;color:var(--ink-soft)}
+  .stock-2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .stock-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}
+  .stock-card .n{font-family:var(--font-display);font-weight:800;font-size:1.7rem;color:var(--teal-deep);line-height:1}
+  .stock-card .l{font-size:.7rem;color:var(--ink-soft);margin-top:2px}
+  .alert{display:flex;justify-content:space-between;align-items:center;background:var(--alert-bg);border-radius:9px;padding:8px 11px;font-size:.78rem}
+  .alert b{color:var(--alert);font-family:var(--font-mono)}
+  .mv{display:flex;align-items:center;gap:9px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px;font-size:.78rem}
+  .mv .ico{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;color:#fff;font-size:.7rem;flex:none;font-weight:700}
+  .mv .ico.out{background:var(--alert)}.mv .ico.in{background:var(--teal-deep)}
+  .mv .txt{flex:1;line-height:1.2}
+  .mv .txt small{color:var(--ink-soft);font-size:.66rem;font-family:var(--font-mono)}
+  .mv .qty{font-family:var(--font-mono);font-weight:700}
+  .qa{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+  .qa div{background:var(--mist);border:1px solid var(--mist-2);border-radius:10px;padding:9px 4px;text-align:center;font-weight:700;font-size:.7rem;color:var(--teal-ink)}
+  /* productos */
+  .search{display:flex;gap:6px;margin-bottom:11px}
+  .search input{flex:1;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-family:var(--font-body);font-size:.8rem}
+  .search select{border:1px solid var(--line);border-radius:10px;padding:0 7px;font-size:.74rem;background:#fff}
+  .prod{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:9px}
+  .prod .top{display:flex;justify-content:space-between;align-items:flex-start}
+  .prod h5{font-family:var(--font-display);font-size:.96rem}
+  .prod .meta{font-size:.72rem;color:var(--ink-soft)}
+  .prod .stk{font-family:var(--font-mono);font-size:.64rem;background:var(--mist-2);color:var(--teal-ink);padding:3px 7px;border-radius:99px;white-space:nowrap}
+  .prod .var{display:flex;justify-content:space-between;font-size:.76rem;color:var(--ink-soft);border-top:1px dashed var(--line);padding-top:6px;margin-top:7px}
+  .prod .var .sku{font-family:var(--font-mono);font-size:.62rem;color:var(--teal-deep)}
+  /* salida flow */
+  .scan{background:#0E1B16;border-radius:13px;padding:26px 14px;text-align:center;color:#bfe0d8;margin-bottom:12px}
+  .scan .box{width:130px;height:130px;margin:0 auto 12px;border:2px dashed var(--teal);border-radius:14px;display:grid;place-items:center;font-size:2.4rem;position:relative;overflow:hidden}
+  .scan .box::after{content:"";position:absolute;left:8%;right:8%;height:2px;background:var(--teal);top:20%;box-shadow:0 0 10px var(--teal);animation:scanline 2.2s ease-in-out infinite}
+  @keyframes scanline{0%,100%{top:18%}50%{top:78%}}
+  .scan small{font-family:var(--font-mono);font-size:.66rem}
+  .form-row{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:.82rem}
+  .form-row b{font-family:var(--font-mono)}
+  .stepper{display:flex;align-items:center;gap:10px;font-family:var(--font-mono)}
+  .stepper span{width:24px;height:24px;border-radius:7px;background:var(--mist);display:grid;place-items:center;font-weight:700;color:var(--teal-ink)}
+  .confirm-out{width:100%;justify-content:center;margin-top:6px}
+
+  /* whatsapp */
+  .wa-head{background:#075E54;color:#fff;display:flex;align-items:center;gap:10px;padding:30px 14px 12px}
+  .wa-head .ava{width:36px;height:36px;border-radius:50%;overflow:hidden;flex:none}
+  .wa-head .ava img{width:100%;height:100%;object-fit:cover;display:block}
+  .wa-head .who{font-weight:700;font-size:.9rem;line-height:1.15}
+  .wa-head .who small{display:block;font-weight:400;font-size:.66rem;color:#A7D7CE}
+  .wa-chat{background:#ECE5DD;padding:14px 12px;min-height:452px;display:flex;flex-direction:column;gap:8px}
+  .wa-day{align-self:center;background:#fff;color:#54656f;font-size:.64rem;padding:3px 10px;border-radius:8px;box-shadow:0 1px 1px rgba(0,0,0,.06);margin-bottom:4px}
+  .msg{max-width:82%;padding:7px 10px;border-radius:9px;font-size:.8rem;line-height:1.38;box-shadow:0 1px 1px rgba(0,0,0,.08);opacity:0;transform:translateY(10px)}
+  .msg.show{opacity:1;transform:none;transition:opacity .35s,transform .35s}
+  .msg.cli{align-self:flex-end;background:var(--wa-bubble)}.msg.bot{align-self:flex-start;background:#fff}
+  .msg .time{display:block;text-align:right;font-size:.58rem;color:#7a8a84;margin-top:2px;font-family:var(--font-mono)}
+  .msg .paybtn{display:block;margin-top:7px;text-align:center;background:#009EE3;color:#fff;font-family:var(--font-mono);font-size:.72rem;padding:7px;border-radius:8px;font-weight:700}
+  .typing{align-self:flex-start;background:#fff;border-radius:9px;padding:9px 12px;display:none;gap:4px;box-shadow:0 1px 1px rgba(0,0,0,.08)}
+  .typing.show{display:flex}
+  .typing span{width:6px;height:6px;border-radius:50%;background:#9aa7a1;animation:blink 1.2s infinite}
+  .typing span:nth-child(2){animation-delay:.2s}.typing span:nth-child(3){animation-delay:.4s}
+  @keyframes blink{0%,60%,100%{opacity:.3}30%{opacity:1}}
+
+  /* optimizations */
+  .opt{background:var(--paper);border:1px solid var(--line);border-radius:15px;padding:20px}
+  .opt .ic{font-size:1.3rem}
+  .opt h4{font-family:var(--font-display);font-size:1.02rem;margin:8px 0 5px}
+  .opt p{font-size:.88rem;color:var(--ink-soft)}
+  .opt .impact{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--teal-deep);margin-top:9px;display:inline-block;border:1px solid var(--mist-2);border-radius:99px;padding:3px 8px}
+
+  /* premortem */
+  .top-risks{margin-top:38px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.top-risks{grid-template-columns:1fr}}
+  .trisk{display:flex;gap:13px;background:rgba(255,255,255,.05);border:1px solid rgba(60,191,191,.3);border-radius:13px;padding:16px}
+  .trisk .rn{font-family:var(--font-mono);font-weight:700;color:var(--teal);font-size:1.1rem;flex:none}
+  .trisk b{font-family:var(--font-display);font-size:1rem}
+  .trisk p{font-size:.85rem;color:#A9CFC6;margin-top:3px}
+  .risk-cats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px}
+  @media(max-width:820px){.risk-cats{grid-template-columns:1fr}}
+  .rcat{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px}
+  .rcat h4{font-family:var(--font-display);font-size:1rem;color:#fff;margin-bottom:10px}
+  .rrow{font-size:.84rem;color:#C9E6DE;padding:9px 0;border-top:1px solid rgba(255,255,255,.1);display:flex;gap:8px;align-items:flex-start}
+  .rrow:first-of-type{border-top:none}
+  .pi{font-family:var(--font-mono);font-size:.58rem;font-weight:700;border-radius:5px;padding:2px 5px;flex:none;margin-top:1px}
+  .pi.AA{background:var(--alert);color:#fff}.pi.MA{background:var(--warn);color:#fff}.pi.MM{background:#2C6E6E;color:#fff}
+
+  /* costs / business */
+  .cost-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-top:38px}
+  @media(max-width:820px){.cost-grid{grid-template-columns:1fr}}
+  .cost{background:#fff;border:1px solid var(--line);border-radius:15px;padding:20px}
+  .cost .svc{font-family:var(--font-display);font-weight:700;font-size:1.02rem}
+  .cost .amt{font-family:var(--font-mono);font-size:1.4rem;color:var(--teal-deep);margin:7px 0;font-weight:700}
+  .cost .desc{font-size:.84rem;color:var(--ink-soft)}
+  .cost.total{background:var(--ink);color:#fff;border-color:var(--ink)}.cost.total .svc{color:var(--teal)}.cost.total .amt{color:#fff}.cost.total .desc{color:#A9CFC6}
+  .cost.var{border-color:var(--warn);background:var(--warn-bg)}.cost.var .amt{color:var(--warn)}
+  .rev-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px;margin-top:38px}
+  @media(max-width:760px){.rev-grid{grid-template-columns:1fr}}
+  .rev{background:#fff;border:1px solid var(--line);border-radius:17px;padding:22px;position:relative}
+  .rev.pick{border:2px solid var(--teal);box-shadow:var(--shadow)}
+  .rev .pickbadge{position:absolute;top:-12px;right:18px;background:var(--teal-deep);color:#fff;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:99px}
+  .rev h3{font-size:1.15rem}.rev .price{font-family:var(--font-mono);color:var(--teal-deep);font-weight:700;margin:7px 0;font-size:.95rem}.rev p{font-size:.9rem;color:var(--ink-soft)}
+  /* ROI */
+  .roi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:34px}
+  @media(max-width:760px){.roi{grid-template-columns:1fr 1fr}}
+  .roi .r{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
+  .roi .r .n{font-family:var(--font-display);font-weight:800;font-size:1.7rem;color:var(--teal-deep)}
+  .roi .r .l{font-size:.74rem;color:var(--ink-soft);margin-top:4px}
+  .roi-note{font-size:.8rem;color:var(--ink-soft);margin-top:14px}
+
+  /* pitch steps */
+  .steps{counter-reset:s;margin-top:34px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.steps{grid-template-columns:1fr}}
+  .step{counter-increment:s;background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 20px 20px 56px;position:relative}
+  .step::before{content:counter(s,decimal-leading-zero);position:absolute;left:16px;top:18px;font-family:var(--font-mono);font-weight:700;color:var(--teal-deep);font-size:1rem}
+  .step h4{font-family:var(--font-display);font-size:1.02rem;margin-bottom:4px}.step p{font-size:.88rem;color:var(--ink-soft)}
+
+  /* roadmap timeline */
+  .timeline{display:grid;grid-template-columns:repeat(4,1fr);gap:0;margin-top:40px}
+  @media(max-width:820px){.timeline{grid-template-columns:1fr}}
+  .ph{padding:20px 16px;border-top:3px solid var(--line);position:relative}
+  .ph.done{border-top-color:var(--teal)}.ph.next{border-top-color:var(--warn)}
+  .ph .k{font-family:var(--font-mono);font-size:.66rem;color:var(--teal-deep)}
+  .ph h4{font-family:var(--font-display);font-size:1.05rem;margin:5px 0 6px}
+  .ph p{font-size:.84rem;color:var(--ink-soft)}
+  .ph .st{font-family:var(--font-mono);font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;padding:2px 7px;border-radius:99px;display:inline-block;margin-top:8px}
+  .ph.done .st{background:var(--mist-2);color:var(--teal-ink)}.ph.next .st{background:var(--warn-bg);color:var(--warn)}.ph .st.plan{background:#eee;color:#666}
+
+  /* checklist */
+  .checks{margin-top:34px;display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  @media(max-width:680px){.checks{grid-template-columns:1fr}}
+  .chk{display:flex;gap:11px;align-items:flex-start;background:rgba(255,255,255,.05);border:1px solid rgba(60,191,191,.3);border-radius:12px;padding:14px}
+  .chk .box{width:20px;height:20px;border-radius:6px;border:2px solid var(--teal);flex:none;margin-top:2px}
+  .chk b{font-family:var(--font-display);font-size:.95rem}.chk p{font-size:.82rem;color:#A9CFC6;margin-top:2px}
+
+  footer{padding:46px 0;border-top:1px solid var(--line);background:var(--sand)}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px}
+  footer .mono{font-size:.76rem;color:var(--ink-soft)}
+  .src{font-size:.74rem;color:#A9CFC6;margin-top:28px;line-height:1.7}.src a{color:var(--teal)}
+
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}.msg{opacity:1;transform:none}.scan .box::after{display:none}}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <div class="wrap">
+    <div class="brand"><span class="dot"><img src="assets/loloshop-logo.png" alt="LoloShop"/></span> LoloShop <span class="v">v2</span></div>
+    <nav>
+      <a href="#solucion">Solución</a>
+      <a href="#arquitectura">Arquitectura</a>
+      <a href="#flujos">Flujos</a>
+      <a href="#demo">Demo</a>
+      <a href="#mejoras">Mejoras</a>
+      <a href="#premortem">Premortem</a>
+      <a href="#negocio">Negocio</a>
+      <a href="#roadmap">Roadmap</a>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero" style="padding-bottom:50px">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow"><span class="n">v2</span> Propuesta integral · 2026</span>
+      <h1 style="margin-top:16px">El sistema completo de <em>LoloShop</em>, de punta a punta.</h1>
+      <p class="lede">Inventario, bot de WhatsApp con cobro, anuncios que venden — y el análisis honesto de qué puede salir mal antes de invertir.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#demo">Ver simulación →</a>
+        <a class="btn btn-ghost" href="#premortem">Ver premortem</a>
+        <a class="btn btn-ghost" href="#negocio">Plan de negocio</a>
+      </div>
+    </div>
+    <div class="hero-logo"><img src="assets/loloshop-logo.png" alt="Logo de LoloShop" /></div>
+  </div>
+  <div class="wrap">
+    <div class="toc">
+      <a href="#solucion"><span class="k">01</span><span class="t">Problema → Solución</span></a>
+      <a href="#arquitectura"><span class="k">02</span><span class="t">Arquitectura</span></a>
+      <a href="#flujos"><span class="k">03</span><span class="t">Flujos técnicos</span></a>
+      <a href="#demo"><span class="k">04</span><span class="t">Demo: Dashboard + Bot</span></a>
+      <a href="#mejoras"><span class="k">05</span><span class="t">Mejoras y optimización</span></a>
+      <a href="#premortem"><span class="k">06</span><span class="t">Premortem</span></a>
+      <a href="#negocio"><span class="k">07</span><span class="t">Modelo de negocio</span></a>
+      <a href="#roadmap"><span class="k">08</span><span class="t">Roadmap + prerrequisitos</span></a>
+    </div>
+  </div>
+</section>
+
+<!-- 01 SOLUCION -->
+<section id="solucion" class="bg-mist">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">01</span> El reto</span>
+      <h2>De llevar el stock "de memoria" a un sistema que vende solo.</h2>
+      <p>Mercancía nueva sin control, ventas físicas que no llegan a Shopify, y DMs que se enfrían. La solución no es más esfuerzo manual: es software que cierra el ciclo.</p>
+    </div>
+    <div class="cols-2">
+      <div class="card">
+        <span class="tag bad">Antes</span>
+        <h3 style="margin-top:11px">Sin control, sin escala</h3>
+        <ul class="ticks">
+          <li>Stock "de memoria" entre dos tiendas.</li>
+          <li>Ventas físicas que no se descuentan de Shopify.</li>
+          <li>DMs que piden precio/talla y nadie alcanza a responder.</li>
+          <li>Cero registro de quién vendió qué y cuándo.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <span class="tag good">Con LoloShop</span>
+        <h3 style="margin-top:11px">Un sistema que trabaja por ti</h3>
+        <ul class="ticks">
+          <li>PWA instalable: stock por tienda, alertas, movimientos.</li>
+          <li>Bot de WhatsApp que consulta stock/precio en vivo.</li>
+          <li>Arma pedidos y cobra con Mercado Pago (tarjeta/OXXO/SPEI).</li>
+          <li>Anuncios Click-to-WhatsApp que llenan el chat de clientes.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 02 ARQUITECTURA -->
+<section id="arquitectura" class="bg-ink">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">02</span> Cómo está armado</span>
+      <h2>Una sola capa de datos. Tres caras hacia afuera.</h2>
+      <p>App para el equipo, bot para los clientes, anuncios para atraerlos — todos leen del mismo lugar.</p>
+    </div>
+    <div class="arch">
+      <div class="node span4"><span class="lab">Equipo</span><h4>PWA de inventario</h4><p>Next.js instalable. Roles, stock por tienda, alertas, entradas/salidas.</p></div>
+      <div class="node span4"><span class="lab">Clientes</span><h4>Bot WhatsApp · N8N + Claude</h4><p>Atiende, cotiza, arma pedido y manda link de pago. Claude Haiku.</p></div>
+      <div class="node span4"><span class="lab">Adquisición</span><h4>Facebook / Instagram Ads</h4><p>Click-to-WhatsApp + Conversions API hacia el bot.</p></div>
+      <div class="flowdown">↓ &nbsp; todos consumen &nbsp; ↓</div>
+      <div class="node span12 key"><span class="lab">Regla inviolable</span><h4>Interfaz <span class="mono">InventoryDataSource</span></h4><p>Toda la lógica de inventario pasa por aquí. Nadie llama a Shopify directo. Hoy responde con fixtures; mañana con Shopify real — sin reescribir consumidores.</p></div>
+      <div class="flowdown">↓</div>
+      <div class="node span4"><span class="lab">Backend</span><h4>Shopify Admin API</h4><p>Productos, variantes, inventario por tienda.</p></div>
+      <div class="node span4"><span class="lab">Pagos</span><h4>Mercado Pago</h4><p>Link de pago (nodo oficial N8N). Tarjeta, OXXO, SPEI.</p></div>
+      <div class="node span4"><span class="lab">Deploy</span><h4>Vercel</h4><p>Hosting de la PWA, plan gratuito para arrancar.</p></div>
+    </div>
+    <div class="rule-note"><b>Por qué importa:</b> esta separación mantiene el costo bajo y el sistema a prueba de cambios. El bot se construye y prueba hoy con datos de prueba y "se conecta" a Shopify el día que llegue el token, sin tocar N8N.</div>
+  </div>
+</section>
+
+<!-- 03 FLUJOS TECNICOS -->
+<section id="flujos">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">03</span> Flujos técnicos</span>
+      <h2>Cómo viaja cada acción por el sistema.</h2>
+      <p>Cuatro recorridos clave: consulta de stock, pedido con cobro, anuncios y movimientos de inventario.</p>
+    </div>
+
+    <div class="flow">
+      <div class="ft"><span class="ic" style="background:var(--teal-deep)">💬</span><h4>1 · Consulta de stock / precio (bot)</h4></div>
+      <div class="steps-h">
+        <div class="fstep"><span class="s">CLIENTE</span><b>Mensaje WhatsApp</b><span>"¿Tienen el hoodie?"</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep ext"><span class="s">N8N</span><b>WhatsApp Trigger</b><span>dispara el workflow</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep ext"><span class="s">N8N · IA</span><b>AI Agent (Claude)</b><span>decide la herramienta</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep api"><span class="s">PWA</span><b>GET /api/bot/products</b><span>valida x-bot-key</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">DATOS</span><b>InventoryDataSource</b><span>fixtures → Shopify</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">CLIENTE</span><b>Respuesta</b><span>stock + precio reales</span></div>
+      </div>
+      <p class="note">El bot <b>nunca</b> inventa stock: solo responde con lo que devuelve <code>getDataSource()</code>. Memoria de conversación por número de WhatsApp.</p>
+    </div>
+
+    <div class="flow">
+      <div class="ft"><span class="ic" style="background:#009EE3">💳</span><h4>2 · Pedido + cobro (Mercado Pago)</h4></div>
+      <div class="steps-h">
+        <div class="fstep"><span class="s">BOT</span><b>Arma pedido</b><span>confirma items + total</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep pay"><span class="s">N8N</span><b>Nodo Mercado Pago</b><span>crea link de pago</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">CLIENTE</span><b>Paga</b><span>tarjeta / OXXO / SPEI</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep pay"><span class="s">MP → N8N</span><b>Webhook</b><span>valida firma</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">STAFF</span><b>Aviso + confirmación</b><span>coordina entrega</span></div>
+      </div>
+      <p class="note">MVP: <b>sin descontar stock y sin BD</b> — fulfillment manual con humano en el loop. En F2 se podrá ligar a un <code>draft order</code> de Shopify.</p>
+    </div>
+
+    <div class="flow">
+      <div class="ft"><span class="ic" style="background:#1877F2">📣</span><h4>3 · Anuncios → venta → optimización (Facebook Ads)</h4></div>
+      <div class="steps-h">
+        <div class="fstep ext"><span class="s">META</span><b>Anuncio CTWA</b><span>"Enviar WhatsApp"</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">BOT</span><b>Atiende el chat</b><span>con contexto del anuncio</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep pay"><span class="s">VENTA</span><b>Pago confirmado</b><span>(flujo 2)</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep ext"><span class="s">N8N → META</span><b>Conversions API</b><span>evento Purchase</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep ext"><span class="s">META</span><b>Optimiza</b><span>trae compradores</span></div>
+      </div>
+      <p class="note">El presupuesto de anuncios es variable y lo define el dueño; la integración reporta cada venta para que Meta optimice por compradores, no por clics.</p>
+    </div>
+
+    <div class="flow">
+      <div class="ft"><span class="ic" style="background:var(--alert)">📦</span><h4>4 · Movimiento de inventario · entrada/salida (PWA · F2)</h4></div>
+      <div class="steps-h">
+        <div class="fstep"><span class="s">STAFF</span><b>Escanea QR/barcode</b><span>en la tienda</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">PWA</span><b>Variante + cantidad</b><span>tienda asignada</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep api"><span class="s">DATOS</span><b>InventoryDataSource</b><span>misma interfaz</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">SHOPIFY</span><b>Ajusta inventario</b><span>+entrada / −salida</span></div>
+        <div class="farrow">→</div>
+        <div class="fstep"><span class="s">TODOS</span><b>Stock al día</b><span>bot y app coinciden</span></div>
+      </div>
+      <p class="note">Cuando F2 conecte Shopify, este flujo cierra el ciclo: las ventas físicas por fin se descuentan y el bot deja de prometer agotados.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 04 DEMO -->
+<section id="demo" class="bg-mist">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">04</span> Simulación en vivo</span>
+      <h2>El Dashboard de tu equipo y el chat de tus clientes.</h2>
+      <p>Izquierda: la PWA con tres pantallas — toca las pestañas. Derecha: la conversación del bot, que se reproduce sola al verla.</p>
+    </div>
+    <div class="sim-grid">
+
+      <!-- PWA -->
+      <div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="pwa-tabs" role="tablist" aria-label="Pantallas de la PWA">
+              <button role="tab" aria-selected="true" data-view="dash">Dashboard</button>
+              <button role="tab" aria-selected="false" data-view="prod">Productos</button>
+              <button role="tab" aria-selected="false" data-view="out">Salida</button>
+            </div>
+
+            <!-- dashboard ampliado -->
+            <div class="pwa-view active" data-view="dash">
+              <div class="pwa-bar"><span class="logo">Inicio</span><span class="pill">colaborador · Tienda 1</span></div>
+              <div class="kpi-row">
+                <div class="kpi"><div class="n">19</div><div class="l">Stock total</div></div>
+                <div class="kpi"><div class="n">$770</div><div class="l">Vendido hoy</div></div>
+                <div class="kpi alert"><div class="n">1</div><div class="l">Stock bajo</div></div>
+              </div>
+              <div class="blk-title">Stock por tienda</div>
+              <div class="stock-2">
+                <div class="stock-card"><div class="n">12</div><div class="l">Tienda 1</div></div>
+                <div class="stock-card"><div class="n">7</div><div class="l">Tienda 2</div></div>
+              </div>
+              <div class="blk-title">Alertas de stock bajo</div>
+              <div class="alert"><span>Hoodie NY Yankees — L / Negro</span><b>1</b></div>
+              <div class="blk-title">Movimientos de hoy <span class="mini">2</span></div>
+              <div class="mv"><span class="ico out">↓</span><div class="txt">Salida · Playera Guess M/Blanco<br><small>colab1 · 13:20</small></div><span class="qty">−1</span></div>
+              <div class="mv"><span class="ico in">↑</span><div class="txt">Entrada · Hoodie NY M/Negro<br><small>encargado · 11:05</small></div><span class="qty">+3</span></div>
+              <div class="blk-title">Accesos rápidos</div>
+              <div class="qa"><div>📷 Escanear</div><div>＋ Entrada</div><div>− Salida</div></div>
+            </div>
+
+            <!-- productos -->
+            <div class="pwa-view" data-view="prod">
+              <div class="pwa-bar"><span class="logo">Productos</span><span class="pill">2 resultados</span></div>
+              <div class="search"><input value="" placeholder="Buscar producto..." readonly /><select aria-label="Categoría"><option>Todas</option></select></div>
+              <div class="prod">
+                <div class="top"><div><h5>Hoodie NY Yankees</h5><div class="meta">NY Yankees · Hoodies</div></div><span class="stk">9 en stock</span></div>
+                <div class="var"><span>M / Negro <span class="sku">LS-HOO-NYY-M-NEG</span></span><span>$450</span></div>
+                <div class="var"><span>L / Negro <span class="sku">LS-HOO-NYY-L-NEG</span></span><span>$450</span></div>
+              </div>
+              <div class="prod">
+                <div class="top"><div><h5>Playera Guess</h5><div class="meta">Guess · Playeras</div></div><span class="stk">10 en stock</span></div>
+                <div class="var"><span>M / Blanco <span class="sku">LS-PLA-GUE-M-BLA</span></span><span>$320</span></div>
+              </div>
+            </div>
+
+            <!-- registrar salida -->
+            <div class="pwa-view" data-view="out">
+              <div class="pwa-bar"><span class="logo">Registrar salida</span><span class="pill">Tienda 1</span></div>
+              <div class="scan"><div class="box">▦</div><small>Apunta la cámara al QR / barcode</small></div>
+              <div class="form-row"><span>Producto</span><b>Hoodie NY Yankees</b></div>
+              <div class="form-row"><span>Variante</span><b>M / Negro</b></div>
+              <div class="form-row"><span>Cantidad</span><div class="stepper"><span>−</span> 1 <span>＋</span></div></div>
+              <div class="form-row"><span>Stock tras salida</span><b>2 → 1</b></div>
+              <a class="btn btn-primary confirm-out" href="#" onclick="return false">Confirmar salida −1</a>
+              <p style="font-size:.72rem;color:var(--ink-soft);margin-top:10px;text-align:center">Descuenta en Shopify (F2) y registra usuario + hora.</p>
+            </div>
+
+          </div>
+        </div>
+        <div class="sim-cap"><div class="t">PWA · para tu equipo</div><div class="d">Dashboard, productos y registro de salida. Datos reales de la demo.</div></div>
+      </div>
+
+      <!-- WHATSAPP -->
+      <div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="wa-head"><span class="ava"><img src="assets/loloshop-logo.png" alt="LoloShop"/></span><span class="who">LoloShop<small>chatbot · en línea</small></span></div>
+            <div class="wa-chat" id="waChat" aria-label="Conversación de ejemplo con el bot">
+              <span class="wa-day">HOY</span>
+              <div class="msg cli">Hola! Tienen hoodies de los Yankees? <span class="time">7:42</span></div>
+              <div class="typing" data-t="0"><span></span><span></span><span></span></div>
+              <div class="msg bot">¡Hola! 👋 Sí, tenemos el <b>Hoodie NY Yankees</b> en <b>M</b> y <b>L</b> (Negro), $450 c/u. ¿Qué talla buscas? <span class="time">7:42</span></div>
+              <div class="msg cli">Una M en negro 🙌 <span class="time">7:43</span></div>
+              <div class="typing" data-t="1"><span></span><span></span><span></span></div>
+              <div class="msg bot">Perfecto: Hoodie NY Yankees — M / Negro — <b>$450</b>. ¿Te lo aparto y te paso el link de pago? Tarjeta, OXXO o SPEI. <span class="time">7:43</span></div>
+              <div class="msg cli">Sí porfa <span class="time">7:44</span></div>
+              <div class="typing" data-t="2"><span></span><span></span><span></span></div>
+              <div class="msg bot">🛒 Tu pedido: <b>1× Hoodie NY Yankees (M/Negro) = $450</b><span class="paybtn">💳 Pagar con Mercado Pago</span><span class="time">7:44</span></div>
+              <div class="typing" data-t="3"><span></span><span></span><span></span></div>
+              <div class="msg bot">✅ ¡Pago recibido! Te contactamos para coordinar la entrega en Texcoco/CDMX. ¡Gracias por tu compra! 🛍️ <span class="time">7:46</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="sim-cap"><div class="t">WhatsApp · para tus clientes</div><div class="d">Consulta → pedido → cobro → confirmación, sin que muevas un dedo.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 05 MEJORAS -->
+<section id="mejoras">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">05</span> Mejoras y optimización</span>
+      <h2>Decisiones de ingeniería que bajan costo y suben confiabilidad.</h2>
+      <p>No es solo que funcione: está construido para ser barato de operar, fácil de probar y difícil de romper.</p>
+    </div>
+    <div class="cols-3">
+      <div class="opt"><div class="ic">🧱</div><h4>Capa de datos desacoplada</h4><p>Todo pasa por <span class="mono">InventoryDataSource</span>. Cambiar de fixtures a Shopify no toca UI ni bot.</p><span class="impact">Mantenibilidad</span></div>
+      <div class="opt"><div class="ic">🧪</div><h4>TDD con fixtures primero</h4><p>El sistema se prueba completo sin token de Shopify ni cuentas externas. Menos sorpresas en producción.</p><span class="impact">Calidad</span></div>
+      <div class="opt"><div class="ic">🧠</div><h4>Claude Haiku + caching</h4><p>Modelo económico para chat ($1/$5 por millón) con prompt caching y límite de turnos. ~$0.02–0.05 por conversación.</p><span class="impact">−Costo IA</span></div>
+      <div class="opt"><div class="ic">🆓</div><h4>Ventana de 24h de WhatsApp</h4><p>Responder a clientes dentro de las 24h es gratis. El bot es reactivo ⇒ casi todo el tráfico no cuesta.</p><span class="impact">−Costo mensajería</span></div>
+      <div class="opt"><div class="ic">🔐</div><h4>Webhook de pago firmado</h4><p>Se valida la firma del webhook de Mercado Pago: nada se marca "pagado" sin confirmación real.</p><span class="impact">Seguridad</span></div>
+      <div class="opt"><div class="ic">📲</div><h4>PWA instalable</h4><p>Se instala como app en el celular, sin App Store. Manifest + service worker; cámara para escaneo.</p><span class="impact">Adopción</span></div>
+      <div class="opt"><div class="ic">🔑</div><h4>Endpoints del bot con API key</h4><p><span class="mono">/api/bot/*</span> protegidos por <span class="mono">x-bot-key</span> y excluidos del login; secretos fuera del repo.</p><span class="impact">Seguridad</span></div>
+      <div class="opt"><div class="ic">📈</div><h4>Conversions API</h4><p>Cada venta se reporta a Meta para optimizar por compradores, no por clics — mejor retorno del gasto en ads.</p><span class="impact">+ROI ads</span></div>
+      <div class="opt"><div class="ic">🩺</div><h4>Monitoreo del bot</h4><p>Health-check del workflow de N8N con alerta al staff si deja de responder.</p><span class="impact">Confiabilidad</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- 06 PREMORTEM -->
+<section id="premortem" class="bg-ink">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">06</span> Premortem · honestidad por adelantado</span>
+      <h2>"Es 2027 y el proyecto fracasó. ¿Por qué?"</h2>
+      <p>Trabajamos los modos de fallo <em>antes</em> de invertir, para diseñar las mitigaciones desde el día uno. Estos son los 6 riesgos a accionar ya.</p>
+    </div>
+    <div class="top-risks">
+      <div class="trisk"><span class="rn">01</span><div><b>Scope creep + sin acuerdo escrito</b><p>El riesgo #1 no es técnico: mezclar amistad y negocio sin alcance definido. Mitigación: acuerdo simple por fase y congelar alcance.</p></div></div>
+      <div class="trisk"><span class="rn">02</span><div><b>Prerrequisitos atorados</b><p>Sin token Shopify / cuentas, todo se queda en demo. Mitigación: checklist con responsable y fecha; iniciar verificaciones lentas ya.</p></div></div>
+      <div class="trisk"><span class="rn">03</span><div><b>F1 sin cerrar</b><p>Abrir bot y ads con los cimientos a medias. Mitigación: terminar Productos + Dashboard antes de F3/F4.</p></div></div>
+      <div class="trisk"><span class="rn">04</span><div><b>Se rompe la regla de datos</b><p>Llamar a Shopify directo bajo presión ⇒ doble fuente de verdad. Mitigación: revisión/lint que lo prohíba fuera de su capa.</p></div></div>
+      <div class="trisk"><span class="rn">05</span><div><b>El bot promete agotados</b><p>Stock desincronizado hasta F2. Mitigación: disponibilidad "a confirmar" + humano en el loop.</p></div></div>
+      <div class="trisk"><span class="rn">06</span><div><b>Confirmaciones de pago falsas</b><p>Webhook MP sin validar. Mitigación: validar firma y conciliar contra el estado real de MP.</p></div></div>
+    </div>
+
+    <h3 style="color:#fff;margin-top:48px;font-size:1.3rem">Mapa de riesgos por categoría</h3>
+    <div class="risk-cats">
+      <div class="rcat">
+        <h4>Adopción</h4>
+        <div class="rrow"><span class="pi AA">A·A</span> El staff no usa la PWA → datos viejos → el bot miente.</div>
+        <div class="rrow"><span class="pi MA">M·A</span> El bot frustra al cliente en su canal principal.</div>
+        <div class="rrow"><span class="pi MM">M·M</span> Desconfianza al pagar por WhatsApp.</div>
+      </div>
+      <div class="rcat">
+        <h4>Técnico</h4>
+        <div class="rrow"><span class="pi MA">M·A</span> ShopifyDataSource no calza con la interfaz (rate limits).</div>
+        <div class="rrow"><span class="pi MA">M·A</span> N8N se cae sin que nadie note.</div>
+        <div class="rrow"><span class="pi MM">M·M</span> Costos de Claude por prompts largos/loops.</div>
+      </div>
+      <div class="rcat">
+        <h4>Negocio / Ads</h4>
+        <div class="rrow"><span class="pi AA">A·A</span> Scope creep hunde los tiempos de entrega.</div>
+        <div class="rrow"><span class="pi MM">M·M</span> Gasto en ads sin retorno (clics, no compras).</div>
+        <div class="rrow"><span class="pi MM">M·M</span> Atribución rota: no se demuestra ROI.</div>
+      </div>
+    </div>
+    <p class="src">Leyenda <span class="mono">P·I</span> = Probabilidad · Impacto (A alto, M medio). Reporte completo: <code>docs/superpowers/premortem-2026-06-28-loloshop.md</code>.</p>
+  </div>
+</section>
+
+<!-- 07 NEGOCIO -->
+<section id="negocio" class="bg-mist">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">07</span> Modelo de negocio</span>
+      <h2>Costo fijo bajo. Pago solo cuando vendes. Tú ganas con valor.</h2>
+      <p>Estimaciones para volumen inicial. El sistema cuesta poco de mantener; Mercado Pago y los ads solo cobran sobre actividad real.</p>
+    </div>
+    <div class="cost-grid">
+      <div class="cost"><div class="svc">Vercel · PWA</div><div class="amt">$0</div><div class="desc">Plan gratuito alcanza para empezar (~$20 USD si crece mucho).</div></div>
+      <div class="cost"><div class="svc">N8N · automatización</div><div class="amt">~$6–24</div><div class="desc">USD/mes. Self-host (~$6) o Cloud Starter (~$24).</div></div>
+      <div class="cost"><div class="svc">Claude · bot</div><div class="amt">~$5–15</div><div class="desc">USD/mes a volumen bajo. Haiku 4.5, $0.02–0.05 por conversación.</div></div>
+      <div class="cost"><div class="svc">WhatsApp Business</div><div class="amt">~$0</div><div class="desc">Gratis en la ventana de servicio de 24h (bot reactivo).</div></div>
+      <div class="cost var"><div class="svc">Mercado Pago · por venta</div><div class="amt">3.49% + $4</div><div class="desc">MXN + IVA por transacción. Variable: sale de cada venta.</div></div>
+      <div class="cost total"><div class="svc">Costo fijo total</div><div class="amt">≈ $30–60</div><div class="desc">USD/mes (~$600–1,100 MXN). Escala con el uso, no de golpe.</div></div>
+    </div>
+
+    <div class="section-head" style="margin-top:60px">
+      <span class="eyebrow">Cómo ganas tú</span>
+      <h2>Cuatro modelos. Uno recomendado.</h2>
+    </div>
+    <div class="rev-grid">
+      <div class="rev pick"><span class="pickbadge">Recomendado</span><h3>Setup + mensualidad gestionada</h3><div class="price">Setup $4,000–10,000 MXN · luego $1,200–2,500 MXN/mes</div><p>Cuota única de implementación + mensualidad que cubre hosting, monitoreo, soporte y tu margen. Ingreso recurrente y predecible. Como es portafolio, puedes bajar el setup a cambio del caso de éxito.</p></div>
+      <div class="rev"><h3>% por venta del bot</h3><div class="price">3–5% de las ventas online generadas</div><p>Alinea tu pago con el resultado. Ideal como complemento cuando ya hay volumen; requiere medir ventas atribuidas (la Conversions API ayuda).</p></div>
+      <div class="rev"><h3>Renta SaaS a la medida</h3><div class="price">$1,800–3,500 MXN/mes, sin setup grande</div><p>Todo en una mensualidad más alta. Menor barrera de entrada; tú conservas el sistema.</p></div>
+      <div class="rev"><h3>Proyecto llave en mano</h3><div class="price">Pago único $15,000–30,000 MXN</div><p>Se construye, se entrega y el cliente opera. Sin recurrente, pero cierre rápido.</p></div>
+    </div>
+
+    <div class="section-head" style="margin-top:60px">
+      <span class="eyebrow">Ejemplo de retorno</span>
+      <h2>Un escenario conservador.</h2>
+    </div>
+    <div class="roi">
+      <div class="r"><div class="n">30</div><div class="l">pedidos/mes por el bot</div></div>
+      <div class="r"><div class="n">$400</div><div class="l">ticket promedio (MXN)</div></div>
+      <div class="r"><div class="n">$12,000</div><div class="l">ventas/mes (MXN)</div></div>
+      <div class="r"><div class="n">~$1,100</div><div class="l">costo fijo + comisión MP</div></div>
+    </div>
+    <p class="roi-note">Con ~30 pedidos al mes a $400, el canal genera ~$12,000 MXN; el costo fijo (~$600–1,100) más la comisión de Mercado Pago (~$540 sobre esas ventas) deja un margen amplio — y eso sin contar las ventas físicas que ahora sí quedan registradas. <b>Cifras ilustrativas, ajústalas con datos reales.</b></p>
+
+    <div class="section-head" style="margin-top:60px">
+      <span class="eyebrow">Cómo ofrecérselo a Lolo</span>
+      <h2>El pitch, en 6 pasos.</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><h4>Empieza por el dolor</h4><p>Ventas que no se reflejan, stock de memoria, DMs fríos. Que se vea reflejado.</p></div>
+      <div class="step"><h4>Muestra esta demo</h4><p>Dashboard + bot funcionando. Ver es creer.</p></div>
+      <div class="step"><h4>Cuantifica el valor</h4><p>Atención 24/7, DMs que se vuelven ventas con pago, inventario bajo control.</p></div>
+      <div class="step"><h4>Transparenta costos</h4><p>Fijo bajo + comisión MP solo al vender. Sin sorpresas.</p></div>
+      <div class="step"><h4>Propón el modelo + piloto</h4><p>Setup + mensualidad, con prueba de 1 mes y métricas.</p></div>
+      <div class="step"><h4>Acuerdo escrito + accesos</h4><p>Cierra alcance por fase y pide WhatsApp Business, Mercado Pago, token Shopify, Meta.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 ROADMAP -->
+<section id="roadmap" class="bg-ink">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow"><span class="n">08</span> Roadmap + prerrequisitos</span>
+      <h2>Cuatro fases. Una a la vez.</h2>
+      <p>El premortem manda: cerrar cimientos antes de abrir frentes nuevos.</p>
+    </div>
+    <div class="timeline">
+      <div class="ph done"><div class="k">Fase 1 · 6/8</div><h4>Cimientos + inventario</h4><p>Login por roles, dashboard, productos. Datos con fixtures.</p><span class="st">En curso · faltan Productos y Dashboard</span></div>
+      <div class="ph next"><div class="k">Fase 2</div><h4>Shopify + movimientos</h4><p>ShopifyDataSource, escaneo, entrada/salida con descuento real.</p><span class="st">Siguiente · requiere token</span></div>
+      <div class="ph"><div class="k">Fase 3</div><h4>Bot WhatsApp + cobro</h4><p>Endpoints /api/bot, workflow N8N, link Mercado Pago.</p><span class="st plan">Planeada</span></div>
+      <div class="ph"><div class="k">Fase 4</div><h4>Facebook Ads</h4><p>Click-to-WhatsApp + Conversions API + catálogo.</p><span class="st plan">Planeada</span></div>
+    </div>
+
+    <h3 style="color:#fff;margin-top:50px;font-size:1.3rem">Prerrequisitos para encender todo</h3>
+    <div class="checks">
+      <div class="chk"><span class="box"></span><div><b>Token Shopify Admin API</b><p>Stock real (F2). Hoy corre con fixtures.</p></div></div>
+      <div class="chk"><span class="box"></span><div><b>Inventario de productos cargado</b><p>Alta de mercancía con SKU automático.</p></div></div>
+      <div class="chk"><span class="box"></span><div><b>Cuenta WhatsApp Business</b><p>Número aprobado en Meta: token + WABA ID.</p></div></div>
+      <div class="chk"><span class="box"></span><div><b>Cuenta Mercado Pago</b><p>Access token + nodo oficial en N8N.</p></div></div>
+      <div class="chk"><span class="box"></span><div><b>N8N + API key de Claude</b><p>Instancia accesible por webhooks.</p></div></div>
+      <div class="chk"><span class="box"></span><div><b>Meta Business + cuenta publicitaria</b><p>Pixel/CAPI + catálogo para los anuncios.</p></div></div>
+    </div>
+    <p class="src">Cifras de referencia (jun 2026): <a href="https://www.anthropic.com/pricing">Anthropic</a> · <a href="https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing">WhatsApp Business</a> · <a href="https://n8n.io/pricing/">N8N</a> · <a href="https://vendedores.mercadolibre.com.mx/nota/costos-de-mercado-pago-cuales-son-y-como-configurarlos">Mercado Pago MX</a> · <a href="https://vercel.com/pricing">Vercel</a>. Montos de venta en MXN son sugerencias, ajústalos a tu mercado.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="brand"><span class="dot"><img src="assets/loloshop-logo.png" alt="LoloShop"/></span> LoloShop <span class="v">v2</span></div>
+    <div class="mono">Sistema · Flujos · Premortem · Negocio · Propuesta 2026</div>
+  </div>
+</footer>
+
+<script>
+  function showView(name){
+    document.querySelectorAll('.pwa-view').forEach(v=>v.classList.toggle('active', v.dataset.view===name));
+    document.querySelectorAll('.pwa-tabs [role="tab"]').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.view===name)));
+    return false;
+  }
+  document.querySelectorAll('.pwa-tabs [role="tab"]').forEach(btn=>btn.addEventListener('click',()=>showView(btn.dataset.view)));
+
+  const chat = document.getElementById('waChat');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function revealChat(){
+    const msgs=[...chat.querySelectorAll('.msg')];
+    if(reduce){msgs.forEach(m=>m.classList.add('show'));return;}
+    let delay=250, ti=0;
+    msgs.forEach((m)=>{
+      if(m.classList.contains('bot')){
+        const t=chat.querySelector('.typing[data-t="'+ti+'"]'); ti++;
+        setTimeout(()=>{if(t)t.classList.add('show');},delay); delay+=850;
+        setTimeout(()=>{if(t)t.classList.remove('show'); m.classList.add('show');},delay); delay+=650;
+      } else { setTimeout(()=>m.classList.add('show'),delay); delay+=650; }
+    });
+  }
+  let played=false;
+  new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting&&!played){played=true;revealChat();}});},{threshold:.3}).observe(chat);
+</script>
+</body>
+</html>
