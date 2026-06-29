@@ -1,0 +1,65 @@
+<!-- @dsCard group="Pantallas" -->
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+:root{--ink:#12211F;--ink-soft:#3A4D4A;--teal:#3CBFBF;--teal-deep:#147E7E;--teal-ink:#0C5C5C;--mist:#E9F6F5;--mist-2:#D7EFEE;--alert:#C23A2B;--alert-bg:#FFE7E2;--line:rgba(18,33,31,.12);--fd:"Bricolage Grotesque",sans-serif;--fb:"Hanken Grotesk",sans-serif;--fm:"Space Mono",monospace;}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--fb);color:var(--ink);background:#F4FBFA;padding:24px;display:flex;justify-content:center;-webkit-font-smoothing:antialiased}
+.phone{width:340px;max-width:100%;background:#0B141A;border-radius:36px;padding:9px;border:6px solid #0C2A27;box-shadow:0 34px 70px -32px rgba(12,92,92,.55)}
+.screen{background:#F4FBFA;border-radius:29px;overflow:hidden;min-height:560px}
+.dhead{background:linear-gradient(140deg,var(--teal) 0%,var(--teal-deep) 100%);padding:34px 18px 26px;display:flex;align-items:center;gap:12px;color:#fff}
+.dhead img{width:42px;height:42px;border-radius:50%;border:2px solid rgba(255,255,255,.6)}
+.dhead .hi{font-family:var(--fd);font-weight:800;font-size:1.15rem;line-height:1.05}
+.dhead .sub{font-size:.74rem;color:rgba(255,255,255,.85);font-family:var(--fm);letter-spacing:.04em;margin-top:2px}
+.dhead .role{margin-left:auto;font-family:var(--fm);font-size:.58rem;text-transform:uppercase;letter-spacing:.1em;background:rgba(255,255,255,.22);padding:5px 9px;border-radius:99px}
+.body{padding:16px 16px 22px;margin-top:-14px;background:#F4FBFA;border-radius:18px 18px 0 0;position:relative}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 8px;text-align:center}
+.kpi .n{font-family:var(--fd);font-weight:800;font-size:1.55rem;color:var(--teal-deep);line-height:1}
+.kpi .l{font-size:.62rem;color:var(--ink-soft);margin-top:4px;letter-spacing:.02em}
+.kpi.warn{background:var(--alert-bg);border-color:#F4CFC8}.kpi.warn .n{color:var(--alert)}
+.sec{margin-top:18px}
+.sec h4{font-family:var(--fd);font-weight:700;font-size:.92rem;display:flex;justify-content:space-between;align-items:baseline}
+.sec h4 .mini{font-family:var(--fm);font-size:.6rem;color:var(--ink-soft);font-weight:400}
+.store{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-top:9px}
+.store .r{display:flex;justify-content:space-between;align-items:baseline}
+.store .name{font-weight:600;font-size:.86rem}
+.store .num{font-family:var(--fd);font-weight:800;font-size:1.25rem;color:var(--teal-deep)}
+.store .num small{font-size:.62rem;color:var(--ink-soft);font-weight:400;font-family:var(--fb)}
+.bar{height:7px;border-radius:99px;background:var(--mist-2);margin-top:9px;overflow:hidden}
+.bar > i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--teal),var(--teal-deep))}
+.alert{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--alert);border-radius:11px;padding:10px 13px;margin-top:9px;font-size:.83rem}
+.alert .dot{width:8px;height:8px;border-radius:50%;background:var(--alert);flex:none}
+.alert .q{margin-left:auto;font-family:var(--fm);font-weight:700;color:var(--alert);background:var(--alert-bg);padding:2px 9px;border-radius:99px}
+</style></head><body>
+<div class="phone"><div class="screen">
+  <div class="dhead">
+    <img src="assets/loloshop-logo.png" alt="LoloShop"/>
+    <div><div class="hi">Hola, Tienda 1 👋</div><div class="sub">Resumen de inventario</div></div>
+    <span class="role">colaborador</span>
+  </div>
+  <div class="body">
+    <div class="kpis">
+      <div class="kpi"><div class="n">19</div><div class="l">Stock total</div></div>
+      <div class="kpi"><div class="n">2</div><div class="l">Productos</div></div>
+      <div class="kpi warn"><div class="n">1</div><div class="l">En alerta</div></div>
+    </div>
+    <div class="sec">
+      <h4>Stock por tienda <span class="mini">19 unidades</span></h4>
+      <div class="store">
+        <div class="r"><span class="name">Tienda 1</span><span class="num">12 <small>uds</small></span></div>
+        <div class="bar"><i style="width:63%"></i></div>
+      </div>
+      <div class="store">
+        <div class="r"><span class="name">Tienda 2</span><span class="num">7 <small>uds</small></span></div>
+        <div class="bar"><i style="width:37%"></i></div>
+      </div>
+    </div>
+    <div class="sec">
+      <h4>Alertas de stock bajo <span class="mini">umbral ≤ 1</span></h4>
+      <div class="alert"><span class="dot"></span><span>Hoodie NY Yankees — L / Negro</span><span class="q">1</span></div>
+    </div>
+  </div>
+</div></div>
+</body></html>
