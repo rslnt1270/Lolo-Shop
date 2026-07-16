@@ -8,6 +8,24 @@ Aplicación integral de gestión de inventario, catálogo interactivo en 3D y bo
   <img src="./public/catalogo.jpeg" alt="LoloShop Catálogo" width="30%">
 </p>
 
+## Arquitectura del Sistema
+
+```mermaid
+graph TD
+    Client[Cliente / Comprador] -->|Navega en 3D| Web[Catálogo Público<br>Next.js PWA]
+    Client -->|Escribe Mensaje| WA[WhatsApp<br>Meta Cloud API]
+    
+    Admin[Staff LoloShop] -->|Escanea / Gestiona| Dashboard[Panel Interno<br>PWA Dashboard]
+    
+    Web -.->|Click to WhatsApp| WA
+    
+    WA -->|Webhook /api/whatsapp/webhook| Server[Backend<br>Vercel / Next.js]
+    Dashboard -->|Server Actions| Server
+    Web -->|Server Actions| Server
+    
+    Server <-->|Prisma ORM| DB[(PostgreSQL<br>Neon DB)]
+```
+
 ## Características Principales
 
 1. **Gestión de Inventario (PWA):**
