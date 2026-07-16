@@ -2,7 +2,11 @@
 
 Aplicación integral de gestión de inventario, catálogo interactivo en 3D y bot de WhatsApp automatizado para una tienda de streetwear.
 
-![Dashboard de LoloShop](./public/screenshot.png)
+<p align="center">
+  <img src="./public/login.jpeg" alt="LoloShop Login" width="30%">
+  <img src="./public/dashboard.jpeg" alt="LoloShop Dashboard" width="30%">
+  <img src="./public/catalogo.jpeg" alt="LoloShop Catálogo" width="30%">
+</p>
 
 ## Características Principales
 
