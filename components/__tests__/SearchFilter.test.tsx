@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { SearchFilter } from "../SearchFilter";
+import { SearchFilter } from "../products/SearchFilter";
 
 describe("SearchFilter", () => {
   it("emite el texto escrito", () => {

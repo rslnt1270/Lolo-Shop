@@ -4,8 +4,8 @@ import { useSession } from "next-auth/react";
 import type { Location, Product } from "@/lib/domain/types";
 import { fetchProductsAction, fetchLocationsAction } from "@/lib/actions";
 import { productStock, lowStockVariants } from "@/lib/services/inventory";
-import { StockSummary } from "@/components/StockSummary";
-import { LowStockList } from "@/components/LowStockList";
+import { StockSummary } from "@/components/inventory/StockSummary";
+import { LowStockList } from "@/components/inventory/LowStockList";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);

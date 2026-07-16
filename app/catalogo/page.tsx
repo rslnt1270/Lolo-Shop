@@ -1,6 +1,6 @@
 import { getDataSource } from "@/lib/data/get-source";
 import Link from "next/link";
-import { ProductCard3D } from "@/components/ProductCard3D";
+import { ProductCard3D } from "@/components/products/ProductCard3D";
 
 export const revalidate = 60; // Revalidar la página cada 60 segundos (ISR)
 

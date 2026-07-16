@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Scanner } from "@/components/Scanner";
-import { NewProductForm } from "@/components/NewProductForm";
+import { Scanner } from "@/components/inventory/Scanner";
+import { NewProductForm } from "@/components/products/NewProductForm";
 import { fetchProductsAction, getProductByBarcodeAction, getProductByVariantIdAction, adjustInventoryAction } from "@/lib/actions";
 import type { VariantMatch } from "@/lib/data/source";
 import { useSession } from "next-auth/react";

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { StockSummary } from "../StockSummary";
+import { StockSummary } from "../inventory/StockSummary";
 import { fixtureProducts, fixtureLocations } from "@/lib/data/fixtures";
 
 describe("StockSummary", () => {

@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Product } from "@/lib/domain/types";
 import { filterProducts } from "@/lib/data/filter";
-import { SearchFilter } from "@/components/SearchFilter";
-import { ProductCard } from "@/components/ProductCard";
+import { SearchFilter } from "@/components/products/SearchFilter";
+import { ProductCard } from "@/components/products/ProductCard";
 import { fetchProductsAction } from "@/lib/actions";
 
 const CATEGORIES = [
