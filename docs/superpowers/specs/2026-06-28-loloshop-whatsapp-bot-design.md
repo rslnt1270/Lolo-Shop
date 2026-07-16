@@ -1,9 +1,11 @@
 # LoloShop — Bot de WhatsApp (Atención + Venta) — Diseño del Sistema
 
+> **DEPRECADO:** Este diseño con IA y N8N ha sido reemplazado por un diseño puramente informativo (respuestas preconfiguradas) para minimizar costos. Ver `2026-07-06-loloshop-replan-costo-minimo-design.md` para el diseño actualizado.
+
 **Fecha:** 2026-06-28
 **Desarrollador:** Portfolio personal
 **Cliente:** LoloShop (@lolo.bshop)
-**Estado:** Aprobado (diseño) — implementación pausada hasta resolver prerrequisitos
+**Estado:** Reemplazado (ver nota arriba)
 
 ---
 

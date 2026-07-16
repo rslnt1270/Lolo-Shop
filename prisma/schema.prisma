@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String     @id @default(uuid())
+  username   String     @unique
+  password   String     // Hash simple
+  role       String     // "owner" | "manager" | "collaborator"
+  locationId String?
+  location   Location?  @relation(fields: [locationId], references: [id])
+  movements  Movement[]
+}
+
+model Location {
+  id        String     @id @default(uuid())
+  name      String
+  type      String     // "store" | "warehouse"
+  users     User[]
+  inventory InventoryLevel[]
+  movements Movement[]
+}
+
+model Product {
+  id        String    @id @default(uuid())
+  title     String
+  brand     String
+  imageUrl  String?
+  variants  Variant[]
+}
+
+model Variant {
+  id        String    @id @default(uuid())
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  title     String
+  sku       String    @unique
+  barcode   String?   @unique
+  price     Float
+
+  inventory InventoryLevel[]
+  movements Movement[]
+}
+
+model InventoryLevel {
+  id         String   @id @default(uuid())
+  variantId  String
+  locationId String
+  available  Int      @default(0)
+
+  variant    Variant  @relation(fields: [variantId], references: [id])
+  location   Location @relation(fields: [locationId], references: [id])
+
+  @@unique([variantId, locationId])
+}
+
+model Movement {
+  id         String   @id @default(uuid())
+  variantId  String
+  locationId String
+  userId     String
+  delta      Int      // +1 para entrada, -1 para salida
+  timestamp  DateTime @default(now())
+
+  variant    Variant  @relation(fields: [variantId], references: [id])
+  location   Location @relation(fields: [locationId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+}

@@ -68,24 +68,11 @@ Una **Progressive Web App (PWA)** instalable en el celular que usa **Shopify com
 
 ---
 
-## Sistema de Identificación de Productos (Híbrido)
+## Sistema de Identificación de Productos
 
-- **Mercancía nueva sin barcode:** Se genera e imprime una etiqueta QR con branding de LoloShop
-- **Mercancía con barcode de fábrica:** Se escanea el barcode existente y se registra en el variant de Shopify
-- El QR contiene el **Variant ID de Shopify** para mapeo directo a producto + talla + color
-- Las etiquetas QR se generan en formato imprimible (A4, múltiples por hoja) desde la misma app
-
-**Formato de etiqueta QR:**
-```
-┌─────────────────┐
-│  [LOGO LOLOSHOP]│
-│  Hoodie NY      │
-│  Talla: M       │
-│  Color: Negro   │
-│  $450.00        │
-│     [QR CODE]   │
-└─────────────────┘
-```
+- **Mercancía con barcode de fábrica:** Se escanea el barcode existente y se registra en el variant de Shopify.
+- **Mercancía nueva sin barcode:** Se asigna un barcode genérico interno (igual al SKU) y se imprime como código de barras Code128 simple, sin branding.
+- El campo `Variant.barcode` es la única fuente de verdad para el escaneo.
 
 ---
 
@@ -142,7 +129,7 @@ Ejemplo: `LS-PLA-GUE-M-BLA` = LoloShop / Playera / Guess / M / Blanco
    - Nombre, categoría, marca, precio
    - Variantes (talla + color)
    - Genera SKU automático
-   - Genera e imprime etiqueta QR
+   - Imprime etiqueta simple (Barcode/SKU)
 3. Si el producto **ya existe** → seleccionar variante + cantidad + tienda
 
 ### Registrar Salida (venta física)
@@ -151,10 +138,10 @@ Ejemplo: `LS-PLA-GUE-M-BLA` = LoloShop / Playera / Guess / M / Blanco
 3. Descuenta inventario en Shopify (tienda asignada al colaborador)
 4. Registra timestamp y usuario que realizó la operación
 
-### Generar / Imprimir QR
+### Generar / Imprimir Etiqueta (Barcode)
 - Vista previa de etiquetas listas para imprimir
-- Incluye: logo LoloShop, nombre, talla, color, precio, QR
-- Formato A4 (múltiples etiquetas por hoja)
+- Incluye: nombre, talla, color, precio y barcode (Code128)
+- Formato simple para impresora térmica o A4
 
 ### Reportes (Dueño y Encargado)
 - Stock actual por tienda y total
@@ -171,7 +158,7 @@ Ejemplo: `LS-PLA-GUE-M-BLA` = LoloShop / Playera / Guess / M / Blanco
 | PWA vs App nativa | PWA | Sin App Store, instalable, cámara disponible, costo cero |
 | Backend propio vs Shopify | Shopify como backend | Ya está pagado, una sola fuente de verdad |
 | Offline vs Online-only | Online-only | Buena señal en ambas tiendas |
-| QR vs Barcode | Híbrido | Flexibilidad: QR para nueva merch, barcode cuando ya existe |
+| Etiqueta | Barcode simple | Rápido de imprimir, sin costo de diseño/layout |
 | Auth | NextAuth.js | Simple, soporta roles, compatible con Next.js |
 
 ---

@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { Product } from "@/lib/domain/types";
-import { getDataSource } from "@/lib/data/get-source";
 import { filterProducts } from "@/lib/data/filter";
 import { SearchFilter } from "@/components/SearchFilter";
 import { ProductCard } from "@/components/ProductCard";
+import { fetchProductsAction } from "@/lib/actions";
 
 const CATEGORIES = [
   "Playeras", "Pantalones", "Hoodies", "Tenis", "Accesorios", "Perfumes", "Raquetas de Padel",
@@ -16,7 +16,7 @@ export default function ProductosPage() {
   const [category, setCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    getDataSource().getProducts().then(setProducts);
+    fetchProductsAction().then(setProducts);
   }, []);
 
   const visible = useMemo(

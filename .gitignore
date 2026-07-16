@@ -5,3 +5,6 @@ coverage
 *.log
 public/sw.js
 public/workbox-*.js
+.vercel
+
+/lib/generated/prisma

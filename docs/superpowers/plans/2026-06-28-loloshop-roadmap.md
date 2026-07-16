@@ -39,21 +39,18 @@ Login por roles, dashboard, productos. Datos con `FixtureDataSource`.
   salida (descuento de stock).
 - Requiere: token de Shopify Admin API + inventario cargado.
 
-### Fase 3 — Bot de WhatsApp + cobro (Mercado Pago)
-Diseño aprobado: `2026-06-28-loloshop-whatsapp-bot-design.md`.
-- Endpoints `/api/bot/*` en el PWA (TDD, fixtures primero), auth por `x-bot-key`.
-- Workflow N8N: WhatsApp Trigger → AI Agent (Claude Haiku) → herramientas HTTP →
-  WhatsApp send. Memoria por número.
-- Cobro: link de pago **Mercado Pago** (nodo oficial) + webhook → aviso al staff.
-- "Go live" con stock real cuando F2 conecte Shopify.
+### Fase 3 — Bot de WhatsApp (Informativo)
+Diseño actualizado: `2026-07-06-loloshop-replan-costo-minimo-design.md`.
+- Bot de WhatsApp puramente informativo con respuestas pre-configuradas (sin IA ni N8N).
+- Endpoint webhook en Next.js (`/api/whatsapp/webhook`) para manejar interacciones de menú.
+- Contenido estático: ubicación, horarios, link de catálogo.
+- Notifica a un humano del staff para coordinar entregas o dudas complejas.
 
 ### Fase 4 — Facebook Ads (adquisición)
-Diseño en la sección "Módulo Facebook Ads" del spec del bot.
-- Campañas **Click-to-WhatsApp** que aterrizan en el bot.
-- **Conversions API**: reportar `Purchase` a Meta al confirmarse el pago.
+Diseño actualizado: `2026-07-06-loloshop-replan-costo-minimo-design.md`.
+- Anuncios apuntan a redes sociales o al WhatsApp informativo.
+- Ventas son 100% físicas o por Shopify, sin Conversions API para el bot de WhatsApp.
 - Catálogo Shopify → Meta (preferir canal nativo de Shopify).
-- Panel mínimo: gasto, chats, ventas atribuidas.
-- Depende de F3 (el anuncio necesita un bot funcional como destino).
 
 ---
 
@@ -64,20 +61,18 @@ Diseño en la sección "Módulo Facebook Ads" del spec del bot.
 | 1 | Token de Shopify Admin API | F2 (stock real) |
 | 2 | Inventario de productos cargado | F2 |
 | 3 | Cuenta WhatsApp Business (Cloud API): token + WABA ID | F3 |
-| 4 | Cuenta Mercado Pago + access token; community node en N8N | F3 |
-| 5 | Instancia de N8N accesible por webhooks + API key de Claude | F3 |
-| 6 | Logo/identidad final (carita guiño + teal) para iconos PWA y deck | F1/F3 |
-| 7 | Meta Business Manager + cuenta publicitaria + Pixel/CAPI + catálogo | F4 |
+| 4 | Cuenta Mercado Pago + Checkout habilitado en Shopify | F2/F3 |
+| 5 | Logo/identidad final (carita guiño + teal) para iconos PWA y deck | F1/F3 |
+| 6 | Meta Business Manager + cuenta publicitaria + catálogo | F4 |
 
 ---
 
 ## Costos de operación (resumen)
 
-**Fijo mensual ≈ $30–60 USD (~$600–1,100 MXN):**
+**Fijo mensual ≈ $0–20 USD:**
 - Vercel: $0 (Hobby) — ~$20 USD si escala.
-- N8N: ~$6 USD (self-host VPS) o ~$24 USD (Cloud Starter, 2,500 ejecuciones).
-- Claude Haiku 4.5: ~$5–15 USD a volumen bajo ($1/M entrada, $5/M salida; ~$0.02–0.05 por conversación).
 - WhatsApp Business Cloud: ~$0 dentro de la ventana de servicio de 24h (bot reactivo).
+- N8N y Claude eliminados para minimizar costos.
 
 **Variables (sobre ventas / a discreción):**
 - Mercado Pago: 3.49% + $4.00 MXN + IVA por venta (link de pago, dinero al instante).
