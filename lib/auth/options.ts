@@ -12,9 +12,9 @@ export const authOptions: NextAuthOptions = {
         username: { label: "Usuario", type: "text" },
         password: { label: "Contraseña", type: "password" },
       },
-      authorize(credentials) {
+      async authorize(credentials) {
         if (!credentials) return null;
-        const user = findUser(credentials.username, credentials.password);
+        const user = await findUser(credentials.username, credentials.password);
         if (!user) return null;
         return { id: user.id, name: user.name, role: user.role, locationId: user.locationId };
       },
@@ -23,13 +23,15 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
-        token.role = (user as { role: string }).role;
+        token.id = user.id;
+        token.role = (user as { role: Role }).role;
         token.locationId = (user as { locationId: string | null }).locationId;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
+        session.user.id = token.id as string;
         session.user.role = token.role as Role;
         session.user.locationId = (token.locationId as string | null) ?? null;
       }

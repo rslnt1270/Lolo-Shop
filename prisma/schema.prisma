@@ -10,7 +10,8 @@ datasource db {
 model User {
   id         String     @id @default(uuid())
   username   String     @unique
-  password   String     // Hash simple
+  password   String     // Hash bcrypt
+  name       String     @default("")
   role       String     // "owner" | "manager" | "collaborator"
   locationId String?
   location   Location?  @relation(fields: [locationId], references: [id])

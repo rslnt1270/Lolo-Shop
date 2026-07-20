@@ -1,9 +1,25 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getDataSource } from '@/lib/data/get-source';
 
 // Configuración de Meta Cloud API
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
+
+// Valida la firma X-Hub-Signature-256 que Meta manda en cada POST.
+// Sin WHATSAPP_APP_SECRET configurado, se omite (solo para desarrollo local).
+function isValidSignature(rawBody: string, signatureHeader: string | null): boolean {
+  if (!APP_SECRET) {
+    console.warn("⚠️ WHATSAPP_APP_SECRET no configurado: firma del webhook NO validada.");
+    return true;
+  }
+  if (!signatureHeader) return false;
+  const expected = 'sha256=' + crypto.createHmac('sha256', APP_SECRET).update(rawBody).digest('hex');
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // 1. Verificación del Webhook (Usado por Meta para validar la URL)
 export async function GET(req: Request) {
@@ -22,7 +38,11 @@ export async function GET(req: Request) {
 // 2. Recepción de Mensajes (Cuando un cliente escribe)
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const rawBody = await req.text();
+    if (!isValidSignature(rawBody, req.headers.get('x-hub-signature-256'))) {
+      return new NextResponse('Invalid signature', { status: 401 });
+    }
+    const body = JSON.parse(rawBody);
 
     if (body.object === 'whatsapp_business_account') {
       for (const entry of body.entry || []) {

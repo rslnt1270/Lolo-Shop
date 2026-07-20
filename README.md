@@ -60,12 +60,31 @@ El catálogo público manda a los usuarios a WhatsApp con un SKU prellenado. El 
 - Si dicen **"Envíos"**: Lanza la macro de envíos y paqueterías.
 - Si dicen **"Ubicación"**: Lanza horarios y dirección.
 
+## Configuración local
+
+1. Copia `.env.example` a `.env` y llena los valores (el archivo `.env` **no** se commitea).
+2. Sincroniza el esquema y siembra datos iniciales:
+
+```bash
+npm install
+npm run db:push   # aplica prisma/schema.prisma a la BD
+npm run db:seed   # tiendas (loc-1/loc-2), usuarios con bcrypt y producto demo
+```
+
+Las contraseñas del seed se pueden definir con `SEED_PASSWORD_*` (ver `.env.example`); sin ellas usa valores de desarrollo.
+
 ## Despliegue en Vercel
 
 El proyecto está configurado para Vercel. Asegúrate de configurar las siguientes variables de entorno:
 - `DATABASE_URL`
-- `NEXTAUTH_SECRET`
+- `NEXTAUTH_SECRET` — genera uno con `openssl rand -base64 32`
 - `WHATSAPP_TOKEN`
 - `WHATSAPP_VERIFY_TOKEN`
+- `WHATSAPP_APP_SECRET` — App Secret de Meta; valida la firma de cada webhook entrante
+- `BOT_API_KEY` — clave para `/api/bot/products` (n8n); sin ella el endpoint responde 503
+- `NEXT_PUBLIC_WHATSAPP_NUMBER` — número del catálogo público, con código de país
 
 **(El comando de postinstall `prisma generate` corre automáticamente en Vercel).**
+
+> ⚠️ **Seguridad:** si alguna credencial llegó a estar commiteada en el historial del repo
+> (cadena de conexión de la BD, `NEXTAUTH_SECRET`), considérala comprometida y rótala.

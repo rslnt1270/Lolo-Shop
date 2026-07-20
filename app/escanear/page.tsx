@@ -39,15 +39,21 @@ export default function EscanearPage() {
       setMessage("Error: No se encontró el producto o no tienes tienda asignada.");
       return;
     }
-    
-    const delta = type === "in" ? quantity : -quantity;
+
+    const qty = Math.floor(quantity);
+    if (!Number.isFinite(qty) || qty < 1) {
+      setMessage("Error: La cantidad debe ser un número entero mayor o igual a 1.");
+      return;
+    }
+
+    const delta = type === "in" ? qty : -qty;
     try {
-      await adjustInventoryAction(match.variant.id, session.user.locationId, delta, (session.user as any).id);
+      await adjustInventoryAction(match.variant.id, session.user.locationId, delta);
       setMessage(`Movimiento exitoso: ${delta > 0 ? '+' : ''}${delta} ${match.product.title}`);
       setMatch(null);
       setScannedCode(null);
       setQuantity(1);
-    } catch (e: any) {
+    } catch (e) {
       setMessage("Error al actualizar inventario.");
     }
   };

@@ -1,15 +1,22 @@
 import { getDataSource } from "@/lib/data/get-source";
 import Link from "next/link";
 import { ProductCard3D } from "@/components/products/ProductCard3D";
+import type { Product } from "@/lib/domain/types";
 
 export const revalidate = 60; // Revalidar la página cada 60 segundos (ISR)
 
 export default async function CatalogoPage() {
   // Obtenemos los productos directo de la base de datos para renderizarlos en el servidor (SEO Friendly)
-  const products = await getDataSource().getProducts();
+  // Si la BD no está disponible (p. ej. durante el build en CI), mostramos el catálogo vacío.
+  let products: Product[] = [];
+  try {
+    products = await getDataSource().getProducts();
+  } catch (error) {
+    console.error("No se pudo cargar el catálogo:", error);
+  }
 
-  // Número de WhatsApp al que llegarán los mensajes (Debe incluir código de país, ej: 5215555555555)
-  const WHATSAPP_NUMBER = "5210000000000"; // Reemplaza esto con tu número real
+  // Número de WhatsApp al que llegarán los mensajes (con código de país, ej: 5215555555555)
+  const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "5210000000000";
 
   return (
     <div className="min-h-screen bg-[#F9FAFB]">

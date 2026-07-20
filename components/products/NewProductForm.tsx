@@ -10,6 +10,7 @@ interface NewProductFormProps {
 
 export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }: NewProductFormProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     title: "",
     brand: "",
@@ -20,6 +21,7 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
     try {
       await createProductAction({
         barcode: scannedCode,
@@ -29,10 +31,11 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }:
         sku: formData.sku,
         locationId
       });
-      
+
       onSuccess("Producto dado de alta exitosamente.");
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo dar de alta el producto. Revisa los datos e inténtalo de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -121,6 +124,10 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }:
           </div>
         </div>
       </div>
+
+      {error && (
+        <p className="rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>
+      )}
 
       <div className="flex flex-col gap-2 pt-2">
         <button

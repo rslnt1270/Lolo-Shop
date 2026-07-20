@@ -1,8 +1,10 @@
 node_modules
 .next
+.env
 .env*.local
 coverage
 *.log
+*.tsbuildinfo
 public/sw.js
 public/workbox-*.js
 .vercel

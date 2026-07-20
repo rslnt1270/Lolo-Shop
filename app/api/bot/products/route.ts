@@ -1,13 +1,26 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { getDataSource } from "@/lib/data/get-source";
 import { filterProducts } from "@/lib/data/filter";
 
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
+}
+
 export async function GET(request: Request) {
   // 1. Validación de seguridad (Autenticación del Bot)
+  const expectedKey = process.env.BOT_API_KEY;
+  if (!expectedKey) {
+    return NextResponse.json(
+      { error: "Endpoint no disponible: BOT_API_KEY no está configurada." },
+      { status: 503 }
+    );
+  }
+
   const botKey = request.headers.get("x-bot-key");
-  const expectedKey = process.env.BOT_API_KEY || "lolo-bot-secret-dev-key"; // Recomendado setear en Vercel
-  
-  if (botKey !== expectedKey) {
+  if (!botKey || !safeEqual(botKey, expectedKey)) {
     return NextResponse.json(
       { error: "Unauthorized. Invalid or missing x-bot-key header." },
       { status: 401 }
@@ -31,7 +44,7 @@ export async function GET(request: Request) {
       // Devolver solo variantes que tengan stock > 0
       const availableVariants = product.variants
         .map((v) => {
-          const totalStock = v.inventoryLevels?.reduce((acc, level) => acc + level.available, 0) || 0;
+          const totalStock = v.inventory.reduce((acc, level) => acc + level.available, 0);
           return {
             sku: v.sku,
             title: v.title,
@@ -57,10 +70,10 @@ export async function GET(request: Request) {
       count: optimizedProducts.length,
       data: optimizedProducts,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error en /api/bot/products:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
