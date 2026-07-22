@@ -19,7 +19,8 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 - Migraciones: Prisma (`prisma migrate`). No editar SQL a mano.
 
 ## Seguridad
-- **Incidente 2026-07-21 (remediado):** `.env` estuvo trackeado en el repo público (commit `6f2e79b`) con `DATABASE_URL` + `NEXTAUTH_SECRET`. La auditoría automática (`4e5c510`) lo destrackeó y endureció `.gitignore`. **Pendiente crítico:** las credenciales expuestas siguen en la historia del repo público → **ROTAR** password de DB y regenerar `NEXTAUTH_SECRET` (`openssl rand -base64 32`); considerar purga de historia (git-filter-repo/BFG).
+- **Incidente 2026-07-21 (remediado):** `.env` estuvo trackeado en el repo público (commit `6f2e79b`) con `DATABASE_URL` + `NEXTAUTH_SECRET`. La auditoría automática (`4e5c510`) lo destrackeó y endureció `.gitignore`.
+- **Rotación completada 2026-07-22:** las credenciales expuestas fueron **rotadas y verificadas inservibles**. Password de Neon (`neondb_owner`) cambiado vía `ALTER ROLE` (viejo rechazado con `psql`); `NEXTAUTH_SECRET` regenerado (`openssl rand -base64 32`). Aplicado en `.env` local + Vercel (Production/Preview) + redeploy. Se agregó `DATABASE_URL` (faltaba en Vercel) y `BOT_API_KEY` (endpoint n8n). El blob del `.env` **sigue en la historia pública** pero con credenciales muertas → **purga de historia opcional** (git-filter-repo/BFG), no urgente.
 - `User.password`: verificar que use hashing fuerte (bcrypt/argon2), no "hash simple".
 
 ## MCP disponibles (`.mcp.json`)
