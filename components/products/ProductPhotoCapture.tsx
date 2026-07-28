@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { computeSquareCrop, autoLevels } from "@/lib/image/process";
 
 const MAX_SIZE = 1080;
@@ -11,15 +11,22 @@ interface ProductPhotoCaptureProps {
 
 export function ProductPhotoCapture({ onCapture, onClear }: ProductPhotoCaptureProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
 
   const process = async (file: File) => {
     setBusy(true);
     setError("");
     try {
-      const bitmap = await createImageBitmap(file);
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
       const { sx, sy, size } = computeSquareCrop(bitmap.width, bitmap.height);
       const out = Math.min(size, MAX_SIZE);
 
@@ -79,14 +86,14 @@ export function ProductPhotoCapture({ onCapture, onClear }: ProductPhotoCaptureP
         capture="environment"
         onChange={handleChange}
         className="hidden"
-        id="product-photo-input"
+        id={inputId}
       />
       {preview ? (
         <div className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview} alt="Vista previa" className="w-32 h-32 rounded-lg object-cover border" />
           <div className="flex gap-3 text-sm">
-            <button type="button" onClick={() => inputRef.current?.click()} className="text-loloteal">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="text-loloteal">
               Retomar
             </button>
             <button type="button" onClick={clear} className="text-gray-500">

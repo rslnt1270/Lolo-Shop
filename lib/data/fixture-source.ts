@@ -61,7 +61,7 @@ export class FixtureDataSource implements InventoryDataSource {
       title: data.title,
       category: "Uncategorized",
       brand: data.brand,
-      imageUrl: null,
+      imageUrl: data.imageUrl ?? null,
       variants: [newVariant as any] // Quick fix to bypass Variant type mismatch in fixtures
     };
 
