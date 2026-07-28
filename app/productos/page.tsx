@@ -4,6 +4,7 @@ import type { Product } from "@/lib/domain/types";
 import { filterProducts } from "@/lib/data/filter";
 import { SearchFilter } from "@/components/products/SearchFilter";
 import { ProductCard } from "@/components/products/ProductCard";
+import { ProductPhotoButton } from "@/components/products/ProductPhotoButton";
 import { fetchProductsAction } from "@/lib/actions";
 
 const CATEGORIES = [
@@ -29,7 +30,16 @@ export default function ProductosPage() {
       <h1 className="text-xl font-bold">Productos</h1>
       <SearchFilter categories={CATEGORIES} onQuery={setQuery} onCategory={setCategory} />
       <div className="grid gap-3">
-        {visible.map((p) => <ProductCard key={p.id} product={p} />)}
+        {visible.map((p) => (
+          <div key={p.id} className="space-y-1">
+            <ProductCard product={p} />
+            <ProductPhotoButton
+              productId={p.id}
+              hasImage={!!p.imageUrl}
+              onUpdated={() => fetchProductsAction().then(setProducts)}
+            />
+          </div>
+        ))}
         {visible.length === 0 && <p className="text-gray-500">Sin resultados.</p>}
       </div>
     </main>

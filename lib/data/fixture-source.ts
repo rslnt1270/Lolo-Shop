@@ -61,7 +61,7 @@ export class FixtureDataSource implements InventoryDataSource {
       title: data.title,
       category: "Uncategorized",
       brand: data.brand,
-      imageUrl: null,
+      imageUrl: data.imageUrl ?? null,
       variants: [newVariant as any] // Quick fix to bypass Variant type mismatch in fixtures
     };
 
@@ -71,5 +71,11 @@ export class FixtureDataSource implements InventoryDataSource {
       product: newProduct,
       variant: newVariant as any
     };
+  }
+
+  async updateProductImage(productId: string, imageUrl: string): Promise<void> {
+    const product = fixtureProducts.find((p) => p.id === productId);
+    if (!product) throw new Error("Producto no encontrado");
+    product.imageUrl = imageUrl;
   }
 }

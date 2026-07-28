@@ -190,4 +190,11 @@ export class PrismaDataSource implements InventoryDataSource {
       }
     };
   }
+
+  async updateProductImage(productId: string, imageUrl: string): Promise<void> {
+    await prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl },
+    });
+  }
 }

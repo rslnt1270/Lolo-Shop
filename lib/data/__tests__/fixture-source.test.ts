@@ -50,3 +50,29 @@ describe("FixtureDataSource", () => {
     expect(match).toBeNull();
   });
 });
+
+describe("FixtureDataSource.updateProductImage", () => {
+  it("actualiza el imageUrl del producto indicado", async () => {
+    const ds = new FixtureDataSource();
+    const { product } = await ds.createProduct({
+      barcode: "TEST-IMG-001",
+      title: "Producto Test Imagen",
+      brand: "TestBrand",
+      price: 100,
+      locationId: "loc-1",
+    });
+
+    await ds.updateProductImage(product.id, "https://blob.example/x.jpg");
+
+    const all = await ds.getProducts();
+    const updated = all.find((p) => p.id === product.id);
+    expect(updated?.imageUrl).toBe("https://blob.example/x.jpg");
+  });
+
+  it("lanza si el producto no existe", async () => {
+    const ds = new FixtureDataSource();
+    await expect(
+      ds.updateProductImage("no-existe", "https://blob.example/x.jpg")
+    ).rejects.toThrow();
+  });
+});
