@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { createProductAction } from "@/lib/actions";
+import { createProductAction, uploadProductImageAction } from "@/lib/actions";
+import { ProductPhotoCapture } from "./ProductPhotoCapture";
 
 interface NewProductFormProps {
   scannedCode: string;
@@ -11,6 +12,7 @@ interface NewProductFormProps {
 export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }: NewProductFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     brand: "",
@@ -23,13 +25,21 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }:
     setLoading(true);
     setError("");
     try {
+      let imageUrl: string | undefined;
+      if (photo) {
+        const fd = new FormData();
+        fd.append("image", photo);
+        imageUrl = await uploadProductImageAction(fd);
+      }
+
       await createProductAction({
         barcode: scannedCode,
         title: formData.title,
         brand: formData.brand,
         price: parseFloat(formData.price),
         sku: formData.sku,
-        locationId
+        locationId,
+        imageUrl,
       });
 
       onSuccess("Producto dado de alta exitosamente.");
@@ -128,6 +138,13 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel }:
       {error && (
         <p className="rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{error}</p>
       )}
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Foto del producto <span className="text-gray-400">(opcional)</span>
+        </label>
+        <ProductPhotoCapture onCapture={setPhoto} onClear={() => setPhoto(null)} />
+      </div>
 
       <div className="flex flex-col gap-2 pt-2">
         <button
