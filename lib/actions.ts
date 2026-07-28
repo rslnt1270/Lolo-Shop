@@ -5,6 +5,7 @@ import { authOptions } from "./auth/options";
 import { getDataSource } from "./data/get-source";
 import type { Location, Product } from "./domain/types";
 import type { VariantMatch } from "./data/source";
+import { uploadImage } from "./image/upload";
 
 async function requireSession() {
   const session = await getServerSession(authOptions);
@@ -70,4 +71,28 @@ export async function createProductAction(data: {
   const result = await getDataSource().createProduct(data);
   revalidatePath("/catalogo");
   return result;
+}
+
+export async function uploadProductImageAction(formData: FormData): Promise<string> {
+  await requireSession();
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("No se recibió una imagen válida.");
+  }
+  return await uploadImage(file);
+}
+
+export async function updateProductImageAction(
+  productId: string,
+  formData: FormData
+): Promise<void> {
+  await requireSession();
+  const file = formData.get("image");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("No se recibió una imagen válida.");
+  }
+  const url = await uploadImage(file);
+  await getDataSource().updateProductImage(productId, url);
+  revalidatePath("/catalogo");
+  revalidatePath("/productos");
 }
