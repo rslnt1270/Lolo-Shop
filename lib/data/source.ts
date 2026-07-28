@@ -22,4 +22,5 @@ export interface InventoryDataSource {
   getProductByBarcode(barcode: string): Promise<VariantMatch | null>;
   adjustInventory(variantId: string, locationId: string, delta: number, userId?: string): Promise<void>;
   createProduct(data: CreateProductData): Promise<VariantMatch>;
+  updateProductImage(productId: string, imageUrl: string): Promise<void>;
 }

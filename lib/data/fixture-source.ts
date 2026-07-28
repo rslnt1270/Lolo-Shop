@@ -72,4 +72,10 @@ export class FixtureDataSource implements InventoryDataSource {
       variant: newVariant as any
     };
   }
+
+  async updateProductImage(productId: string, imageUrl: string): Promise<void> {
+    const product = fixtureProducts.find((p) => p.id === productId);
+    if (!product) throw new Error("Producto no encontrado");
+    product.imageUrl = imageUrl;
+  }
 }
