@@ -8,6 +8,7 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 - **Auth:** `next-auth` (`NEXTAUTH_SECRET`, `NEXTAUTH_URL`).
 - **Escaneo:** `html5-qrcode` + `react-barcode` (flujo POS: escanear SKU/barcode → movimiento de inventario).
 - **UI:** `framer-motion`, `lucide-react`. Catálogo 3D + webhook WhatsApp integrados.
+- **Imágenes de producto:** `@vercel/blob`. Captura foto en el alta → edición en cliente (Canvas: crop 1:1, resize, auto-niveles, EXIF-upright) en `lib/image/process.ts` → subida server-side en `lib/image/upload.ts` (nunca en el data source) → URL en `Product.imageUrl`. Reutilizable para agregar/cambiar foto desde `/productos`. Requiere `BLOB_READ_WRITE_TOKEN` (crear el store en Vercel; sin él la subida real falla, pero los tests usan mock).
 - **Deploy:** Vercel.
 
 ## Modelo de datos (Prisma)

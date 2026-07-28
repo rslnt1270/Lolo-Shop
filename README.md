@@ -34,12 +34,17 @@ graph TD
    - Alertas visuales de stock bajo.
    - Sincronización instantánea entre sucursales.
 
-2. **Catálogo Interactivo 3D (`/catalogo`):**
+2. **Captura de foto unificada (inventario ↔ catálogo):**
+   - Al dar de alta un producto escaneado se puede tomar/subir una foto (cámara o galería).
+   - Edición automática en el navegador (Canvas): recorte 1:1, redimensionado, auto-niveles y corrección de orientación EXIF — imágenes consistentes sin trabajo manual ni servicios externos.
+   - La imagen se sube a **Vercel Blob** y su URL queda en el producto, que aparece completo en el catálogo en el mismo acto de registro. La foto es opcional y también se puede agregar/cambiar después desde `/productos`.
+
+3. **Catálogo Interactivo 3D (`/catalogo`):**
    - Renderizado dinámico usando `framer-motion` a 60 FPS.
    - Efectos físicos realistas de iluminación ("Glare") basados en acelerómetro y posición del mouse.
    - Conexión fluida hacia WhatsApp para apartar prendas ("FOMO").
 
-3. **Bot de WhatsApp Oficial (Meta Cloud API):**
+4. **Bot de WhatsApp Oficial (Meta Cloud API):**
    - Webhook inteligente integrado en Next.js (`/api/whatsapp/webhook`).
    - Lee el catálogo en vivo desde Prisma/Neon.
    - Reserva de prendas lógicamente y redirige al cierre de la venta.
@@ -50,6 +55,7 @@ graph TD
 - **Frontend:** Next.js 14 (App Router), React, TailwindCSS, Framer Motion
 - **Backend:** Node.js, Prisma ORM
 - **Base de Datos:** PostgreSQL (Neon)
+- **Imágenes de producto:** Vercel Blob (edición en cliente con Canvas API)
 - **Infraestructura:** Vercel, PWA (next-pwa)
 - **Autenticación:** NextAuth.js
 
@@ -83,6 +89,7 @@ El proyecto está configurado para Vercel. Asegúrate de configurar las siguient
 - `WHATSAPP_APP_SECRET` — App Secret de Meta; valida la firma de cada webhook entrante
 - `BOT_API_KEY` — clave para `/api/bot/products` (n8n); sin ella el endpoint responde 503
 - `NEXT_PUBLIC_WHATSAPP_NUMBER` — número del catálogo público, con código de país
+- `BLOB_READ_WRITE_TOKEN` — token del store de **Vercel Blob** para las fotos de producto. Crea el store en el proyecto de Vercel (suele inyectar el token automáticamente); sin él, la subida de imágenes falla
 
 **(El comando de postinstall `prisma generate` corre automáticamente en Vercel).**
 
