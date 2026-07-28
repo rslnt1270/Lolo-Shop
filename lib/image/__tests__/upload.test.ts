@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { PutBlobResult } from "@vercel/blob";
 
 vi.mock("@vercel/blob");
 
@@ -10,7 +11,14 @@ const putMock = vi.mocked(blobModule.put);
 describe("uploadImage", () => {
   beforeEach(() => {
     putMock.mockReset();
-    putMock.mockResolvedValue({ url: "https://blob.example/productos/abc.jpg" });
+    putMock.mockResolvedValue({
+      url: "https://blob.example/productos/abc.jpg",
+      downloadUrl: "https://blob.example/productos/abc.jpg?download",
+      pathname: "/productos/abc.jpg",
+      contentType: "image/jpeg",
+      contentDisposition: "inline",
+      etag: "abc123",
+    } as unknown as PutBlobResult);
   });
 
   it("sube el archivo como público y devuelve la URL", async () => {
