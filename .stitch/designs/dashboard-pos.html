@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Streetwear Logistics - POS &amp; Internal Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@100..900&amp;family=Geist:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary": "#cbc8cc",
+                        "secondary-container": "#47464a",
+                        "on-tertiary-fixed": "#1b1b1e",
+                        "primary-fixed": "#7cf5f5",
+                        "secondary": "#c8c5ca",
+                        "on-primary": "#003737",
+                        "secondary-fixed": "#e4e1e6",
+                        "surface-bright": "#383940",
+                        "surface-container": "#1e1f26",
+                        "outline": "#869393",
+                        "secondary-fixed-dim": "#c8c5ca",
+                        "inverse-primary": "#006a6a",
+                        "tertiary-fixed-dim": "#c8c6c9",
+                        "surface-dim": "#12131a",
+                        "on-secondary-fixed-variant": "#47464a",
+                        "on-primary-fixed": "#002020",
+                        "on-error": "#690005",
+                        "on-tertiary-container": "#414144",
+                        "error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#47464a",
+                        "surface-variant": "#33343c",
+                        "tertiary-container": "#afadb1",
+                        "on-secondary-container": "#b6b4b8",
+                        "primary-container": "#3cbfbf",
+                        "on-primary-container": "#004949",
+                        "primary-fixed-dim": "#5cd9d8",
+                        "surface-container-low": "#1a1b22",
+                        "on-secondary-fixed": "#1b1b1e",
+                        "primary": "#5fdbdb",
+                        "on-primary-fixed-variant": "#004f50",
+                        "inverse-surface": "#e2e1eb",
+                        "on-surface": "#e2e1eb",
+                        "surface-container-high": "#282a31",
+                        "surface-container-highest": "#33343c",
+                        "on-secondary": "#303033",
+                        "tertiary-fixed": "#e4e1e5",
+                        "outline-variant": "#3d4949",
+                        "on-tertiary": "#303033",
+                        "surface-tint": "#5cd9d8",
+                        "error": "#ffb4ab",
+                        "surface": "#12131a",
+                        "on-error-container": "#ffdad6",
+                        "on-background": "#e2e1eb",
+                        "on-surface-variant": "#bcc9c8",
+                        "inverse-on-surface": "#2f3037",
+                        "background": "#12131a",
+                        "surface-container-lowest": "#0c0e14"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0px",
+                        "lg": "0px",
+                        "xl": "0px",
+                        "full": "0px"
+                    },
+                    "spacing": {
+                        "container-max-width": "1600px",
+                        "unit": "4px",
+                        "margin-page": "24px",
+                        "gutter": "16px",
+                        "density-md": "8px",
+                        "density-lg": "12px",
+                        "density-sm": "4px"
+                    },
+                    "fontFamily": {
+                        "label-caps": ["Geist Mono"],
+                        "headline-md": ["Geist"],
+                        "data-mono": ["Geist Mono"],
+                        "body-sm": ["Geist"],
+                        "body-md": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "headline-sm": ["Geist"],
+                        "headline-lg": ["Geist"]
+                    },
+                    "fontSize": {
+                        "label-caps": ["11px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "data-mono": ["13px", { "lineHeight": "20px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+                        "body-sm": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "600" }],
+                        "headline-lg": ["30px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        
+        /* Tactical Button Interaction */
+        .btn-tactile:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-hidden selection:bg-primary-container selection:text-on-primary-container">
+<!-- Shared Component: SideNavBar -->
+<nav class="bg-surface dark:bg-surface text-primary dark:text-primary font-label-caps text-label-caps fixed left-0 top-0 h-screen w-[240px] rounded-none border-r border-secondary-container dark:border-secondary-container z-50">
+<div class="flex flex-col h-full py-6">
+<!-- Header/Brand -->
+<div class="px-6 mb-8 flex flex-col gap-2">
+<div class="flex items-center gap-3">
+<img class="w-10 h-10 object-cover border border-secondary-container" data-alt="A highly detailed, ultra-minimalist avatar placeholder image for a system operator. The image should feature a stark, high-contrast, geometric depiction of a human silhouette rendered entirely in deep blacks, harsh grays, and precise, glowing teal outlines. The aesthetic is cold, technical, and brutalist, evoking a high-end cyberpunk terminal interface. Perfect, sharp 0px borders." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6drMD73lBSMlqnpl9bBMiewqdYtWFyJygbz866M1chD39l6FgI1n5N9htcYUtI5pemhm4vDaGSmgJCBpCZE7o7UCLZfRz-H345F5xtcoLjgUFNxCW4w8AaC2rMVlyyoFq1W9yakhLvQThs2B6rhOwz0AR094j0eFY13YjW_SmN_uKekIVNsoD5NPkQ7xtNHn_5WNVYNLrpSd-4xrtyBduIKFEO9LJdz_TC5NrqDpGPHmBI3PNBJ7IjogqgBR9fXYm-y4DIj7nl-4I"/>
+<div>
+<div class="font-headline-sm text-headline-sm font-bold text-primary dark:text-primary tracking-tighter">STRTWR_OPS</div>
+<div class="text-[10px] text-tertiary">V1.0.4_STABLE</div>
+</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<ul class="flex flex-col gap-1 mt-4">
+<li>
+<a class="flex items-center gap-4 py-3 text-tertiary dark:text-tertiary hover:text-on-surface pl-4 hover:bg-secondary-container/10 transition-colors duration-150 active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span>
+<span>Inventory</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-primary dark:text-primary bg-secondary-container/20 border-l-2 border-primary pl-3 hover:bg-secondary-container/10 transition-colors duration-150 active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px] fill" style="font-variation-settings: 'FILL' 1;">point_of_sale</span>
+<span>POS</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-tertiary dark:text-tertiary hover:text-on-surface pl-4 hover:bg-secondary-container/10 transition-colors duration-150 active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">auto_stories</span>
+<span>Catalog</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-tertiary dark:text-tertiary hover:text-on-surface pl-4 hover:bg-secondary-container/10 transition-colors duration-150 active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span>Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-4 py-3 text-tertiary dark:text-tertiary hover:text-on-surface pl-4 hover:bg-secondary-container/10 transition-colors duration-150 active:translate-x-0.5 transition-transform" href="#">
+<span class="material-symbols-outlined text-[20px]">person</span>
+<span>User Profile</span>
+</a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- Shared Component: TopAppBar -->
+<header class="bg-surface-container dark:bg-surface-container text-primary dark:text-primary font-label-caps text-label-caps docked full-width top-0 rounded-none border-b border-secondary-container dark:border-secondary-container fixed right-0 left-0 z-40">
+<div class="flex justify-between items-center h-14 ml-[240px] px-6">
+<div class="font-headline-sm text-headline-sm font-black text-on-surface dark:text-on-surface">STREETWEAR_LOGISTICS</div>
+<div class="flex items-center gap-4">
+<!-- Search (on_right) -->
+<div class="relative w-64 border border-secondary-container bg-surface-dim flex items-center px-3 py-1.5 focus-within:border-primary transition-colors">
+<span class="material-symbols-outlined text-[18px] text-tertiary mr-2">search</span>
+<input class="bg-transparent border-none outline-none w-full text-on-surface font-data-mono text-data-mono placeholder:text-tertiary/50 p-0 focus:ring-0" placeholder="QUERY_SKU_OR_ITEM..." type="text"/>
+</div>
+<!-- Trailing Icons -->
+<div class="flex items-center gap-3 border-l border-secondary-container pl-4">
+<button class="text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary active:opacity-80 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-on-surface-variant dark:text-on-surface-variant hover:text-primary dark:hover:text-primary active:opacity-80 transition-colors">
+<span class="material-symbols-outlined">barcode_scanner</span>
+</button>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Workspace Area -->
+<main class="ml-[240px] mt-[56px] h-[calc(100vh-56px)] overflow-y-auto p-margin-page bg-surface flex flex-col gap-margin-page">
+<!-- POS Entry Section -->
+<section class="grid grid-cols-12 gap-gutter h-64 shrink-0">
+<!-- Scanner Area (Left, 4 columns) -->
+<div class="col-span-4 border border-secondary-container bg-surface-container flex flex-col items-center justify-center relative overflow-hidden group">
+<div class="absolute inset-0 border-[4px] border-transparent group-hover:border-primary/20 transition-all duration-300"></div>
+<!-- Scanning Laser Effect -->
+<div class="absolute top-1/2 left-0 w-full h-[2px] bg-primary-container shadow-[0_0_15px_rgba(60,191,191,0.8)] opacity-50"></div>
+<span class="material-symbols-outlined text-[48px] text-tertiary mb-4 opacity-50">barcode_scanner</span>
+<p class="font-label-caps text-label-caps text-tertiary tracking-widest uppercase">Awaiting Scan...</p>
+<div class="absolute top-4 right-4 flex gap-1">
+<span class="w-1.5 h-1.5 bg-primary rounded-none animate-pulse"></span>
+</div>
+</div>
+<!-- Manual Input & Actions (Right, 8 columns) -->
+<div class="col-span-8 flex flex-col gap-4">
+<!-- Large Input -->
+<div class="flex flex-col flex-grow bg-surface-container border border-secondary-container p-6 relative">
+<label class="font-label-caps text-label-caps text-tertiary mb-2 uppercase">Manual Entry [SKU / UID]</label>
+<input autofocus="" class="w-full h-full bg-surface-dim border border-secondary-container focus:border-primary font-data-mono text-[32px] font-bold text-on-surface p-4 tracking-widest placeholder:text-tertiary/20 rounded-none transition-colors outline-none focus:ring-0" placeholder="ENTER_CODE_HERE" type="text"/>
+</div>
+<!-- Action Buttons -->
+<div class="grid grid-cols-2 gap-4 h-16 shrink-0">
+<button class="bg-surface-dim border border-primary-container text-primary-container font-label-caps text-label-caps uppercase hover:bg-primary-container/10 transition-colors btn-tactile flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">qr_code_scanner</span>
+                        Escanear
+                    </button>
+<button class="bg-primary-container text-[#09090B] font-label-caps text-[14px] font-bold uppercase hover:bg-primary-fixed-dim transition-colors btn-tactile flex items-center justify-center gap-2 tracking-wider">
+<span class="material-symbols-outlined fill text-[#09090B]">add_circle</span>
+                        Registrar Movimiento
+                    </button>
+</div>
+</div>
+</section>
+<!-- Recent Activity Table Section -->
+<section class="flex-grow flex flex-col border border-secondary-container bg-surface-container overflow-hidden">
+<div class="px-4 py-3 bg-[#18181B] border-b border-secondary-container flex justify-between items-center shrink-0">
+<h2 class="font-label-caps text-label-caps text-on-surface uppercase tracking-widest">Recent POS Activity</h2>
+<button class="text-tertiary hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</div>
+<div class="flex-grow overflow-auto">
+<table class="w-full text-left border-collapse">
+<thead class="sticky top-0 bg-[#18181B] z-10 shadow-sm border-b border-secondary-container">
+<tr>
+<th class="font-label-caps text-label-caps text-tertiary px-density-lg py-density-md border-r border-secondary-container/50 w-32 uppercase">SKU</th>
+<th class="font-label-caps text-label-caps text-tertiary px-density-lg py-density-md border-r border-secondary-container/50 uppercase">Item Name</th>
+<th class="font-label-caps text-label-caps text-tertiary px-density-lg py-density-md border-r border-secondary-container/50 w-24 text-center uppercase">Delta</th>
+<th class="font-label-caps text-label-caps text-tertiary px-density-lg py-density-md border-r border-secondary-container/50 w-40 uppercase">User</th>
+<th class="font-label-caps text-label-caps text-tertiary px-density-lg py-density-md w-32 text-right uppercase">Time</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-data-mono text-on-surface">
+<tr class="hover:bg-[#18181B] border-b border-secondary-container/30 transition-colors group">
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">STW-992-BLK</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">Tactical Cargo Pant - M</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-center text-primary-container font-bold">-1</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-tertiary">USR_8992</td>
+<td class="px-density-lg py-density-md text-right text-tertiary">14:02:44</td>
+</tr>
+<tr class="hover:bg-[#18181B] border-b border-secondary-container/30 transition-colors group bg-primary-container/5 border-l-2 border-l-primary-container">
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">HXY-114-WHT</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">Heavyweight Box Tee - L</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-center text-primary-container font-bold">+5</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-tertiary">SYS_AUTO</td>
+<td class="px-density-lg py-density-md text-right text-tertiary">13:45:12</td>
+</tr>
+<tr class="hover:bg-[#18181B] border-b border-secondary-container/30 transition-colors group">
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">ACC-331-OG</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">Utility Rig Vest</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-center text-primary-container font-bold">-1</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-tertiary">USR_1044</td>
+<td class="px-density-lg py-density-md text-right text-tertiary">13:10:05</td>
+</tr>
+<tr class="hover:bg-[#18181B] border-b border-secondary-container/30 transition-colors group">
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">STW-992-GRY</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">Tactical Cargo Pant - S</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-center text-primary-container font-bold">-2</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-tertiary">USR_8992</td>
+<td class="px-density-lg py-density-md text-right text-tertiary">12:55:30</td>
+</tr>
+<tr class="hover:bg-[#18181B] border-b border-secondary-container/30 transition-colors group">
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">JCK-005-BLK</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50">Anorak Shell Jacket</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-center text-error font-bold">-1</td>
+<td class="px-density-lg py-density-md border-r border-secondary-container/50 text-tertiary">USR_1044</td>
+<td class="px-density-lg py-density-md text-right text-tertiary">11:20:15</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</main>
+</body></html>
