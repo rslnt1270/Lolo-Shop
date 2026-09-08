@@ -6,6 +6,7 @@ import { Home, ScanLine, Tags, Package, LogOut } from "lucide-react";
 
 export function NavBar() {
   const pathname = usePathname();
+  if (pathname.startsWith("/pos") || pathname.startsWith("/catalogo")) return null;
   
   const navItems = [
     { name: "Inicio", href: "/", icon: Home },
