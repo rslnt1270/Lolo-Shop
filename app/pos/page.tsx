@@ -1,4 +1,21 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import type { Product, Variant } from "@/lib/domain/types";
+import { fetchProductsAction } from "@/lib/actions";
+import { productStock } from "@/lib/services/inventory";
+
 export default function POSDashboard() {
+  const { data: session } = useSession();
+  const [products, setProducts] = useState<Product[]>([]);
+  
+  useEffect(() => {
+    fetchProductsAction().then(setProducts);
+  }, []);
+
+  const stockTotal = products.reduce((sum, p) => sum + productStock(p), 0);
+  const allVariants = products.flatMap(p => p.variants.map(v => ({ ...v, productTitle: p.title })));
+
   return (
     <div className="bg-[#f8f9fa] text-[#191c1d] min-h-screen flex selection:bg-[#3cbfbf] selection:text-white">
 
@@ -33,11 +50,11 @@ export default function POSDashboard() {
 <div className="mt-auto pt-6 border-t border-black/5">
 <div className="flex items-center gap-3 mb-6 px-4">
 <div className="w-10 h-10 rounded-full bg-surface-variant overflow-hidden shrink-0 border border-white">
-<img alt="Store Manager Profile" className="w-full h-full object-cover" data-alt="A close up, high key portrait of a young streetwear retail manager looking confident, soft studio lighting, light mode aesthetic, minimalist background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMnSgHZsCT1lf8JQFnaE7Pz1I8Y1ZtkC7u-p6CXNAmhsGeLxrVKfv7QBxCNmFZ1twiUsjYf5IKljIa-CCv_s9jX_FuWuraQ5UmZgrxXRHMpIdI_xGPOYarAaDMGAZH_c95cPWzAgTm6pDT_QP4seuzPheOcDU49esOQKaWiCmS1X1AsZ7mKjZOy_ebDf3-5lIU1l0m8HIKs0ClC8J8W7-Ae-aMMcOu6qR15k7omB5ghnAG_elFsFTU8UH59T1rAJMBu6kSW0iIBASq"/>
+<img alt={session?.user?.name || "Store Manager"} className="w-full h-full object-cover" data-alt="A close up, high key portrait of a young streetwear retail manager looking confident, soft studio lighting, light mode aesthetic, minimalist background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMnSgHZsCT1lf8JQFnaE7Pz1I8Y1ZtkC7u-p6CXNAmhsGeLxrVKfv7QBxCNmFZ1twiUsjYf5IKljIa-CCv_s9jX_FuWuraQ5UmZgrxXRHMpIdI_xGPOYarAaDMGAZH_c95cPWzAgTm6pDT_QP4seuzPheOcDU49esOQKaWiCmS1X1AsZ7mKjZOy_ebDf3-5lIU1l0m8HIKs0ClC8J8W7-Ae-aMMcOu6qR15k7omB5ghnAG_elFsFTU8UH59T1rAJMBu6kSW0iIBASq"/>
 </div>
 <div>
-<p className="font-semibold text-sm">Store Manager Profile</p>
-<p className="text-xs text-secondary">Manager</p>
+<p className="font-semibold text-sm">{session?.user?.name || "Store Manager"}</p>
+<p className="text-xs text-secondary">{session?.user?.role || "Manager"}</p>
 </div>
 </div>
 <a className="flex items-center gap-3 px-4 py-3 text-secondary hover:text-primary transition-colors hover:scale-[1.02] hover:bg-white/40 transition-transform rounded-xl cursor-pointer active:scale-95 duration-200" href="#">
@@ -110,9 +127,9 @@ export default function POSDashboard() {
 <div className="lg:col-span-4 flex flex-col gap-6 justify-end">
 {/*  Quick Stats Widget  */}
 <div className="glass-panel rounded-lg p-6 flex-1 flex flex-col justify-center">
-<p className="font-label-caps text-label-caps text-secondary mb-2">Today's Volume</p>
+<p className="font-label-caps text-label-caps text-secondary mb-2">Total Stock Units</p>
 <div className="flex items-baseline gap-2">
-<span className="font-display-lg text-4xl">142</span>
+<span className="font-display-lg text-4xl">{stockTotal}</span>
 <span className="font-data-mono text-secondary">units</span>
 </div>
 <div className="mt-4 w-full h-1 bg-surface-variant rounded-full overflow-hidden">
@@ -132,10 +149,10 @@ export default function POSDashboard() {
 </div>
 </div>
 </div>
-{/*  Bottom Section: Recent Activity Table  */}
+{/*  Bottom Section: Inventory Overview Table  */}
 <div className="glass-panel rounded-lg p-glass-padding flex flex-col mt-4">
 <div className="flex justify-between items-center mb-6">
-<h3 className="font-headline-md text-xl font-semibold">Recent Activity</h3>
+<h3 className="font-headline-md text-xl font-semibold">Inventory Overview</h3>
 <button className="text-primary-container hover:text-primary transition-colors font-label-caps text-label-caps flex items-center gap-1">
                         View All <span className="material-symbols-outlined text-sm">arrow_forward</span>
 </button>
@@ -146,9 +163,9 @@ export default function POSDashboard() {
 <tr className="border-b border-black/5 text-secondary font-label-caps text-label-caps">
 <th className="py-4 px-4 font-normal">SKU</th>
 <th className="py-4 px-4 font-normal">Item Name</th>
-<th className="py-4 px-4 font-normal">Delta</th>
-<th className="py-4 px-4 font-normal">User</th>
-<th className="py-4 px-4 font-normal text-right">Time</th>
+<th className="py-4 px-4 font-normal">Size</th>
+<th className="py-4 px-4 font-normal">Color</th>
+<th className="py-4 px-4 font-normal text-right">Stock</th>
 </tr>
 </thead>
 <tbody className="font-data-mono text-data-mono text-on-background">
