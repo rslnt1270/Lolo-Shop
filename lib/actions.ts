@@ -96,3 +96,7 @@ export async function updateProductImageAction(
   revalidatePath("/catalogo");
   revalidatePath("/productos");
 }
+
+export async function fetchPublicProductsAction(): Promise<Product[]> {
+  return await getDataSource().getProducts();
+}

@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { Product } from "@/lib/domain/types";
-import { fetchProductsAction } from "@/lib/actions";
+import { fetchPublicProductsAction } from "@/lib/actions";
 
 export default function CatalogHero() {
   const [products, setProducts] = useState<Product[]>([]);
   
   useEffect(() => {
-    fetchProductsAction().then(setProducts);
+    fetchPublicProductsAction().then(setProducts);
   }, []);
 
   const featuredProduct = products.length > 0 ? products[0] : null;
