@@ -22,7 +22,7 @@ async function main() {
     { id: 'loc-2', name: 'Tienda 2', type: 'store' },
   ];
   for (const loc of locations) {
-    await prisma.location.upsert({ where: { id: loc.id }, update: { name: loc.name, type: loc.type }, create: loc });
+    await prisma.location.upsert({ where: { id: loc.id }, update: { name: loc.name, type: loc.type as any }, create: { ...loc, type: loc.type as any } });
     console.log(`✅ Tienda: ${loc.name} (${loc.id})`);
   }
 
@@ -37,7 +37,7 @@ async function main() {
     await prisma.user.upsert({
       where: { username: user.username },
       update: { name: user.name, role: user.role, locationId: user.locationId, password: user.password },
-      create: user,
+      create: { ...u, role: u.role as any }ser,
     });
     console.log(`✅ Usuario: ${user.username} (${user.role})`);
   }
