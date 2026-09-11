@@ -7,45 +7,84 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  owner
+  manager
+  collaborator
+}
+
+enum LocationType {
+  store
+  warehouse
+}
+
+enum MovementType {
+  SALE
+  RESTOCK
+  ADJUSTMENT
+  TRANSFER
+  DAMAGE
+}
+
 model User {
   id         String     @id @default(uuid())
   username   String     @unique
-  password   String     // Hash bcrypt
+  password   String
   name       String     @default("")
-  role       String     // "owner" | "manager" | "collaborator"
+  role       Role       @default(collaborator)
   locationId String?
-  location   Location?  @relation(fields: [locationId], references: [id])
+  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
   movements  Movement[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @default(now()) @updatedAt
+
+  @@index([locationId])
 }
 
 model Location {
-  id        String     @id @default(uuid())
-  name      String
-  type      String     // "store" | "warehouse"
-  users     User[]
-  inventory InventoryLevel[]
-  movements Movement[]
+  id         String           @id @default(uuid())
+  name       String
+  type       LocationType     @default(store)
+  users      User[]
+  inventory  InventoryLevel[]
+  movements  Movement[]
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @default(now()) @updatedAt
 }
 
 model Product {
   id        String    @id @default(uuid())
   title     String
   brand     String
+  category  String    @default("General")
   imageUrl  String?
+  isActive  Boolean   @default(true)
   variants  Variant[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+
+  @@index([category])
+  @@index([brand])
 }
 
 model Variant {
-  id        String    @id @default(uuid())
+  id        String           @id @default(uuid())
   productId String
-  product   Product   @relation(fields: [productId], references: [id])
+  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   title     String
-  sku       String    @unique
-  barcode   String?   @unique
-  price     Float
+  sku       String           @unique
+  barcode   String?          @unique
+  price     Decimal          @default(0.0) @db.Decimal(10, 2)
+  size      String           @default("U")
+  color     String           @default("General")
+  isActive  Boolean          @default(true)
 
   inventory InventoryLevel[]
   movements Movement[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @default(now()) @updatedAt
+
+  @@index([productId])
 }
 
 model InventoryLevel {
@@ -53,22 +92,31 @@ model InventoryLevel {
   variantId  String
   locationId String
   available  Int      @default(0)
+  updatedAt  DateTime @default(now()) @updatedAt
 
-  variant    Variant  @relation(fields: [variantId], references: [id])
-  location   Location @relation(fields: [locationId], references: [id])
+  variant    Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@unique([variantId, locationId])
+  @@index([locationId])
 }
 
 model Movement {
-  id         String   @id @default(uuid())
+  id         String        @id @default(uuid())
   variantId  String
   locationId String
   userId     String
-  delta      Int      // +1 para entrada, -1 para salida
-  timestamp  DateTime @default(now())
+  delta      Int
+  type       MovementType  @default(ADJUSTMENT)
+  notes      String?
+  timestamp  DateTime      @default(now())
 
-  variant    Variant  @relation(fields: [variantId], references: [id])
-  location   Location @relation(fields: [locationId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  variant    Variant       @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  location   Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  user       User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([variantId, timestamp(sort: Desc)])
+  @@index([locationId, timestamp(sort: Desc)])
+  @@index([userId, timestamp(sort: Desc)])
+  @@index([timestamp(sort: Desc)])
 }

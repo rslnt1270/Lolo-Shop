@@ -1,38 +1,28 @@
 "use client";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Scanner } from "@/components/inventory/Scanner";
 import { NewProductForm } from "@/components/products/NewProductForm";
-import { fetchProductsAction, getProductByBarcodeAction, getProductByVariantIdAction, adjustInventoryAction } from "@/lib/actions";
+import { getProductByBarcodeAction, getProductByVariantIdAction, adjustInventoryAction } from "@/lib/actions";
 import type { VariantMatch } from "@/lib/data/source";
 import { useSession } from "next-auth/react";
 
 export default function EscanearPage() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [match, setMatch] = useState<VariantMatch | null>(null);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState("");
 
-  const handleScan = async (code: string) => {
+  const handleScan = useCallback(async (code: string) => {
     setScannedCode(code);
     setMessage("");
     
     let result = await getProductByBarcodeAction(code);
     if (!result) {
       result = await getProductByVariantIdAction(code);
-      if (!result) {
-        const products = await fetchProductsAction();
-        for (const p of products) {
-          const v = p.variants.find(v => v.sku === code || v.id === code);
-          if (v) {
-            result = { product: p, variant: v };
-            break;
-          }
-        }
-      }
     }
     setMatch(result);
-  };
+  }, []);
 
   const handleMovement = async (type: "in" | "out") => {
     if (!match || !session?.user?.locationId) {
@@ -58,6 +48,10 @@ export default function EscanearPage() {
     }
   };
 
+  if (status === "loading") {
+    return <main className="p-4 text-center">Cargando...</main>;
+  }
+
   if (!session?.user?.locationId) {
     return <main className="p-4 text-center">Debes ser colaborador para registrar entradas/salidas.</main>;
   }
@@ -79,7 +73,7 @@ export default function EscanearPage() {
               <div>
                 <h2 className="text-lg font-semibold">{match.product.title}</h2>
                 <p className="text-sm text-gray-600">{match.variant.title} - {match.product.brand}</p>
-                <p className="text-sm font-mono mt-1">Precio: ${match.variant.price}</p>
+                <p className="text-sm font-mono mt-1">Precio: ${Number(match.variant.price)}</p>
               </div>
               
               <div className="flex items-center gap-2">

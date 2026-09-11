@@ -24,16 +24,16 @@ export class PrismaDataSource implements InventoryDataSource {
       id: p.id,
       title: p.title,
       brand: p.brand,
-      category: "General",
+      category: p.category,
       imageUrl: p.imageUrl,
       variants: p.variants.map(v => ({
         id: v.id,
-        size: "U",
-        color: "General",
+        size: v.size,
+        color: v.color,
         title: v.title,
         sku: v.sku,
         barcode: v.barcode,
-        price: v.price,
+        price: Number(v.price),
         inventory: v.inventory.map(inv => ({
           locationId: inv.locationId,
           available: inv.available
@@ -56,18 +56,18 @@ export class PrismaDataSource implements InventoryDataSource {
         id: v.product.id,
         title: v.product.title,
         brand: v.product.brand,
-        category: "General",
+        category: v.product.category,
         imageUrl: v.product.imageUrl,
         variants: []
       },
       variant: {
         id: v.id,
-        size: "U",
-        color: "General",
+        size: v.size,
+        color: v.color,
         title: v.title,
         sku: v.sku,
         barcode: v.barcode,
-        price: v.price,
+        price: Number(v.price),
         inventory: v.inventory.map(inv => ({
           locationId: inv.locationId,
           available: inv.available
@@ -90,18 +90,18 @@ export class PrismaDataSource implements InventoryDataSource {
         id: v.product.id,
         title: v.product.title,
         brand: v.product.brand,
-        category: "General",
+        category: v.product.category,
         imageUrl: v.product.imageUrl,
         variants: []
       },
       variant: {
         id: v.id,
-        size: "U",
-        color: "General",
+        size: v.size,
+        color: v.color,
         title: v.title,
         sku: v.sku,
         barcode: v.barcode,
-        price: v.price,
+        price: Number(v.price),
         inventory: v.inventory.map(inv => ({
           locationId: inv.locationId,
           available: inv.available
@@ -174,18 +174,18 @@ export class PrismaDataSource implements InventoryDataSource {
         id: product.id,
         title: product.title,
         brand: product.brand,
-        category: "General",
+        category: product.category,
         imageUrl: product.imageUrl,
         variants: []
       },
       variant: {
         id: createdVariant.id,
-        size: "U",
-        color: "General",
+        size: createdVariant.size,
+        color: createdVariant.color,
         title: createdVariant.title,
         sku: createdVariant.sku,
         barcode: createdVariant.barcode,
-        price: createdVariant.price,
+        price: Number(createdVariant.price),
         inventory: [{ locationId: data.locationId, available: 1 }]
       }
     };
