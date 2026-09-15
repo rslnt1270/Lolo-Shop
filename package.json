@@ -16,33 +16,39 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@serwist/next": "^9.5.12",
     "@vercel/blob": "^2.8.0",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.42.2",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.45.0",
-    "next": "^14.2.35",
+    "next": "^15.5.25",
     "next-auth": "^4.24.15",
-    "next-pwa": "^5.6.0",
-    "react": "18.3.1",
+    "react": "^19.3.0",
     "react-barcode": "^1.6.1",
-    "react-dom": "18.3.1"
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.4.6",
     "@testing-library/react": "16.3.3",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "20.14.9",
-    "@types/react": "18.3.3",
-    "@types/react-dom": "18.3.0",
-    "@vitejs/plugin-react": "4.3.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "10.6.0",
     "jsdom": "24.1.0",
     "postcss": "8.5.28",
     "prisma": "^5.22.0",
+    "serwist": "^9.5.12",
     "tailwindcss": "3.4.4",
     "tsx": "^4.23.13",
     "typescript": "5.5.3",
-    "vitest": "^1.6.1"
+    "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "browserslist": "^4.28.7",
+    "postcss": "8.5.28",
+    "vite": "^6.4.3"
   }
 }

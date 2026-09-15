@@ -5,8 +5,9 @@ node_modules
 coverage
 *.log
 *.tsbuildinfo
-public/sw.js
-public/workbox-*.js
+# PWA (Serwist genera estos en build)
+public/sw*
+public/swe-worker*
 .vercel
 
 /lib/generated/prisma

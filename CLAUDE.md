@@ -3,7 +3,7 @@
 Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` (**PÚBLICO** — nunca commitear secretos).
 
 ## Stack real
-- **Next.js** (App Router) + React + TypeScript · **PWA** vía `next-pwa` (SW en `public/sw.js`, gitignored).
+- **Next.js 15.5** (App Router) + **React 19** + TypeScript · **PWA** vía `@serwist/next` (fuente `app/sw.ts` → `public/sw.js`, gitignored). No subir a Next 16 hasta que next-auth v4 y Serwist lo soporten estable.
 - **Prisma** ORM sobre **PostgreSQL** (`DATABASE_URL`). Cliente generado en `/lib/generated/prisma` (gitignored).
 - **Auth:** `next-auth` (`NEXTAUTH_SECRET`, `NEXTAUTH_URL`).
 - **Escaneo:** `html5-qrcode` + `react-barcode` (flujo POS: escanear SKU/barcode → movimiento de inventario).
@@ -18,6 +18,7 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 - **Secretos:** todo `.env`/`.env*.local` está gitignoreado; solo se versiona `.env.example`. **PROHIBIDO** commitear `.env`.
 - Commits: Conventional Commits.
 - Migraciones: Prisma (`prisma migrate`). No editar SQL a mano.
+- Dependencias: Dependabot semanal (menores/parches agrupados); los saltos mayores de `next`/`react`/`prisma`/`typescript`/`vitest` se hacen a mano. `package.json#overrides` fija `postcss`/`browserslist`/`vite` anidados por CVEs; `npm audit --omit=dev` debe quedar en 0 alta/crítica (lo exige CI).
 
 ## Seguridad
 - **Incidente 2026-07-21 (remediado):** `.env` estuvo trackeado en el repo público (commit `6f2e79b`) con `DATABASE_URL` + `NEXTAUTH_SECRET`. La auditoría automática (`4e5c510`) lo destrackeó y endureció `.gitignore`.

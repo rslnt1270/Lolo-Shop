@@ -25,11 +25,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Dependencias de producción con vulnerabilidades conocidas (alta/crítica rompen el job).
-  # TODO(fase-2): quitar continue-on-error al mergear Next 15 — hasta entonces
-  # npm audit reporta avisos de Next 14 (EOL) que solo se corrigen en 15.5.x.
   dependencias:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
