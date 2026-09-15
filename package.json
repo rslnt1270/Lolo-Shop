@@ -15,7 +15,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.10.0",
     "@vercel/blob": "^2.6.1",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^12.42.2",
