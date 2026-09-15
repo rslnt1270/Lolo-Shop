@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
+import { KeyRound } from "lucide-react";
 import type { Location, Product } from "@/lib/domain/types";
 import { fetchProductsAction, fetchLocationsAction } from "@/lib/actions";
 import { productStock, lowStockVariants } from "@/lib/services/inventory";
@@ -37,9 +39,14 @@ export default function Home() {
           </p>
         </div>
         {role && (
-          <span className="ml-auto rounded-full bg-white/20 px-2.5 py-1 font-mono text-[0.58rem] uppercase tracking-widest">
+          <Link
+            href="/cuenta"
+            aria-label="Mi cuenta: cambiar contraseña"
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-white/20 px-2.5 py-1 font-mono text-[0.58rem] uppercase tracking-widest transition-colors hover:bg-white/30"
+          >
+            <KeyRound size={12} strokeWidth={2.5} />
             {role}
-          </span>
+          </Link>
         )}
       </div>
 

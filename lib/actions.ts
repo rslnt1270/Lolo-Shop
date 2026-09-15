@@ -6,6 +6,7 @@ import { getDataSource } from "./data/get-source";
 import type { Location, Product } from "./domain/types";
 import type { VariantMatch } from "./data/source";
 import { uploadImage } from "./image/upload";
+import { changePassword, type ChangePasswordResult } from "./auth/password";
 
 async function requireSession() {
   const session = await getServerSession(authOptions);
@@ -99,4 +100,12 @@ export async function updateProductImageAction(
 
 export async function fetchPublicProductsAction(): Promise<Product[]> {
   return await getDataSource().getProducts();
+}
+
+export async function changePasswordAction(
+  currentPassword: string,
+  newPassword: string,
+): Promise<ChangePasswordResult> {
+  const session = await requireSession();
+  return await changePassword(session.user.id, currentPassword, newPassword);
 }
