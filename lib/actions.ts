@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "./auth/options";
 import { getDataSource } from "./data/get-source";
-import type { Location, Product } from "./domain/types";
+import type { Location, LocationType, Product } from "./domain/types";
 import type { VariantMatch } from "./data/source";
 import { uploadImage } from "./image/upload";
 
@@ -23,6 +23,16 @@ export async function fetchProductsAction(): Promise<Product[]> {
 export async function fetchLocationsAction(): Promise<Location[]> {
   await requireSession();
   return await getDataSource().getLocations();
+}
+
+export async function createLocationAction(data: { name: string; type?: LocationType }): Promise<Location> {
+  const session = await requireSession();
+  if (session.user.role !== "owner") {
+    throw new Error("Solo el dueño puede crear tiendas.");
+  }
+  const location = await getDataSource().createLocation(data);
+  revalidatePath("/");
+  return location;
 }
 
 export async function getProductByBarcodeAction(code: string): Promise<VariantMatch | null> {
