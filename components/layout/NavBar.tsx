@@ -1,11 +1,14 @@
 "use client";
 import Link from "next/link";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { Home, ScanLine, Tags, Package, LogOut } from "lucide-react";
 
 export function NavBar() {
   const pathname = usePathname();
+  const { status } = useSession();
+
+  if (status !== "authenticated") return null;
   if (pathname.startsWith("/pos") || pathname.startsWith("/catalogo") || pathname === "/login") return null;
   
   const navItems = [
