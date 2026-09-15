@@ -11,6 +11,29 @@ updates:
         update-types: [minor, patch]
     commit-message:
       prefix: "chore(deps)"
+    # Saltos de versión mayor del núcleo se hacen a mano y planificados
+    # (Next 15 + React 19 en fase 2; Prisma 7 y TypeScript después).
+    ignore:
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vitest"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next-pwa"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
