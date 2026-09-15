@@ -1,0 +1,36 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Lunes 06:00 UTC: detecta CVEs nuevos aunque no haya commits.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  # Repo PÚBLICO: cualquier credencial commiteada queda expuesta (incidente 2026-07-21).
+  # Escanea el diff completo del push/PR en busca de secretos.
+  secretos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Dependencias de producción con vulnerabilidades conocidas (alta/crítica rompen el job).
+  dependencias:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm audit --omit=dev --audit-level=high
