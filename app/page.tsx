@@ -4,10 +4,11 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import type { Location, Product } from "@/lib/domain/types";
-import { fetchProductsAction, fetchLocationsAction } from "@/lib/actions";
+import { fetchProductsAction, fetchLocationsAction, createLocationAction } from "@/lib/actions";
 import { productStock, lowStockVariants } from "@/lib/services/inventory";
 import { StockSummary } from "@/components/inventory/StockSummary";
 import { LowStockList } from "@/components/inventory/LowStockList";
+import { AddLocationForm } from "@/components/inventory/AddLocationForm";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -80,9 +81,17 @@ export default function Home() {
 
         {/* Stock por tienda */}
         <section>
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <h2 className="text-sm font-bold text-[#12211F]">Stock por tienda</h2>
-            <span className="font-mono text-[0.6rem] text-[#3A4D4A]">{stockTotal} unidades</span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[0.6rem] text-[#3A4D4A]">{stockTotal} unidades</span>
+              {role === "owner" && (
+                <AddLocationForm
+                  onCreate={createLocationAction}
+                  onCreated={(loc) => setLocations((prev) => [...prev, loc])}
+                />
+              )}
+            </div>
           </div>
           <StockSummary products={products} locations={locations} />
         </section>

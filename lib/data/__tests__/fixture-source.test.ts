@@ -76,3 +76,34 @@ describe("FixtureDataSource.updateProductImage", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("FixtureDataSource.createLocation", () => {
+  it("crea una tienda nueva y la devuelve en getLocations", async () => {
+    const ds = new FixtureDataSource();
+    const created = await ds.createLocation({ name: "Tienda Centro" });
+    expect(created.id).toBeTruthy();
+    expect(created.name).toBe("Tienda Centro");
+    expect(created.type).toBe("store");
+    const locs = await ds.getLocations();
+    expect(locs.map((l) => l.name)).toContain("Tienda Centro");
+  });
+
+  it("acepta tipo bodega y recorta espacios del nombre", async () => {
+    const ds = new FixtureDataSource();
+    const created = await ds.createLocation({ name: "  Bodega Norte  ", type: "warehouse" });
+    expect(created.name).toBe("Bodega Norte");
+    expect(created.type).toBe("warehouse");
+  });
+
+  it("rechaza nombre vacío", async () => {
+    const ds = new FixtureDataSource();
+    await expect(ds.createLocation({ name: "   " })).rejects.toThrow(/nombre/i);
+  });
+
+  it("no altera las tiendas de otras instancias (fixtures inmutables)", async () => {
+    const a = new FixtureDataSource();
+    await a.createLocation({ name: "Solo en A" });
+    const b = new FixtureDataSource();
+    expect((await b.getLocations()).map((l) => l.name)).not.toContain("Solo en A");
+  });
+});

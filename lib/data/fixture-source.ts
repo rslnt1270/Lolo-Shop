@@ -1,10 +1,20 @@
 import type { Location, Product } from "@/lib/domain/types";
-import type { InventoryDataSource, VariantMatch, CreateProductData } from "./source";
+import type { InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData } from "./source";
 import { fixtureLocations, fixtureProducts } from "./fixtures";
 
 export class FixtureDataSource implements InventoryDataSource {
+  private locations: Location[] = [...fixtureLocations];
+
   async getLocations(): Promise<Location[]> {
-    return fixtureLocations;
+    return this.locations;
+  }
+
+  async createLocation(data: CreateLocationData): Promise<Location> {
+    const name = data.name.trim();
+    if (!name) throw new Error("El nombre de la tienda es obligatorio.");
+    const loc: Location = { id: `loc-${Date.now()}`, name, type: data.type ?? "store" };
+    this.locations = [...this.locations, loc];
+    return loc;
   }
 
   async getProducts(): Promise<Product[]> {

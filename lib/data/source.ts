@@ -1,4 +1,4 @@
-import type { Location, Product, Variant } from "@/lib/domain/types";
+import type { Location, LocationType, Product, Variant } from "@/lib/domain/types";
 
 export interface VariantMatch {
   product: Product;
@@ -15,8 +15,14 @@ export interface CreateProductData {
   imageUrl?: string;
 }
 
+export interface CreateLocationData {
+  name: string;
+  type?: LocationType;
+}
+
 export interface InventoryDataSource {
   getLocations(): Promise<Location[]>;
+  createLocation(data: CreateLocationData): Promise<Location>;
   getProducts(): Promise<Product[]>;
   getProductByVariantId(variantId: string): Promise<VariantMatch | null>;
   getProductByBarcode(barcode: string): Promise<VariantMatch | null>;

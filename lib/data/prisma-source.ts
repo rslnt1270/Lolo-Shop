@@ -1,15 +1,24 @@
-import { InventoryDataSource, VariantMatch, CreateProductData } from "./source";
+import { InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData } from "./source";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
 
 export class PrismaDataSource implements InventoryDataSource {
   async getLocations(): Promise<Location[]> {
-    const locs = await prisma.location.findMany();
+    const locs = await prisma.location.findMany({ orderBy: { createdAt: "asc" } });
     return locs.map(l => ({
       id: l.id,
       name: l.name,
       type: l.type as any
     }));
+  }
+
+  async createLocation(data: CreateLocationData): Promise<Location> {
+    const name = data.name.trim();
+    if (!name) throw new Error("El nombre de la tienda es obligatorio.");
+    const loc = await prisma.location.create({
+      data: { name, type: (data.type ?? "store") as any },
+    });
+    return { id: loc.id, name: loc.name, type: loc.type as any };
   }
 
   async getProducts(): Promise<Product[]> {

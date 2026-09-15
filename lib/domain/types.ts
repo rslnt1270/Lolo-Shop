@@ -1,8 +1,11 @@
 export type Role = "owner" | "manager" | "collaborator";
 
+export type LocationType = "store" | "warehouse";
+
 export interface Location {
   id: string;
   name: string;
+  type?: LocationType;
 }
 
 export interface InventoryLevel {
