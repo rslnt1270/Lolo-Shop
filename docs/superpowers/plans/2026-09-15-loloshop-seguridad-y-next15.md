@@ -1,7 +1,7 @@
 # LoloShop — Plan: remediación de seguridad y migración a Next 15
 
 **Fecha:** 2026-09-15
-**Estado:** Tareas 0–2 hechas el 2026-09-15. Tareas 3–7 pendientes.
+**Estado:** T0–T2 hechas; T3 en PR #17 (preview listo, falta prueba manual); T6 parcial (bcrypt verificado, /cuenta desplegada); T4, T5, T7 pendientes. Actualizado 2026-09-15 (tarde).
 **Contexto:** Producción estuvo 7 semanas sin desplegar (Vercel perdió la
 conexión con GitHub) y `main` no compilaba. Al restaurar el pipeline y activar
 Dependabot/CodeQL aparecieron 69 alertas; la más grave (bypass de autorización
@@ -18,7 +18,11 @@ se corrige saliendo de Next 14 (EOL) y de `next-pwa` (abandonado).
 | 0 | Vercel ↔ GitHub reconectado; deploy automático verificado | `dpl_BwBez7Rb…` (source: git) |
 | 1 | CI de seguridad: gitleaks, npm audit (no bloqueante hasta T3), Dependabot, CodeQL, push protection | `6cd3e1a`, `5cdf900` |
 | 2 | Triage Dependabot: majors cerrados (#5, #10–#13) e ignorados en config; menores mergeados | PRs #6… |
-| 2 | Plugin Semgrep desinstalado (bloqueaba la remediación); token pendiente de revocar por el usuario | — |
+| 2 | Plugin Semgrep desinstalado; token revocado, nota Keep y PDF borrados | — |
+| 3 | Next 15.5 + React 19 + Serwist: rama `feat/next-15`, **PR #17** con CI verde y preview | pendiente prueba manual y merge |
+| 6 | `/cuenta` (cambiar contraseña, bcrypt 12) + `prisma/scripts/reset-users.ts` | `9f70527` (PR #18) |
+| — | Añadir tienda/bodega desde el dashboard (solo owner), para la demo | `0ac17bd` |
+| — | Catálogo público como componente cliente con parallax | `3c58814` |
 
 ---
 
@@ -106,10 +110,20 @@ Neon → Postgres en la RPi5 (mismo cambio de conexión).
 
 ## Tarea 6 — Auditoría de autenticación
 
-Pendiente de CLAUDE.md: confirmar que `User.password` usa bcrypt/argon2 con
-coste adecuado y que el `authorize()` de next-auth compara con
-`bcrypt.compare`; añadir test. Revisar que `BOT_API_KEY` se compare en
-tiempo constante (`crypto.timingSafeEqual`).
+**Hecho:** `User.password` usa bcrypt (seed coste 10, cambios coste 12) y
+`findUser` compara con `bcrypt.compare` (tests en `lib/auth/__tests__`).
+Pantalla `/cuenta` para que cada usuario rote su contraseña.
+
+**Hallazgo 2026-09-15:** producción solo tenía `colab1` con contraseña en
+texto plano (nadie podía iniciar sesión) y las contraseñas de desarrollo
+están en el repo público. **Pendiente inmediato:** correr una vez
+`npx tsx prisma/scripts/reset-users.ts` contra producción con
+`SEED_PASSWORD_*` definidas en `.env` local (crea lolo/encargado/colab1/colab2
+sobre la tienda existente "Tienda Principal", sin tocar productos).
+
+**Pendiente:** comparar `BOT_API_KEY` en tiempo constante
+(`crypto.timingSafeEqual`); pantalla de owner para restablecer contraseñas
+ajenas y dar de alta usuarios (hoy solo por script).
 
 ---
 

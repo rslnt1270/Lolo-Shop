@@ -22,7 +22,8 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 ## Seguridad
 - **Incidente 2026-07-21 (remediado):** `.env` estuvo trackeado en el repo público (commit `6f2e79b`) con `DATABASE_URL` + `NEXTAUTH_SECRET`. La auditoría automática (`4e5c510`) lo destrackeó y endureció `.gitignore`.
 - **Rotación completada 2026-07-22:** las credenciales expuestas fueron **rotadas y verificadas inservibles**. Password de Neon (`neondb_owner`) cambiado vía `ALTER ROLE` (viejo rechazado con `psql`); `NEXTAUTH_SECRET` regenerado (`openssl rand -base64 32`). Aplicado en `.env` local + Vercel (Production/Preview) + redeploy. Se agregó `DATABASE_URL` (faltaba en Vercel) y `BOT_API_KEY` (endpoint n8n). El blob del `.env` **sigue en la historia pública** pero con credenciales muertas → **purga de historia opcional** (git-filter-repo/BFG), no urgente.
-- `User.password`: verificar que use hashing fuerte (bcrypt/argon2), no "hash simple".
+- `User.password`: bcrypt (seed coste 10; `/cuenta` guarda con coste 12). Alta/reseteo de usuarios: `npx tsx prisma/scripts/reset-users.ts` con `SEED_PASSWORD_*` en `.env` (nunca las de desarrollo del seed en producción: están en el repo público).
+- Tiendas: el owner puede crearlas desde el dashboard ("+ Tienda"); `createLocationAction` rechaza otros roles en el servidor.
 
 ## MCP disponibles (`.mcp.json`)
 - `shopify-dev` — docs/API de Shopify.
