@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Providers from "./providers";
 import { NavBar } from "@/components/layout/NavBar";
 
@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "LoloShop",
   description: "Gestión de inventario LoloShop",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
   themeColor: "#3CBFBF",
 };
 
