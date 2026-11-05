@@ -6,13 +6,22 @@ export interface VariantMatch {
 }
 
 export interface CreateProductData {
-  barcode: string;
+  /** Código de la etiqueta ya normalizado, o null si el producto no trae código. */
+  barcode: string | null;
+  /** SKU interno generado en el servidor (`generateInternalSku`). */
+  sku: string;
   title: string;
   brand: string;
   price: number;
-  sku?: string;
+  category: string;
+  /** Talla de la variante; por defecto "U". */
+  size?: string;
+  /** Piezas contadas al dar de alta en `locationId` (0 si aún no se cuentan). */
+  initialStock: number;
   locationId: string;
-  imageUrl?: string;
+  imageUrl?: string | null;
+  /** Usuario que da de alta; queda en el Movement RESTOCK si initialStock > 0. */
+  userId: string;
 }
 
 export interface CreateLocationData {
@@ -25,8 +34,17 @@ export interface InventoryDataSource {
   createLocation(data: CreateLocationData): Promise<Location>;
   getProducts(): Promise<Product[]>;
   getProductByVariantId(variantId: string): Promise<VariantMatch | null>;
-  getProductByBarcode(barcode: string): Promise<VariantMatch | null>;
+  /**
+   * Busca una variante cuyo barcode O sku coincida con alguno de los
+   * candidatos de `codeCandidates(code)` (UPC-A ↔ EAN-13, mayúsculas).
+   */
+  getProductByBarcode(code: string): Promise<VariantMatch | null>;
   adjustInventory(variantId: string, locationId: string, delta: number, userId?: string): Promise<void>;
+  /**
+   * Crea producto + variante + inventario inicial (+ Movement RESTOCK si
+   * initialStock > 0) de forma atómica. Si barcode o sku ya existen lanza un
+   * error con `code: "P2002"` y `meta.target` (mismo contrato que Prisma).
+   */
   createProduct(data: CreateProductData): Promise<VariantMatch>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
 }

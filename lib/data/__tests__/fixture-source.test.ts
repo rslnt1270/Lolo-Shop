@@ -56,9 +56,13 @@ describe("FixtureDataSource.updateProductImage", () => {
     const ds = new FixtureDataSource();
     const { product } = await ds.createProduct({
       barcode: "TEST-IMG-001",
+      sku: "LS-IMG001-0",
+      userId: "u1",
       title: "Producto Test Imagen",
       brand: "TestBrand",
       price: 100,
+      category: "Playeras",
+      initialStock: 1,
       locationId: "loc-1",
     });
 
@@ -105,5 +109,25 @@ describe("FixtureDataSource.createLocation", () => {
     await a.createLocation({ name: "Solo en A" });
     const b = new FixtureDataSource();
     expect((await b.getLocations()).map((l) => l.name)).not.toContain("Solo en A");
+  });
+});
+
+describe("FixtureDataSource.createProduct", () => {
+  it("guarda la categoría y el stock inicial indicados", async () => {
+    const ds = new FixtureDataSource();
+    const { product, variant } = await ds.createProduct({
+      barcode: "TEST-CAT-001",
+      sku: "LS-CAT001-0",
+      userId: "u1",
+      title: "Gorra Snapback",
+      brand: "LoloShop",
+      price: 420,
+      category: "Accesorios",
+      initialStock: 0,
+      locationId: "loc-2",
+    });
+
+    expect(product.category).toBe("Accesorios");
+    expect(variant.inventory).toEqual([{ locationId: "loc-2", available: 0 }]);
   });
 });

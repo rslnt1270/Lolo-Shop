@@ -4,8 +4,11 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "./auth/options";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
+import { validateNewProduct } from "./domain/new-product";
+import { normalizeCode, canonicalCode, isValidGtin, generateInternalSku } from "./domain/barcode";
 import type { VariantMatch } from "./data/source";
-import { uploadImage } from "./image/upload";
+import { uniqueViolationField } from "./data/errors";
+import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
 
 async function requireSession() {
@@ -61,36 +64,202 @@ export async function adjustInventoryAction(variantId: string, locationId: strin
   revalidatePath("/catalogo");
 }
 
-export async function createProductAction(data: {
-  barcode: string;
-  title: string;
-  brand: string;
-  price: number;
-  sku?: string;
-  locationId: string;
-  imageUrl?: string;
-}): Promise<VariantMatch> {
-  await requireSession();
+export type LookupCodeResult =
+  | { found: true; product: Product; variantId: string }
+  | { found: false; code: string; error?: string };
 
-  if (!data.title.trim() || !data.brand.trim()) {
-    throw new Error("Título y marca son obligatorios.");
+/**
+ * Busca un código escaneado/tecleado en barcode o sku (con equivalencias
+ * UPC-A ↔ EAN-13). Nunca lanza: en error devuelve `found: false` con `error`.
+ */
+export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
+  const code = normalizeCode(typeof raw === "string" ? raw : "");
+  if (!code) return { found: false, code, error: "El código está vacío. Vuelve a escanear." };
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return { found: false, code, error: "Tu sesión expiró: inicia sesión de nuevo." };
+    }
+    const match = await getDataSource().getProductByBarcode(code);
+    if (!match) return { found: false, code };
+    return { found: true, product: withVariant(match), variantId: match.variant.id };
+  } catch (err) {
+    console.error("lookupCodeAction", err);
+    return { found: false, code, error: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." };
   }
-  if (!Number.isFinite(data.price) || data.price < 0) {
-    throw new Error("El precio debe ser un número mayor o igual a cero.");
-  }
-
-  const result = await getDataSource().createProduct(data);
-  revalidatePath("/catalogo");
-  return result;
 }
 
-export async function uploadProductImageAction(formData: FormData): Promise<string> {
-  await requireSession();
-  const file = formData.get("image");
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("No se recibió una imagen válida.");
+export type CreateProductInput = {
+  title: string;
+  brand: string;
+  category: string;
+  price: number;
+  size?: string;
+  barcode?: string | null;
+  noBarcode?: boolean;
+  locationId: string;
+  initialStock: number;
+  imageUrl?: string | null;
+};
+
+export type CreateProductResult =
+  | { ok: true; product: Product; variantId: string; sku: string }
+  | {
+      ok: false;
+      code: "FORBIDDEN" | "INVALID" | "DUPLICATE" | "LOCATION" | "ERROR";
+      message: string;
+      existingVariantId?: string;
+    };
+
+/** Un intento inicial + hasta 3 reintentos si el SKU generado choca (P2002). */
+const SKU_ATTEMPTS = 4;
+const MAX_BARCODE_LENGTH = 64;
+
+function withVariant(match: VariantMatch): Product {
+  return {
+    ...match.product,
+    variants: match.product.variants.length ? match.product.variants : [match.variant],
+  };
+}
+
+function duplicateResult(match: VariantMatch): CreateProductResult {
+  return {
+    ok: false,
+    code: "DUPLICATE",
+    message: `Ese código ya está registrado: «${match.product.title}». Abre el producto para sumar piezas.`,
+    existingVariantId: match.variant.id,
+  };
+}
+
+/**
+ * Alta de producto desde el escáner. Nunca lanza: devuelve un resultado
+ * tipado con mensaje en español para el operador. El SKU lo genera el servidor.
+ */
+// TODO(alta-lote, auditoría QA 2026-11-04): si el alta falla después de
+// uploadProductImageAction, el blob en Vercel queda huérfano. Fuera del alcance
+// de la demo; limpiar con `del()` de @vercel/blob o un barrido periódico.
+export async function createProductAction(input: CreateProductInput): Promise<CreateProductResult> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return { ok: false, code: "FORBIDDEN", message: "Tu sesión expiró: inicia sesión de nuevo." };
+    }
+    if (!input || typeof input !== "object") {
+      return { ok: false, code: "INVALID", message: "Faltan los datos del producto." };
+    }
+
+    let data;
+    try {
+      data = validateNewProduct(input);
+    } catch (err) {
+      return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : "Datos inválidos." };
+    }
+
+    let barcode: string | null = null;
+    if (!input.noBarcode) {
+      // Alfanuméricos en MAYÚSCULAS para que "abc-1" y "ABC-1" sean el mismo código.
+      barcode = canonicalCode(typeof input.barcode === "string" ? input.barcode : "");
+      if (!barcode) {
+        return { ok: false, code: "INVALID", message: "Escanea o escribe el código de la etiqueta, o marca «Sin código»." };
+      }
+      if (barcode.length > MAX_BARCODE_LENGTH) {
+        return { ok: false, code: "INVALID", message: "El código es demasiado largo. Vuelve a escanearlo." };
+      }
+      if (!isValidGtin(barcode)) {
+        return {
+          ok: false,
+          code: "INVALID",
+          message: `El código ${barcode} no es válido (falla el dígito verificador). Vuelve a escanearlo.`,
+        };
+      }
+    }
+
+    let imageUrl: string | null = null;
+    if (input.imageUrl) {
+      if (typeof input.imageUrl !== "string" || !/^https:\/\//.test(input.imageUrl)) {
+        return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
+      }
+      imageUrl = input.imageUrl;
+    }
+
+    const locationId = typeof input.locationId === "string" ? input.locationId : "";
+    if (session.user.role === "collaborator") {
+      if (!session.user.locationId) {
+        return { ok: false, code: "FORBIDDEN", message: "No tienes tienda asignada. Pide al dueño que te asigne una." };
+      }
+      if (session.user.locationId !== locationId) {
+        return { ok: false, code: "FORBIDDEN", message: "Solo puedes dar de alta productos en tu tienda asignada." };
+      }
+    }
+
+    const ds = getDataSource();
+    const locations = await ds.getLocations();
+    if (!locationId || !locations.some((l) => l.id === locationId)) {
+      return { ok: false, code: "LOCATION", message: "La tienda seleccionada no existe. Recarga la página y elige otra." };
+    }
+
+    if (barcode) {
+      const existing = await ds.getProductByBarcode(barcode);
+      if (existing) return duplicateResult(existing);
+    }
+
+    for (let attempt = 0; attempt < SKU_ATTEMPTS; attempt++) {
+      const sku = generateInternalSku();
+      try {
+        const match = await ds.createProduct({
+          ...data,
+          barcode,
+          sku,
+          locationId,
+          imageUrl,
+          userId: session.user.id,
+        });
+        try {
+          revalidatePath("/catalogo");
+          revalidatePath("/productos");
+        } catch (err) {
+          console.error("createProductAction revalidate", err);
+        }
+        return { ok: true, product: withVariant(match), variantId: match.variant.id, sku: match.variant.sku };
+      } catch (err) {
+        const field = uniqueViolationField(err);
+        if (field === null) throw err;
+        if (barcode && field !== "sku") {
+          const existing = await ds.getProductByBarcode(barcode);
+          if (existing) return duplicateResult(existing);
+          if (field === "barcode") {
+            return { ok: false, code: "DUPLICATE", message: "Ese código ya está registrado. Búscalo para sumar piezas." };
+          }
+        }
+        // Choque de SKU (improbable): se reintenta con otro.
+      }
+    }
+    return { ok: false, code: "ERROR", message: "No se pudo generar un SKU único. Intenta guardar de nuevo." };
+  } catch (err) {
+    console.error("createProductAction", err);
+    return { ok: false, code: "ERROR", message: "No se pudo guardar el producto. Revisa tu conexión e intenta de nuevo." };
   }
-  return await uploadImage(file);
+}
+
+export type UploadImageResult = { ok: true; url: string } | { ok: false; message: string };
+
+/** Sube la foto del alta (campo `image` del FormData). Nunca lanza. */
+export async function uploadProductImageAction(formData: FormData): Promise<UploadImageResult> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return { ok: false, message: "Tu sesión expiró: inicia sesión de nuevo." };
+    }
+    const file = formData?.get("image");
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, message: "No se recibió una imagen válida. Toma la foto de nuevo." };
+    }
+    return { ok: true, url: await uploadImage(file) };
+  } catch (err) {
+    if (err instanceof ImageUploadError) return { ok: false, message: err.message };
+    console.error("uploadProductImageAction", err);
+    return { ok: false, message: "No se pudo subir la foto. Revisa tu conexión e intenta de nuevo." };
+  }
 }
 
 export async function updateProductImageAction(

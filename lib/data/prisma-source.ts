@@ -1,6 +1,29 @@
 import { InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData } from "./source";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
+import type { Prisma } from "@prisma/client";
+import { codeCandidates } from "../domain/barcode";
+import { DEFAULT_SIZE } from "../domain/new-product";
+
+/**
+ * Numéricos (EAN/UPC) → `in` exacto (usa el índice único). Alfanuméricos →
+ * comparación sin mayúsculas, para encontrar datos viejos guardados en minúsculas.
+ */
+function codeWhere(candidates: string[]) {
+  const numeric = candidates.filter((c) => /^\d+$/.test(c));
+  const seen = new Set<string>();
+  const alpha = candidates.filter((c) => {
+    if (/^\d+$/.test(c) || seen.has(c.toUpperCase())) return false;
+    seen.add(c.toUpperCase());
+    return true;
+  });
+  const or: Prisma.VariantWhereInput[] = [];
+  if (numeric.length) or.push({ barcode: { in: numeric } }, { sku: { in: numeric } });
+  for (const c of alpha) {
+    or.push({ barcode: { equals: c, mode: "insensitive" as const } }, { sku: { equals: c, mode: "insensitive" as const } });
+  }
+  return or;
+}
 
 export class PrismaDataSource implements InventoryDataSource {
   async getLocations(): Promise<Location[]> {
@@ -51,10 +74,12 @@ export class PrismaDataSource implements InventoryDataSource {
     }));
   }
 
-  async getProductByBarcode(barcode: string): Promise<VariantMatch | null> {
-    const v = await prisma.variant.findUnique({
-      where: { barcode },
-      include: { 
+  async getProductByBarcode(code: string): Promise<VariantMatch | null> {
+    const candidates = codeCandidates(code);
+    if (candidates.length === 0) return null;
+    const v = await prisma.variant.findFirst({
+      where: { OR: codeWhere(candidates) },
+      include: {
         product: true,
         inventory: true
       }
@@ -150,30 +175,49 @@ export class PrismaDataSource implements InventoryDataSource {
     });
   }
   async createProduct(data: CreateProductData): Promise<VariantMatch> {
-    const sku = data.sku || `SKU-${Date.now()}`;
-    const product = await prisma.product.create({
-      data: {
-        title: data.title,
-        brand: data.brand,
-        imageUrl: data.imageUrl,
-        variants: {
-          create: {
-            title: data.title,
-            sku: sku,
-            barcode: data.barcode,
-            price: data.price,
-            inventory: {
-              create: {
-                locationId: data.locationId,
-                available: 1
+    // Producto + variante + inventario + Movement en una sola transacción:
+    // si algo falla (p. ej. P2002 por barcode/sku) no queda nada a medias.
+    const product = await prisma.$transaction(async (tx) => {
+      const created = await tx.product.create({
+        data: {
+          title: data.title,
+          brand: data.brand,
+          category: data.category,
+          imageUrl: data.imageUrl ?? null,
+          variants: {
+            create: {
+              title: data.title,
+              sku: data.sku,
+              barcode: data.barcode,
+              size: data.size?.trim() || DEFAULT_SIZE,
+              price: data.price,
+              inventory: {
+                create: {
+                  locationId: data.locationId,
+                  available: data.initialStock
+                }
               }
             }
           }
+        },
+        include: {
+          variants: { include: { inventory: true } }
         }
-      },
-      include: {
-        variants: true
+      });
+
+      if (data.initialStock > 0) {
+        await tx.movement.create({
+          data: {
+            variantId: created.variants[0].id,
+            locationId: data.locationId,
+            userId: data.userId,
+            delta: data.initialStock,
+            type: "RESTOCK",
+            notes: "alta",
+          }
+        });
       }
+      return created;
     });
 
     const createdVariant = product.variants[0];
@@ -195,7 +239,10 @@ export class PrismaDataSource implements InventoryDataSource {
         sku: createdVariant.sku,
         barcode: createdVariant.barcode,
         price: Number(createdVariant.price),
-        inventory: [{ locationId: data.locationId, available: 1 }]
+        inventory: createdVariant.inventory.map(inv => ({
+          locationId: inv.locationId,
+          available: inv.available
+        }))
       }
     };
   }

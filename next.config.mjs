@@ -6,5 +6,10 @@ const withPWA = withPWAInit({
 });
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  // Las fotos de producto (≈1 MB máx. tras procesar) viajan por server action.
+  experimental: {
+    serverActions: { bodySizeLimit: "5mb" },
+  },
+};
 export default withPWA(nextConfig);

@@ -6,10 +6,9 @@ import { SearchFilter } from "@/components/products/SearchFilter";
 import { ProductCard } from "@/components/products/ProductCard";
 import { ProductPhotoButton } from "@/components/products/ProductPhotoButton";
 import { fetchProductsAction } from "@/lib/actions";
+import { PRODUCT_CATEGORIES } from "@/lib/domain/new-product";
 
-const CATEGORIES = [
-  "Playeras", "Pantalones", "Hoodies", "Tenis", "Accesorios", "Perfumes", "Raquetas de Padel",
-];
+const CATEGORIES = [...PRODUCT_CATEGORIES];
 
 export default function ProductosPage() {
   const [products, setProducts] = useState<Product[]>([]);
