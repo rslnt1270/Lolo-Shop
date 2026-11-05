@@ -1,4 +1,5 @@
 "use server";
+import { isProductBlobUrl } from "./image/blob-url";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "./auth/options";
@@ -176,7 +177,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
 
     let imageUrl: string | null = null;
     if (input.imageUrl) {
-      if (typeof input.imageUrl !== "string" || !/^https:\/\//.test(input.imageUrl)) {
+      if (!isProductBlobUrl(input.imageUrl)) {
         return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
       }
       imageUrl = input.imageUrl;
