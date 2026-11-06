@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider          = "postgresql"
   url               = env("DATABASE_URL")
   directUrl         = env("DIRECT_URL")
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
@@ -26,65 +26,124 @@ enum MovementType {
   ADJUSTMENT
   TRANSFER
   DAMAGE
+  RETURN
+}
+
+enum SaleChannel {
+  store
+  whatsapp
+}
+
+enum PaymentMethod {
+  spay_transfer
+  cash
+  card
+}
+
+enum SaleStatus {
+  pending_payment
+  paid
+  cancelled
+  refunded
 }
 
 model User {
-  id         String     @id @default(uuid())
-  username   String     @unique
-  password   String
-  name       String     @default("")
-  role       Role       @default(collaborator)
-  locationId String?
-  location   Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  movements  Movement[]
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @default(now()) @updatedAt
+  id                    String       @id @default(uuid())
+  username              String       @unique
+  password              String
+  name                  String       @default("")
+  role                  Role         @default(collaborator)
+  locationId            String?
+  location              Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  movements             Movement[]
+  brandsCreated         Brand[]
+  salesCreated          Sale[]       @relation("SaleCreatedBy")
+  salesPaymentConfirmed Sale[]       @relation("SalePaymentConfirmedBy")
+  salesCancelled        Sale[]       @relation("SaleCancelledBy")
+  appSettingsUpdated    AppSetting[]
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @default(now()) @updatedAt
 
   @@index([locationId])
 }
 
 model Location {
-  id         String           @id @default(uuid())
-  name       String
-  type       LocationType     @default(store)
-  users      User[]
-  inventory  InventoryLevel[]
-  movements  Movement[]
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @default(now()) @updatedAt
+  id        String           @id @default(uuid())
+  name      String
+  type      LocationType     @default(store)
+  users     User[]
+  inventory InventoryLevel[]
+  movements Movement[]
+  saleLines SaleLine[]
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @default(now()) @updatedAt
+  Sale      Sale[]
 }
 
 model Product {
-  id        String    @id @default(uuid())
-  title     String
-  brand     String
-  category  String    @default("General")
-  imageUrl  String?
-  isActive  Boolean   @default(true)
-  variants  Variant[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
+  id           String      @id @default(uuid())
+  title        String
+  brand        String
+  category     String      @default("General")
+  brandId      String?
+  brandRef     Brand?      @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  publicCode   String?     @unique
+  imageUrl     String?
+  isActive     Boolean     @default(true)
+  variants     Variant[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @default(now()) @updatedAt
 
   @@index([category])
   @@index([brand])
+  @@index([brandId])
+  @@index([departmentId])
+}
+
+model Brand {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  slug        String    @unique
+  isActive    Boolean   @default(true)
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@index([createdById])
+}
+
+model Department {
+  id        String    @id @default(uuid())
+  slug      String    @unique
+  name      String
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
 }
 
 model Variant {
-  id        String           @id @default(uuid())
+  id        String  @id @default(uuid())
   productId String
-  product   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   title     String
-  sku       String           @unique
-  barcode   String?          @unique
-  price     Decimal          @default(0.0) @db.Decimal(10, 2)
-  size      String           @default("U")
-  color     String           @default("General")
-  isActive  Boolean          @default(true)
+  sku       String  @unique
+  barcode   String? @unique
+  price     Decimal @default(0.0) @db.Decimal(10, 2)
+  size      String  @default("U")
+  color     String  @default("General")
+  isActive  Boolean @default(true)
 
   inventory InventoryLevel[]
   movements Movement[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @default(now()) @updatedAt
+  SaleLine  SaleLine[]
 
   @@index([productId])
 }
@@ -96,29 +155,96 @@ model InventoryLevel {
   available  Int      @default(0)
   updatedAt  DateTime @default(now()) @updatedAt
 
-  variant    Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
-  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  variant  Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
 
   @@unique([variantId, locationId])
   @@index([locationId])
 }
 
 model Movement {
-  id         String        @id @default(uuid())
+  id         String       @id @default(uuid())
   variantId  String
   locationId String
   userId     String
   delta      Int
-  type       MovementType  @default(ADJUSTMENT)
+  type       MovementType @default(ADJUSTMENT)
   notes      String?
-  timestamp  DateTime      @default(now())
+  timestamp  DateTime     @default(now())
 
-  variant    Variant       @relation(fields: [variantId], references: [id], onDelete: Restrict)
-  location   Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  user       User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  variant  Variant  @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  Sale     Sale?    @relation(fields: [saleId], references: [id])
+  saleId   String?
 
   @@index([variantId, timestamp(sort: Desc)])
   @@index([locationId, timestamp(sort: Desc)])
   @@index([userId, timestamp(sort: Desc)])
   @@index([timestamp(sort: Desc)])
+}
+
+model Sale {
+  id                   String        @id @default(uuid())
+  number               Int           @unique @default(autoincrement())
+  clientRequestId      String        @unique
+  channel              SaleChannel
+  status               SaleStatus
+  paymentMethod        PaymentMethod
+  locationId           String
+  location             Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  total                Decimal       @db.Decimal(10, 2)
+  businessDate         DateTime      @db.Date
+  stockCommittedAt     DateTime?
+  createdById          String
+  createdBy            User          @relation("SaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  paymentConfirmedById String?
+  paymentConfirmedBy   User?         @relation("SalePaymentConfirmedBy", fields: [paymentConfirmedById], references: [id], onDelete: Restrict)
+  paymentConfirmedAt   DateTime?
+  paymentReference     String?
+  customerAlias        String?       @db.VarChar(40)
+  cancelledById        String?
+  cancelledBy          User?         @relation("SaleCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancelledAt          DateTime?
+  cancelReason         String?
+  notes                String?
+  lines                SaleLine[]
+  movements            Movement[]
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @default(now()) @updatedAt
+
+  @@index([businessDate])
+  @@index([locationId, businessDate])
+  @@index([channel, businessDate])
+  @@index([status, createdAt])
+}
+
+model SaleLine {
+  id               String    @id @default(uuid())
+  saleId           String
+  sale             Sale      @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  variantId        String
+  variant          Variant   @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  productId        String
+  brandId          String?
+  departmentId     String?
+  category         String
+  quantity         Int
+  unitPrice        Decimal   @db.Decimal(10, 2)
+  returnedQuantity Int       @default(0)
+  Location         Location? @relation(fields: [locationId], references: [id])
+  locationId       String?
+
+  @@unique([saleId, variantId])
+  @@index([saleId])
+  @@index([brandId])
+  @@index([departmentId])
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @default(now()) @updatedAt
 }
