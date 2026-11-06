@@ -10,7 +10,7 @@ describe("scopeDashboardQuery", () => {
       { from: "2026-10-01", to: "2026-11-05", locationIds: "all" },
       today,
     );
-    expect(q).toEqual({ from: today, to: today, locationIds: ["A"] });
+    expect(q).toEqual({ from: today, to: today, locationIds: ["A"], pendingScope: "range" });
   });
 
   it("collaborator sin tienda no ve ninguna", () => {
@@ -22,13 +22,14 @@ describe("scopeDashboardQuery", () => {
       from: "2026-10-07",
       to: today,
       locationIds: "all",
+      pendingScope: "all_dates",
     });
   });
 
   it("owner respeta rango y tiendas pedidas", () => {
     expect(
       scopeDashboardQuery({ role: "owner", locationId: null }, { from: "2026-10-01", to: "2026-10-31", locationIds: ["B"] }, today),
-    ).toEqual({ from: "2026-10-01", to: "2026-10-31", locationIds: ["B"] });
+    ).toEqual({ from: "2026-10-01", to: "2026-10-31", locationIds: ["B"], pendingScope: "all_dates" });
   });
 
   it("manager de A que pide all recibe [A]; ids ajenos se descartan", () => {
@@ -48,6 +49,17 @@ describe("scopeDashboardQuery", () => {
 
   it("fechas inválidas caen al valor por defecto", () => {
     const q = scopeDashboardQuery({ role: "owner", locationId: null }, { from: "basura", to: "2026-13-45" }, today);
-    expect(q).toEqual({ from: "2026-10-07", to: today, locationIds: "all" });
+    expect(q).toEqual({ from: "2026-10-07", to: today, locationIds: "all", pendingScope: "all_dates" });
+  });
+
+  it("manager: pendingScope all_dates", () => {
+    expect(scopeDashboardQuery({ role: "manager", locationId: "A" }, {}, today).pendingScope).toBe("all_dates");
+    expect(scopeDashboardQuery({ role: "manager", locationId: null }, {}, today).pendingScope).toBe("all_dates");
+  });
+
+  it("descarta ids de tienda no textuales o vacíos del cliente", () => {
+    const o = { role: "owner" as const, locationId: null };
+    const bad = ["B", "", "  ", 5, null, "B"] as unknown as string[];
+    expect(scopeDashboardQuery(o, { locationIds: bad }, today).locationIds).toEqual(["B"]);
   });
 });

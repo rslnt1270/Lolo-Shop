@@ -26,7 +26,12 @@ export function scopeDashboardQuery(
   today: string,
 ): DashboardQuery {
   if (user.role === "collaborator") {
-    return { from: today, to: today, locationIds: user.locationId ? [user.locationId] : [] };
+    return {
+      from: today,
+      to: today,
+      locationIds: user.locationId ? [user.locationId] : [],
+      pendingScope: "range",
+    };
   }
 
   let from = isBusinessDate(requested.from) ? requested.from : addDays(today, -(DEFAULT_RANGE_DAYS - 1));
@@ -34,8 +39,12 @@ export function scopeDashboardQuery(
   if (from > to) [from, to] = [to, from];
 
   if (user.role === "manager" && user.locationId) {
-    return { from, to, locationIds: [user.locationId] };
+    return { from, to, locationIds: [user.locationId], pendingScope: "all_dates" };
   }
   const ids = requested.locationIds;
-  return { from, to, locationIds: Array.isArray(ids) ? [...new Set(ids)] : "all" };
+  // Viene del cliente: solo se conservan textos no vacíos.
+  const clean = Array.isArray(ids)
+    ? [...new Set(ids.filter((id): id is string => typeof id === "string" && id.trim() !== ""))]
+    : null;
+  return { from, to, locationIds: clean ?? "all", pendingScope: "all_dates" };
 }

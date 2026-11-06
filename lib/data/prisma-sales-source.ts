@@ -289,7 +289,11 @@ export class PrismaSalesDataSource implements SalesDataSource {
           WHERE ${validSql}
           GROUP BY l."departmentId", d."name" ORDER BY total DESC`),
         this.db.sale.findMany({
-          where: { status: "pending_payment", ...locFilter },
+          where: {
+            status: "pending_payment",
+            ...locFilter,
+            ...(q.pendingScope === "range" ? { businessDate: range } : {}),
+          },
           orderBy: { createdAt: "asc" },
           select: { id: true, number: true, total: true, locationId: true, createdAt: true },
         }),

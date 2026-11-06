@@ -60,7 +60,7 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource.getDashboard", () => {
 
   it("soldTotal excluye canceladas e incluye pendientes; collectedTotal solo paid", async () => {
     await seedSales();
-    const d = await ds.getDashboard({ from: today, to: today, locationIds: "all" });
+    const d = await ds.getDashboard({ from: today, to: today, locationIds: "all", pendingScope: "all_dates" });
     expect(d.soldTotal).toBe(1210.3);
     expect(d.collectedTotal).toBe(910.1);
     expect(d.salesCount).toBe(3);
@@ -71,29 +71,29 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource.getDashboard", () => {
 
   it("pendingPayments tiene 1 elemento", async () => {
     await seedSales();
-    const d = await ds.getDashboard({ from: today, to: today, locationIds: "all" });
+    const d = await ds.getDashboard({ from: today, to: today, locationIds: "all", pendingScope: "all_dates" });
     expect(d.pendingPayments).toHaveLength(1);
     expect(d.pendingPayments[0].total).toBe(300.2);
   });
 
   it("byBrand y byDepartment suman quantity x unitPrice", async () => {
     await seedSales();
-    const d = await ds.getDashboard({ from: today, to: today, locationIds: "all" });
+    const d = await ds.getDashboard({ from: today, to: today, locationIds: "all", pendingScope: "all_dates" });
     expect(d.byBrand).toEqual([{ brandId, name: "Guess", units: 4, total: 1210.3 }]);
     expect(d.byDepartment[0]).toMatchObject({ name: "Dama", units: 4, total: 1210.3 });
   });
 
   it("respeta el filtro de tienda y de rango", async () => {
     await seedSales();
-    expect((await ds.getDashboard({ from: today, to: today, locationIds: [storeB] })).soldTotal).toBe(0);
-    expect((await ds.getDashboard({ from: "2020-01-01", to: "2020-01-31", locationIds: "all" })).salesCount).toBe(0);
+    expect((await ds.getDashboard({ from: today, to: today, locationIds: [storeB], pendingScope: "all_dates" })).soldTotal).toBe(0);
+    expect((await ds.getDashboard({ from: "2020-01-01", to: "2020-01-31", locationIds: "all", pendingScope: "all_dates" })).salesCount).toBe(0);
   });
 
   it("lowStock: umbral global 2, minStock gana, solo tiendas activas", async () => {
     await testPrisma.inventoryLevel.updateMany({ where: { variantId: V1, locationId: storeA }, data: { available: 2 } });
     await testPrisma.inventoryLevel.updateMany({ where: { variantId: V2, locationId: storeA }, data: { available: 1, minStock: 0 } });
     await testPrisma.inventoryLevel.updateMany({ where: { variantId: V1, locationId: warehouse }, data: { available: 0 } });
-    const q = { from: today, to: today, locationIds: "all" as const };
+    const q = { from: today, to: today, locationIds: "all" as const, pendingScope: "all_dates" as const };
 
     let d = await ds.getDashboard(q);
     expect(d.lowStock).toEqual([
@@ -108,5 +108,26 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource.getDashboard", () => {
     await testPrisma.variant.update({ where: { id: V1 }, data: { isActive: false } });
     d = await ds.getDashboard(q);
     expect(d.lowStock.map((l) => l.variantId)).toEqual([V2]);
+  });
+
+  it("pendingScope: pendiente de un día anterior se oculta con range y se ve con all_dates", async () => {
+    const old = await sell(storeA, V1, 1, 300, "spay_transfer");
+    await testPrisma.sale.update({ where: { id: old.id }, data: { businessDate: new Date("2020-01-15T00:00:00Z") } });
+    await sell(storeA, V2, 1, 320, "spay_transfer");
+    const base = { from: today, to: today, locationIds: [storeA] };
+
+    expect((await ds.getDashboard({ ...base, pendingScope: "range" })).pendingPayments).toHaveLength(1);
+    const all = await ds.getDashboard({ ...base, pendingScope: "all_dates" });
+    expect(all.pendingPayments).toHaveLength(2);
+    expect(all.pendingPayments[0].saleId).toBe(old.id);
+  });
+
+  it("locationIds vacío devuelve ceros y listas vacías", async () => {
+    await seedSales();
+    const d = await ds.getDashboard({ from: today, to: today, locationIds: [], pendingScope: "range" });
+    expect(d).toEqual({
+      soldTotal: 0, collectedTotal: 0, salesCount: 0, byDay: [], byLocation: [], byChannel: [],
+      byPaymentMethod: [], byBrand: [], byDepartment: [], pendingPayments: [], lowStock: [],
+    });
   });
 });

@@ -23,6 +23,11 @@ export interface DashboardQuery {
   from: string;
   to: string;
   locationIds: string[] | "all";
+  /**
+   * Cobros pendientes: "all_dates" (owner/manager) no filtra por fecha;
+   * "range" (collaborator) los limita a from..to. Lo fija el servidor por rol.
+   */
+  pendingScope: "all_dates" | "range";
 }
 
 /** Importes en pesos con 2 decimales. */

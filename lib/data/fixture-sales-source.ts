@@ -173,7 +173,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
         .sort((a, b) => b.total - a.total),
       byDepartment: [],
       pendingPayments: all
-        .filter((s) => s.status === "pending_payment")
+        .filter((s) => s.status === "pending_payment" && (q.pendingScope !== "range" || (s.businessDate >= q.from && s.businessDate <= q.to)))
         .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
         .map((s) => ({ saleId: s.id, number: s.number, total: s.total, locationId: s.locationId, createdAt: s.createdAt })),
       lowStock: [...this.stock.entries()]
