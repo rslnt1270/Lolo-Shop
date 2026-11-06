@@ -7,6 +7,7 @@ import {
   validateNewSale,
   MAX_REFERENCE_LENGTH,
   type NewSaleInput,
+  type SaleStatus,
 } from "../domain/sale";
 import { InsufficientStockError, SalesRuleError } from "./errors";
 import {
@@ -30,6 +31,20 @@ export const SALE_TX_OPTIONS = {
   maxWait: 5_000,
   timeout: 10_000,
 } as const;
+
+const VALID_STATUSES: SaleStatus[] = ["paid", "pending_payment"];
+
+interface RawGroup {
+  id: string | null;
+  name: string;
+  units: number;
+  total: Prisma.Decimal | null;
+}
+
+const dateOnly = (s: string) => new Date(`${s}T00:00:00.000Z`);
+
+/** Decimal (exacto) a pesos con 2 decimales; nunca se suma en float. */
+const pesos = (d: Prisma.Decimal | null | undefined): number => Number((d ?? new Prisma.Decimal(0)).toFixed(2));
 
 const saleWithLines = { lines: { orderBy: { variantId: "asc" } } } satisfies Prisma.SaleInclude;
 type SaleWithLines = Prisma.SaleGetPayload<{ include: typeof saleWithLines }>;
@@ -238,8 +253,93 @@ export class PrismaSalesDataSource implements SalesDataSource {
     }, SALE_TX_OPTIONS);
   }
 
-  async getDashboard(_q: DashboardQuery): Promise<DashboardData> {
-    throw new Error("not implemented");
+  async getDashboard(q: DashboardQuery): Promise<DashboardData> {
+    const range = { gte: dateOnly(q.from), lte: dateOnly(q.to) };
+    const locFilter = q.locationIds === "all" ? {} : { locationId: { in: q.locationIds } };
+    const valid = { businessDate: range, status: { in: VALID_STATUSES }, ...locFilter };
+    const locSql = q.locationIds === "all" ? Prisma.empty : Prisma.sql`AND s."locationId" = ANY(${q.locationIds}::text[])`;
+    const validSql = Prisma.sql`s."businessDate" BETWEEN ${q.from}::date AND ${q.to}::date
+      AND s."status" IN ('paid'::"SaleStatus", 'pending_payment'::"SaleStatus") ${locSql}`;
+    const threshold = await this.getLowStockThreshold();
+
+    const [sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels] =
+      await Promise.all([
+        this.db.sale.aggregate({ where: valid, _sum: { total: true }, _count: true }),
+        this.db.sale.aggregate({ where: { ...valid, status: "paid" }, _sum: { total: true } }),
+        this.db.sale.groupBy({ by: ["businessDate"], where: valid, _sum: { total: true }, _count: true, orderBy: { businessDate: "asc" } }),
+        this.db.sale.groupBy({ by: ["locationId"], where: valid, _sum: { total: true } }),
+        this.db.sale.groupBy({ by: ["channel"], where: valid, _sum: { total: true } }),
+        this.db.sale.groupBy({ by: ["paymentMethod"], where: valid, _sum: { total: true } }),
+        this.db.$queryRaw<RawGroup[]>(Prisma.sql`
+          SELECT l."brandId" AS id, COALESCE(b."name", 'Sin marca') AS name,
+                 SUM(l."quantity" - l."returnedQuantity")::int AS units,
+                 SUM((l."quantity" - l."returnedQuantity") * l."unitPrice") AS total
+          FROM "SaleLine" l
+          JOIN "Sale" s ON s."id" = l."saleId"
+          LEFT JOIN "Brand" b ON b."id" = l."brandId"
+          WHERE ${validSql}
+          GROUP BY l."brandId", b."name" ORDER BY total DESC`),
+        this.db.$queryRaw<RawGroup[]>(Prisma.sql`
+          SELECT l."departmentId" AS id, COALESCE(d."name", 'Sin departamento') AS name,
+                 SUM(l."quantity" - l."returnedQuantity")::int AS units,
+                 SUM((l."quantity" - l."returnedQuantity") * l."unitPrice") AS total
+          FROM "SaleLine" l
+          JOIN "Sale" s ON s."id" = l."saleId"
+          LEFT JOIN "Department" d ON d."id" = l."departmentId"
+          WHERE ${validSql}
+          GROUP BY l."departmentId", d."name" ORDER BY total DESC`),
+        this.db.sale.findMany({
+          where: { status: "pending_payment", ...locFilter },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, number: true, total: true, locationId: true, createdAt: true },
+        }),
+        this.db.inventoryLevel.findMany({
+          where: {
+            ...locFilter,
+            location: { type: "store" },
+            variant: { isActive: true },
+            OR: [
+              { minStock: null, available: { lte: threshold } },
+              { minStock: { not: null }, available: { lte: this.db.inventoryLevel.fields.minStock } },
+            ],
+          },
+          orderBy: [{ available: "asc" }, { variantId: "asc" }],
+          select: {
+            variantId: true,
+            locationId: true,
+            available: true,
+            minStock: true,
+            variant: { select: { size: true, product: { select: { title: true } } } },
+          },
+        }),
+      ]);
+
+    return {
+      soldTotal: pesos(sold._sum.total),
+      collectedTotal: pesos(collected._sum.total),
+      salesCount: sold._count,
+      byDay: byDay.map((r) => ({ date: r.businessDate.toISOString().slice(0, 10), total: pesos(r._sum.total), count: r._count })),
+      byLocation: byLocation.map((r) => ({ locationId: r.locationId, total: pesos(r._sum.total) })),
+      byChannel: byChannel.map((r) => ({ channel: r.channel, total: pesos(r._sum.total) })),
+      byPaymentMethod: byMethod.map((r) => ({ method: r.paymentMethod, total: pesos(r._sum.total) })),
+      byBrand: brands.map((r) => ({ brandId: r.id, name: r.name, units: r.units, total: pesos(r.total) })),
+      byDepartment: depts.map((r) => ({ departmentId: r.id, name: r.name, units: r.units, total: pesos(r.total) })),
+      pendingPayments: pending.map((p) => ({
+        saleId: p.id,
+        number: p.number,
+        total: pesos(p.total),
+        locationId: p.locationId,
+        createdAt: p.createdAt.toISOString(),
+      })),
+      lowStock: levels.map((l) => ({
+        variantId: l.variantId,
+        locationId: l.locationId,
+        productTitle: l.variant.product.title,
+        size: l.variant.size,
+        available: l.available,
+        threshold: l.minStock ?? threshold,
+      })),
+    };
   }
 
   async getLowStockThreshold(): Promise<number> {

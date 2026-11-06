@@ -19,6 +19,10 @@ import {
 } from "./sales-source";
 
 const stockKey = (variantId: string, locationId: string) => `${variantId}|${locationId}`;
+const splitKey = (key: string) => {
+  const [variantId, locationId] = key.split("|");
+  return { variantId, locationId };
+};
 const copy = (s: SaleRecord): SaleRecord => ({ ...s, lines: s.lines.map((l) => ({ ...l })) });
 
 let seq = 0;
@@ -35,11 +39,15 @@ export class FixtureSalesDataSource implements SalesDataSource {
   private byRequestId = new Map<string, SaleRecord>();
   private threshold = DEFAULT_LOW_STOCK_THRESHOLD;
   private nextNumber = 1;
+  private brandOf = new Map<string, string>();
+  private titleOf = new Map<string, { title: string; size: string }>();
 
   constructor(products: Product[] = fixtureProducts) {
     for (const p of products) {
       for (const v of p.variants) {
         this.variants.add(v.id);
+        this.brandOf.set(v.id, p.brand);
+        this.titleOf.set(v.id, { title: p.title, size: v.size });
         for (const lvl of v.inventory) this.stock.set(stockKey(v.id, lvl.locationId), lvl.available);
       }
     }
@@ -123,8 +131,63 @@ export class FixtureSalesDataSource implements SalesDataSource {
     return copy(s);
   }
 
-  async getDashboard(_q: DashboardQuery): Promise<DashboardData> {
-    throw new Error("not implemented");
+  /** Misma forma que Prisma; el fixture no tiene departamentos ni `minStock`. */
+  async getDashboard(q: DashboardQuery): Promise<DashboardData> {
+    const inScope = (loc: string) => q.locationIds === "all" || q.locationIds.includes(loc);
+    const all = [...this.sales.values()].filter((s) => inScope(s.locationId));
+    const valid = all.filter(
+      (s) =>
+        (s.status === "paid" || s.status === "pending_payment") &&
+        s.businessDate >= q.from &&
+        s.businessDate <= q.to,
+    );
+    const cents = (n: number) => Math.round(n * 100);
+    const sum = (rows: SaleRecord[]) => rows.reduce((a, s) => a + cents(s.total), 0) / 100;
+    const group = <K extends string>(key: (s: SaleRecord) => K) => {
+      const m = new Map<K, SaleRecord[]>();
+      for (const s of valid) m.set(key(s), [...(m.get(key(s)) ?? []), s]);
+      return [...m.entries()];
+    };
+
+    const brands = new Map<string, { units: number; cents: number }>();
+    for (const s of valid) {
+      for (const l of s.lines) {
+        const name = this.brandOf.get(l.variantId) ?? "Sin marca";
+        const cur = brands.get(name) ?? { units: 0, cents: 0 };
+        brands.set(name, { units: cur.units + l.quantity, cents: cur.cents + l.quantity * cents(l.unitPrice) });
+      }
+    }
+
+    return {
+      soldTotal: sum(valid),
+      collectedTotal: sum(valid.filter((s) => s.status === "paid")),
+      salesCount: valid.length,
+      byDay: group((s) => s.businessDate)
+        .map(([date, rows]) => ({ date, total: sum(rows), count: rows.length }))
+        .sort((a, b) => (a.date < b.date ? -1 : 1)),
+      byLocation: group((s) => s.locationId).map(([locationId, rows]) => ({ locationId, total: sum(rows) })),
+      byChannel: group((s) => s.channel).map(([channel, rows]) => ({ channel, total: sum(rows) })),
+      byPaymentMethod: group((s) => s.paymentMethod).map(([method, rows]) => ({ method, total: sum(rows) })),
+      byBrand: [...brands.entries()]
+        .map(([name, v]) => ({ brandId: null, name, units: v.units, total: v.cents / 100 }))
+        .sort((a, b) => b.total - a.total),
+      byDepartment: [],
+      pendingPayments: all
+        .filter((s) => s.status === "pending_payment")
+        .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
+        .map((s) => ({ saleId: s.id, number: s.number, total: s.total, locationId: s.locationId, createdAt: s.createdAt })),
+      lowStock: [...this.stock.entries()]
+        .map(([key, available]) => ({ key, available, ...splitKey(key) }))
+        .filter((r) => inScope(r.locationId) && r.available <= this.threshold && this.titleOf.has(r.variantId))
+        .map((r) => ({
+          variantId: r.variantId,
+          locationId: r.locationId,
+          productTitle: this.titleOf.get(r.variantId)!.title,
+          size: this.titleOf.get(r.variantId)!.size,
+          available: r.available,
+          threshold: this.threshold,
+        })),
+    };
   }
 
   async getLowStockThreshold(): Promise<number> {

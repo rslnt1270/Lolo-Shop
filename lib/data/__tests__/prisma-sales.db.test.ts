@@ -399,8 +399,4 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
       expect(await ds.getLowStockThreshold()).toBe(0);
     });
   });
-
-  it("getDashboard aún no está implementado", async () => {
-    await expect(ds.getDashboard({})).rejects.toThrow("not implemented");
-  });
 });

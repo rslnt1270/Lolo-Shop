@@ -18,9 +18,36 @@ export interface SaleRecord {
   lines: { variantId: string; quantity: number; unitPrice: number }[];
 }
 
-// Placeholders: la Tarea 6 define la consulta y la respuesta del dashboard.
-export type DashboardQuery = unknown;
-export type DashboardData = unknown;
+/** Fechas de negocio `YYYY-MM-DD`, inclusivas. */
+export interface DashboardQuery {
+  from: string;
+  to: string;
+  locationIds: string[] | "all";
+}
+
+/** Importes en pesos con 2 decimales. */
+export interface DashboardData {
+  /** Vendido: paid + pending_payment (salió mercancía). */
+  soldTotal: number;
+  /** Cobrado: solo paid. */
+  collectedTotal: number;
+  salesCount: number;
+  byDay: { date: string; total: number; count: number }[];
+  byLocation: { locationId: string; total: number }[];
+  byChannel: { channel: SaleChannel; total: number }[];
+  byPaymentMethod: { method: PaymentMethod; total: number }[];
+  byBrand: { brandId: string | null; name: string; units: number; total: number }[];
+  byDepartment: { departmentId: string | null; name: string; units: number; total: number }[];
+  pendingPayments: { saleId: string; number: number; total: number; locationId: string; createdAt: string }[];
+  lowStock: {
+    variantId: string;
+    locationId: string;
+    productTitle: string;
+    size: string;
+    available: number;
+    threshold: number;
+  }[];
+}
 
 /**
  * Ventas con descuento de stock (ER §3.1) y anulación (ER §3.3). Los permisos
