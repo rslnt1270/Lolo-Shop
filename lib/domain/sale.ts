@@ -59,7 +59,7 @@ export function validateNewSale(input: unknown): SaleValidation {
     if (customerAlias.length > MAX_ALIAS_LENGTH) {
       return fail(`El alias no puede pasar de ${MAX_ALIAS_LENGTH} caracteres.`);
     }
-    if (/\d{7,}/.test(customerAlias)) {
+    if (/\d{7,}/.test(customerAlias.replace(/[\s\-.()]/g, ""))) {
       return fail("El alias no puede incluir teléfonos ni números largos.");
     }
   }

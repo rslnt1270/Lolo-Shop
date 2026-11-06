@@ -8,7 +8,9 @@ const CODE_LENGTH = 5;
  */
 export function generatePublicCode(random?: () => number): string {
   const indexes = random
-    ? Array.from({ length: CODE_LENGTH }, () => Math.floor(random() * ALPHABET.length))
+    ? Array.from({ length: CODE_LENGTH }, () =>
+        Math.min(ALPHABET.length - 1, Math.max(0, Math.floor(random() * ALPHABET.length) || 0)),
+      )
     : Array.from(crypto.getRandomValues(new Uint8Array(CODE_LENGTH)), (b) => b % ALPHABET.length);
   return indexes.map((i) => ALPHABET[i]).join("");
 }

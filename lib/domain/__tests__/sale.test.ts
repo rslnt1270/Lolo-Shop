@@ -8,7 +8,7 @@ const base = {
   paymentMethod: "cash",
   lines: [{ variantId: "v1", quantity: 1, unitPrice: 100 }],
 };
-const bad = (patch: object) => validateNewSale({ ...base, ...patch });
+const withPatch = (patch: object) => validateNewSale({ ...base, ...patch });
 
 describe("businessDateMx", () => {
   it("23:30 en México sigue siendo el día anterior", () => {
@@ -38,41 +38,47 @@ describe("saleTotal", () => {
 
 describe("validateNewSale", () => {
   it("acepta una venta válida y alias natural", () => {
-    const r = bad({ customerAlias: "chamarra azul 2" });
+    const r = withPatch({ customerAlias: "chamarra azul 2" });
     expect(r.ok).toBe(true);
   });
   it("recorta alias y referencia, y los omite si quedan vacíos", () => {
-    const r = bad({ customerAlias: "  Ana  ", paymentReference: "   " });
+    const r = withPatch({ customerAlias: "  Ana  ", paymentReference: "   " });
     expect(r).toMatchObject({ ok: true });
     if (r.ok) {
       expect(r.value.customerAlias).toBe("Ana");
       expect(r.value.paymentReference).toBeUndefined();
     }
   });
-  it("rechaza venta sin líneas", () => expect(bad({ lines: [] }).ok).toBe(false));
+  it("rechaza venta sin líneas", () => expect(withPatch({ lines: [] }).ok).toBe(false));
   it.each([0, -1, 1.5])("rechaza quantity %s", (quantity) => {
-    expect(bad({ lines: [{ variantId: "v1", quantity, unitPrice: 10 }] }).ok).toBe(false);
+    expect(withPatch({ lines: [{ variantId: "v1", quantity, unitPrice: 10 }] }).ok).toBe(false);
   });
   it("rechaza unitPrice negativo", () => {
-    expect(bad({ lines: [{ variantId: "v1", quantity: 1, unitPrice: -1 }] }).ok).toBe(false);
+    expect(withPatch({ lines: [{ variantId: "v1", quantity: 1, unitPrice: -1 }] }).ok).toBe(false);
   });
   it("rechaza variante repetida", () => {
     const l = { variantId: "v1", quantity: 1, unitPrice: 10 };
-    expect(bad({ lines: [l, l] }).ok).toBe(false);
+    expect(withPatch({ lines: [l, l] }).ok).toBe(false);
   });
   it("rechaza alias de 41 caracteres", () => {
-    expect(bad({ customerAlias: "a".repeat(41) }).ok).toBe(false);
-    expect(bad({ customerAlias: "a".repeat(40) }).ok).toBe(true);
+    expect(withPatch({ customerAlias: "a".repeat(41) }).ok).toBe(false);
+    expect(withPatch({ customerAlias: "a".repeat(40) }).ok).toBe(true);
   });
   it("rechaza alias con 7 o más dígitos seguidos", () => {
-    expect(bad({ customerAlias: "Ana 5512345678" }).ok).toBe(false);
+    expect(withPatch({ customerAlias: "Ana 5512345678" }).ok).toBe(false);
+  });
+  it.each(["Ana 55 1234 5678", "Ana 55-1234-5678", "(55) 1234.5678"])("rechaza alias con teléfono separado: %s", (customerAlias) => {
+    expect(withPatch({ customerAlias }).ok).toBe(false);
+  });
+  it.each(["Talla 38 y 40", "pedido 12 34"])("acepta alias con pocos dígitos: %s", (customerAlias) => {
+    expect(withPatch({ customerAlias }).ok).toBe(true);
   });
   it("rechaza clientRequestId que no es uuid", () => {
-    expect(bad({ clientRequestId: "abc" }).ok).toBe(false);
+    expect(withPatch({ clientRequestId: "abc" }).ok).toBe(false);
   });
   it("rechaza canal o método fuera de lista", () => {
-    expect(bad({ channel: "web" }).ok).toBe(false);
-    expect(bad({ paymentMethod: "bitcoin" }).ok).toBe(false);
+    expect(withPatch({ channel: "web" }).ok).toBe(false);
+    expect(withPatch({ paymentMethod: "bitcoin" }).ok).toBe(false);
   });
   it("rechaza entradas que no son objeto", () => {
     expect(validateNewSale(null).ok).toBe(false);

@@ -11,4 +11,9 @@ describe("generatePublicCode", () => {
     expect(generatePublicCode(() => 0)).toBe("00000");
     expect(generatePublicCode(() => 0.999999)).toBe("ZZZZZ");
   });
+  it("acota un random fuera de rango", () => {
+    expect(generatePublicCode(() => 1)).toBe("ZZZZZ");
+    expect(generatePublicCode(() => -1)).toBe("00000");
+    expect(generatePublicCode(() => NaN)).toBe("00000");
+  });
 });
