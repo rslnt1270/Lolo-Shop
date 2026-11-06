@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Home, ScanLine, Tags, Package, LogOut } from "lucide-react";
+import { Home, ScanLine, Tags, Package, Receipt, LogOut } from "lucide-react";
 
 export function NavBar() {
   const pathname = usePathname();
@@ -16,6 +16,7 @@ export function NavBar() {
     { name: "Escanear", href: "/escanear", icon: ScanLine },
     { name: "Etiquetas", href: "/etiquetas", icon: Tags },
     { name: "Productos", href: "/productos", icon: Package },
+    { name: "Ventas", href: "/ventas", icon: Receipt },
   ];
 
   return (
@@ -71,7 +72,7 @@ export function NavBar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className="relative flex flex-col items-center justify-center w-16 h-12"
+                className="relative flex flex-col items-center justify-center w-14 h-12"
               >
                 <div className={`transition-all duration-300 ${isActive ? '-translate-y-1 text-loloteal' : 'text-gray-400'}`}>
                   <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
@@ -86,7 +87,7 @@ export function NavBar() {
           })}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="relative flex flex-col items-center justify-center w-16 h-12 text-gray-400 hover:text-red-500"
+            className="relative flex flex-col items-center justify-center w-14 h-12 text-gray-400 hover:text-red-500"
           >
             <LogOut size={22} />
           </button>

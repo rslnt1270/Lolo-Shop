@@ -47,6 +47,7 @@ describe("NavBar", () => {
     expect(screen.getAllByText("Escanear").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Etiquetas").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Productos").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Ventas").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Salir").length).toBeGreaterThan(0);
   });
 

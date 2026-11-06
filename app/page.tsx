@@ -5,6 +5,7 @@ import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import type { Location, Product } from "@/lib/domain/types";
 import { fetchProductsAction, fetchLocationsAction, createLocationAction } from "@/lib/actions";
+import { getLowStockThresholdAction } from "@/lib/sales/dashboard-actions";
 import { productStock, lowStockVariants } from "@/lib/services/inventory";
 import { StockSummary } from "@/components/inventory/StockSummary";
 import { LowStockList } from "@/components/inventory/LowStockList";
@@ -13,15 +14,17 @@ import { AddLocationForm } from "@/components/inventory/AddLocationForm";
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [threshold, setThreshold] = useState(1);
   const { data: session } = useSession();
 
   useEffect(() => {
     fetchProductsAction().then(setProducts);
     fetchLocationsAction().then(setLocations);
+    getLowStockThresholdAction().then(setThreshold).catch(() => undefined);
   }, []);
 
   const stockTotal = products.reduce((sum, p) => sum + productStock(p), 0);
-  const enAlerta = lowStockVariants(products, 1).length;
+  const enAlerta = lowStockVariants(products, threshold).length;
   const role = session?.user?.role;
 
   return (
@@ -100,9 +103,9 @@ export default function Home() {
         <section>
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="text-sm font-bold text-[#12211F]">Alertas de stock bajo</h2>
-            <span className="font-mono text-[0.6rem] text-[#3A4D4A]">umbral ≤ 1</span>
+            <span className="font-mono text-[0.6rem] text-[#3A4D4A]">umbral ≤ {threshold}</span>
           </div>
-          <LowStockList products={products} threshold={1} />
+          <LowStockList products={products} threshold={threshold} />
         </section>
       </div>
     </main>
