@@ -9,7 +9,7 @@ process.env.TEST_DATABASE_URL = env.TEST_DATABASE_URL || process.env.TEST_DATABA
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["test/**/*.db.test.ts", "prisma/**/*.db.test.ts"],
+    include: ["test/**/*.db.test.ts", "prisma/**/*.db.test.ts", "lib/**/*.db.test.ts"],
     globalSetup: ["./test/db/global-setup.ts"],
     fileParallelism: false,
   },
