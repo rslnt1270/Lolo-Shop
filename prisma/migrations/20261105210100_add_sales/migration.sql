@@ -11,6 +11,9 @@ CREATE TYPE "SaleStatus" AS ENUM ('pending_payment', 'paid', 'cancelled', 'refun
 ALTER TYPE "MovementType" ADD VALUE 'RETURN';
 
 -- AlterTable
+ALTER TABLE "InventoryLevel" ADD COLUMN     "minStock" INTEGER;
+
+-- AlterTable
 ALTER TABLE "Movement" ADD COLUMN     "saleId" TEXT;
 
 -- CreateTable
@@ -52,7 +55,6 @@ CREATE TABLE "SaleLine" (
     "quantity" INTEGER NOT NULL,
     "unitPrice" DECIMAL(10,2) NOT NULL,
     "returnedQuantity" INTEGER NOT NULL DEFAULT 0,
-    "locationId" TEXT,
 
     CONSTRAINT "SaleLine_pkey" PRIMARY KEY ("id")
 );
@@ -97,8 +99,17 @@ CREATE INDEX "SaleLine_departmentId_idx" ON "SaleLine"("departmentId");
 -- CreateIndex
 CREATE UNIQUE INDEX "SaleLine_saleId_variantId_key" ON "SaleLine"("saleId", "variantId");
 
+-- CreateIndex
+CREATE INDEX "InventoryLevel_locationId_available_idx" ON "InventoryLevel"("locationId", "available");
+
+-- CreateIndex
+CREATE INDEX "Movement_saleId_idx" ON "Movement"("saleId");
+
+-- CreateIndex
+CREATE INDEX "Movement_type_timestamp_idx" ON "Movement"("type", "timestamp" DESC);
+
 -- AddForeignKey
-ALTER TABLE "Movement" ADD CONSTRAINT "Movement_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Movement" ADD CONSTRAINT "Movement_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Sale" ADD CONSTRAINT "Sale_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -117,9 +128,6 @@ ALTER TABLE "SaleLine" ADD CONSTRAINT "SaleLine_saleId_fkey" FOREIGN KEY ("saleI
 
 -- AddForeignKey
 ALTER TABLE "SaleLine" ADD CONSTRAINT "SaleLine_variantId_fkey" FOREIGN KEY ("variantId") REFERENCES "Variant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "SaleLine" ADD CONSTRAINT "SaleLine_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AppSetting" ADD CONSTRAINT "AppSetting_updatedById_fkey" FOREIGN KEY ("updatedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

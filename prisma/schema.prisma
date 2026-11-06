@@ -74,10 +74,9 @@ model Location {
   users     User[]
   inventory InventoryLevel[]
   movements Movement[]
-  saleLines SaleLine[]
+  sales     Sale[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @default(now()) @updatedAt
-  Sale      Sale[]
 }
 
 model Product {
@@ -141,9 +140,9 @@ model Variant {
 
   inventory InventoryLevel[]
   movements Movement[]
+  saleLines SaleLine[]
   createdAt DateTime         @default(now())
   updatedAt DateTime         @default(now()) @updatedAt
-  SaleLine  SaleLine[]
 
   @@index([productId])
 }
@@ -153,6 +152,7 @@ model InventoryLevel {
   variantId  String
   locationId String
   available  Int      @default(0)
+  minStock   Int?
   updatedAt  DateTime @default(now()) @updatedAt
 
   variant  Variant  @relation(fields: [variantId], references: [id], onDelete: Cascade)
@@ -160,6 +160,7 @@ model InventoryLevel {
 
   @@unique([variantId, locationId])
   @@index([locationId])
+  @@index([locationId, available])
 }
 
 model Movement {
@@ -170,14 +171,16 @@ model Movement {
   delta      Int
   type       MovementType @default(ADJUSTMENT)
   notes      String?
+  saleId     String?
   timestamp  DateTime     @default(now())
 
   variant  Variant  @relation(fields: [variantId], references: [id], onDelete: Restrict)
   location Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
   user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  Sale     Sale?    @relation(fields: [saleId], references: [id])
-  saleId   String?
+  sale     Sale?    @relation(fields: [saleId], references: [id], onDelete: Restrict)
 
+  @@index([saleId])
+  @@index([type, timestamp(sort: Desc)])
   @@index([variantId, timestamp(sort: Desc)])
   @@index([locationId, timestamp(sort: Desc)])
   @@index([userId, timestamp(sort: Desc)])
@@ -220,20 +223,18 @@ model Sale {
 }
 
 model SaleLine {
-  id               String    @id @default(uuid())
+  id               String  @id @default(uuid())
   saleId           String
-  sale             Sale      @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  sale             Sale    @relation(fields: [saleId], references: [id], onDelete: Restrict)
   variantId        String
-  variant          Variant   @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  variant          Variant @relation(fields: [variantId], references: [id], onDelete: Restrict)
   productId        String
   brandId          String?
   departmentId     String?
   category         String
   quantity         Int
-  unitPrice        Decimal   @db.Decimal(10, 2)
-  returnedQuantity Int       @default(0)
-  Location         Location? @relation(fields: [locationId], references: [id])
-  locationId       String?
+  unitPrice        Decimal @db.Decimal(10, 2)
+  returnedQuantity Int     @default(0)
 
   @@unique([saleId, variantId])
   @@index([saleId])

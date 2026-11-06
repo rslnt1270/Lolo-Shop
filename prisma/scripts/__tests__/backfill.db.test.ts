@@ -64,4 +64,13 @@ describe.skipIf(!hasTestDb)("backfillBrandDepartment", () => {
     const s = await testPrisma.appSetting.findUnique({ where: { key: "lowStockThreshold" } });
     expect(s?.value).toBe(5);
   });
+
+  it("producto con marca vacía conserva brandId nulo y no crea Brand", async () => {
+    await testPrisma.product.create({ data: { title: "Sin marca", brand: "   " } });
+    await backfillBrandDepartment(testPrisma);
+    const p = await testPrisma.product.findFirstOrThrow();
+    expect(p.brandId).toBeNull();
+    expect(p.publicCode).toMatch(/^[0-9A-HJKMNP-TV-Z]{5}$/);
+    expect(await testPrisma.brand.count()).toBe(0);
+  });
 });
