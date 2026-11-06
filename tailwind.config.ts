@@ -7,6 +7,7 @@ const config: Config = {
         theme: {
           extend: {
             "colors": {
+              "loloteal": "#006a6a",
               "surface-container": "#edeeef",
               "inverse-primary": "#5cd9d8",
               "background": "#f8f9fa",
