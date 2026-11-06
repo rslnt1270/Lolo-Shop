@@ -1,6 +1,6 @@
 # LoloShop: edición de fotografías de producto con APIs de generación de imagen
 
-Fecha: 2026-10-19 · Estado: borrador de investigación para que el dueño lo valide · Autor: agente investigador/arquitecto
+Fecha: 2026-10-19 · Actualizado: 2026-11-05 (§13 piloto manual en Google Flow, §14 estándar de imagen del catálogo) · Estado: borrador de investigación para que el dueño lo valide · Autor: agente investigador/arquitecto
 
 > Este documento no contiene código de producto ni valores de secretos. El repo es público, así que solo aparecen **nombres** de variables de entorno.
 > Etiquetas de fuente: **[Doc]** documentación oficial consultada el 2026-10-19 (vía WebFetch, que pasa por un resumidor automático: revalidar cifras críticas antes de pagar); **[Prov]** afirmación comercial del proveedor; **[3ro]** terceros (blogs, agregadores); **[NV]** no verificado. **(cálculo)** = aritmética propia sobre cifras citadas.
@@ -395,6 +395,143 @@ Tasa de aprobación por modelo y por `promptVersion`, costo real contra presupue
 9. **Decisión del autor:** topes de US$25 (piloto), US$10/mes y US$25/mes absoluto, con crédito prepagado sin auto-recarga como tope duro.
 10. **Decisión del autor:** leyenda de IA visible y SynthID/C2PA sin quitar.
 11. **Decisión del autor:** nombre `tryOnImageUrl` compartido con Doc-BajoCosto, para no duplicar campos.
+
+---
+
+## 13. Piloto manual en Google Flow (2026-11-05)
+
+Antes del piloto automatizado de §10, el dueño generó a mano en **Google Flow** (interfaz de Google; no se registró qué modelo usó por debajo) las fotos de catálogo de 6 productos reales, a partir de fotos tomadas con el celular. No hubo API ni costo registrado. Sirve como dato temprano para §10.3 y para fijar el estándar de §14.
+
+### 13.1 Prendas y resultado
+
+Color medido con un script sobre una zona plana del cuerpo de la prenda. ΔE2000 contra la foto original (o contra el tono meta fijado cuando las fotos originales no coincidían). Umbrales de §10.3: ≤ 5 aceptable, > 10 rechazo.
+
+| Prenda | Foto original | Resultado de Flow | ΔE2000 | Veredicto |
+|---|---|---|---|---|
+| Playera Tommy Hilfiger azul rey | Exterior, pasto, retrato con halo | Azul `#1808C1` → `#093A7F` (casi marino); rojo `#FF3554` → `#B01922`; escudo central simplificado | **15.2** (azul) · **19.4** (rojo) | **Rechazo.** Prompt de corrección de color pendiente |
+| Sudadera Michael Kors mostaza | Exterior de noche | `#DEA242`, fondo blanco puro, 1:1, texto "Kors" correcto. Puntas de cordón plateadas en vez de oscuras | 4.3 (contra meta `#F2A848`) | **Aprobable** |
+| Jogger Michael Kors mostaza | Exterior al atardecer, sostenido con la mano | `#DB9A36`; mano eliminada; parche "Kors" y "M" en su lugar. Salió en 3:4 y con fondo `#F3F3F3` | 5.1 (contra meta) · 2.3 (contra la sudadera) | **Aprobable** tras blanquear y llevar a 1:1 |
+| Bolsa Armani Exchange bowling verde | Interior, en mano, con prendas detrás | `#3A4B45`; logo AX en relieve correcto; correa bien. Fondo `#F4F4F4` | 7.9 | **Límite.** Comparar con la bolsa en mano (la foto original tiene luz cálida encima) |
+| Gorra BOSS lavanda | Interior, en mano, luz neutra | `#908394` (más malva y oscuro); "BOSS" correcto. Entregada a **512 px** | **10.7** | **Rechazo** por color y resolución |
+| Vestido polo Nautica marino | Exterior de día, buena luz | Prompt entregado; resultado pendiente | — | — |
+
+Fotos no generadas a propósito: la **sudadera Psycho Bunny** (foto bajo neón azul: el color real no se puede inferir, ver §14.6) y las **bolsas AX monograma** (estampado de franjas en zigzag: riesgo alto de que el modelo lo reordene; candidatas a recorte de fondo, §14.5).
+
+**Lectura:** 3 de 5 aprobables o casi; 0 logos deformados aceptados; 2 rechazos, ambos por **color**, no por logo. El riesgo principal de la edición generativa en este inventario es el color, como anticipaba §2.2 punto 7. El modelo tiende a **oscurecer y desaturar** los colores vivos (azul eléctrico, rojo coral, lavanda).
+
+### 13.2 Comportamiento observado de Flow
+
+1. **Relaciones de aspecto:** solo acepta 1:1, 16:9, 9:16, 4:3 y 3:4. **No hay 4:5.**
+2. **Fondo:** aunque el prompt pida `#FFFFFF`, a veces entrega gris muy claro (`#F3F3F3`–`#F4F4F4`). Se corrige en el posproceso (§14.4), no en el prompt.
+3. **Relación y resolución:** a veces ignora el 1:1 pedido (el jogger salió 3:4) y la resolución varía de una generación a otra (1024 px casi siempre; la gorra salió a 512 px).
+4. **Fidelidad:** respeta bien logos de texto grande ("TOMMY HILFIGER", "Kors", "BOSS", "AX"). Simplifica los detalles pequeños (escudo de Tommy, línea fina del puño) y cambia herrajes (puntas de cordón).
+5. **Prendas en ángulo:** si la foto está de lado, pedir la **misma vista** (no "de frente"), para no obligar al modelo a inventar la parte oculta. Así se hizo con el jogger y salió bien.
+
+### 13.3 Plantilla de prompt validada
+
+Prompts en inglés, una prenda por generación, foto original como referencia. Este bloque sustituye al de §4.2 para el estilo "en gancho" que se usa hoy:
+
+```
+Professional e-commerce product photo of the exact same garment from the reference image: [color + marca + tipo de prenda], [hanging on a natural wooden hanger | hanging from a white clip hanger | standing upright on its base], [front view | same angle as the reference].
+Remove [the hand | the background clothes | the hang tag | ...] completely.
+Keep the garment 100% identical: same [lista de logos, textos, etiquetas, costuras, herrajes visibles], same fabric texture and natural folds. Do not redesign, recolor, add or remove any detail or text.
+Color fidelity is critical: the [prenda] is [nombre del color] (approx. #RRGGBB); do not make it [desviaciones típicas: darker / navy / orange / pink ...].
+Seamless pure white studio background (#FFFFFF), soft even diffused lighting, subtle soft contact shadow, clean crisp edges with no halo. Centered, square 1:1 format, [garment] fills about 75–80% of the frame with even white margin. High-end fashion catalog style, photorealistic.
+```
+
+El **hex del color** se toma de la foto original con el script de muestreo, salvo en los casos de §14.6. Para conjuntos (sudadera y jogger) se fija **un mismo hex meta** en las dos prendas. Por eso las dos quedaron a ΔE 2.3 entre sí, aunque las fotos originales se tomaron con luz distinta.
+
+Prompt de corrección cuando falla el color (se pasa la imagen generada y la original):
+
+```
+Keep this exact image (white background, lighting, composition) but correct the colors to match the original reference photo exactly: [color correcto con hex]. Do not change anything else.
+```
+
+---
+
+## 14. Estándar de imagen del catálogo
+
+Validado con el boceto **«Dónde vive cada foto»** (artifact privado del dueño, 2026-11-05), que pone las fotos del §13 en los cuatro lugares del sitio: rejilla, ficha con zoom, riel de la vitrina y punto del recorrido. Aplica a toda imagen pública de producto, venga de IA o de recorte de fondo.
+
+### 14.1 Foto maestra
+
+| Regla | Valor | Origen |
+|---|---|---|
+| Relación | **1:1** | El dueño eligió 1:1 en Flow; coincide con el recorte actual de la app |
+| Tamaño maestro | **2048 × 2048** | Necesario para la lupa 2× de la ficha. Flow entrega 1024: **escalar 2× antes de guardar** (decisión del autor) |
+| Mínimo aceptable | 1024 × 1024 | Por debajo se rechaza o se vuelve a generar (caso de la gorra a 512) |
+| Fondo | `#FFFFFF` exacto | Un gris de `#F3F3F3` ya se nota como recuadro sobre el fondo gris de la vitrina |
+| Encuadre | Prenda centrada; su **lado más largo al 80 % del cuadro** | Normalización del boceto. **Pendiente del dueño:** 80 % o ~88 % (estilo NORTH) |
+| Zona reservada | **10 % superior** sin prenda | Sellos ("Nuevo", "Conjunto") y botón de guardar |
+| Formato de entrega | WebP (AVIF si el navegador lo acepta) | Se mantiene el JPEG 0.9 del original (§7.2) |
+
+### 14.2 Derivados (los genera la app a partir de la maestra)
+
+| Uso | Se muestra a (CSS px) | Archivo (2×) | Peso meta |
+|---|---|---|---|
+| Punto del recorrido, carrito | 72–88 | 200 | ≤ 12 KB |
+| Rejilla móvil (2 columnas) | ≈ 170 | 400 | ≤ 35 KB |
+| Rejilla escritorio (4 columnas), riel | ≈ 270 | 600 | ≤ 60 KB |
+| Ficha móvil | ≈ 360 | 800 | ≤ 110 KB |
+| Ficha escritorio | ≈ 600 | 1280 | ≤ 200 KB |
+| Lupa de la ficha | 2× | 2048 (maestra) | — |
+
+Se sirven con `next/image` y `sizes` por contexto, o con derivados pregenerados en Blob. Lo decide el builder según el hosting (D-4 del spec de la demo).
+
+### 14.3 Normalización (por qué es obligatoria)
+
+Las salidas de Flow ocupan porciones muy distintas del cuadro: jogger al 34 % de ancho, bolsa al 67 % de alto, sudadera al 95 % de alto (toca el borde superior). Juntas en la rejilla, el jogger se ve diminuto y la bolsa enorme. La normalización detecta el contorno de la prenda (píxeles no blancos), la recorta con un margen pequeño, la escala para que su lado más largo mida el 80 % y la centra en el lienzo blanco 1:1. **No altera los píxeles de la prenda.** Corre en el servidor al aprobar el candidato, o en el cliente antes de subirlo.
+
+### 14.4 Posproceso de una imagen generada o recortada
+
+En orden:
+
+1. **Blanqueo del fondo:** los píxeles casi neutros por encima de ~226 se llevan hacia `#FFFFFF` con rampa suave, para conservar la sombra de contacto.
+2. **A 1:1 sin recortar:** si la imagen no es cuadrada, se **rellena** con blanco. **No se recorta al centro**, porque se cortarían el gancho o el puño.
+3. **Normalización** (§14.3).
+4. **Escalado** a 2048 si la imagen viene a 1024.
+5. **Derivados** (§14.2).
+
+**Restricción sobre el código actual:** `lib/image/process.ts` hace hoy un **recorte centrado 1:1** (`computeSquareCrop`) y aplica **auto-niveles** (`autoLevels`) a toda foto. Eso sirve para la foto cruda del alta, pero **no puede aplicarse a una imagen de catálogo aprobada**:
+
+- el recorte cortaría salidas 3:4 como la del jogger;
+- los auto-niveles cambiarían el color que se acaba de validar.
+
+Las imágenes aprobadas siguen el camino de este §14.4.
+
+### 14.5 Cuándo generar con IA y cuándo recortar el fondo
+
+| Caso | Camino |
+|---|---|
+| Prenda lisa o con logo de texto grande, foto con mano o fondo exterior | Generación con IA (§13.3) |
+| **Estampado repetido** (monogramas, cuadros, franjas) | **Recorte de fondo** (BiRefNet, Doc-BajoCosto §2.4–2.5): conserva el estampado real |
+| Color vivo que falló **dos veces** en la generación (ΔE > 10) | Recorte de fondo |
+| Mano o gancho tapando la prenda | IA (el recorte no puede reconstruir lo tapado) |
+
+### 14.6 Foto de referencia y color
+
+- **Luz de color (neón):** si la foto se tomó bajo luz de color (el muro azul con el neón "lolo"), **no se genera** hasta tener una foto de referencia con luz blanca, o el color dicho por el dueño. Esa foto de ambiente puede usarse aparte, como foto secundaria en la ficha.
+- **Luz que varía entre fotos de un conjunto:** se fija un hex meta común (§13.3).
+- **Control antes de publicar:**
+  - ΔE2000 contra la referencia, con el script de muestreo (o la pantalla de revisión de §6.2);
+  - lectura del logo letra por letra;
+  - que el fondo sea `#FFFFFF`;
+  - que la resolución sea ≥ 1024.
+
+  Estos cuatro controles son la versión manual del juez de §4.5.
+
+### 14.7 Composición en el sitio
+
+- **Riel de la vitrina:** la foto se pinta con `mix-blend-mode: multiply` sobre el gris claro de la vitrina. El blanco desaparece y la prenda queda colgada sin recortarla. Funciona solo si el fondo es `#FFFFFF` exacto (§14.1).
+- **Rejilla:** fondo blanco de tarjeta, sello arriba a la izquierda y guardar arriba a la derecha, ambos dentro de la zona reservada.
+- **Ficha:** miniaturas 1:1 de 76 px (64 en móvil), foto principal 1:1 con lupa 2.2× que lee la maestra.
+- **Recorrido:** miniatura de 72 px en la tarjeta del punto. A ese tamaño solo cuentan la silueta y el color, así que la normalización pesa más aquí.
+
+### 14.8 Decisiones abiertas de este estándar
+
+1. **Dueño:** encuadre al 80 % o ~88 %.
+2. **Dueño:** foto secundaria 3:4 en la ficha (estilo NORTH). Cambiaría el contrato de §14.1 solo para la galería de la ficha.
+3. **Builder:** dónde corre el posproceso (cliente con Canvas, como `process.ts`, o servidor con `sharp`) y si los derivados se pregeneran o los sirve `next/image`.
 
 ---
 
