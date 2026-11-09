@@ -17,9 +17,12 @@ export function generatePublicCode(random?: () => number): string {
 
 const PUBLIC_CODE_RE = /^[0-9A-HJKMNP-TV-Z]{5}$/;
 
-/** Valida un código público (entrada no confiable): mayúsculas y 5 símbolos Crockford. */
+/**
+ * Valida un código público (entrada no confiable): mayúsculas y 5 símbolos
+ * Crockford. Como dicta Crockford, O se lee 0 e I/L se leen 1; U sigue inválida.
+ */
 export function normalizePublicCode(raw: string): string | null {
-  const code = raw.trim().toUpperCase();
+  const code = raw.trim().toUpperCase().replace(/O/g, "0").replace(/[IL]/g, "1");
   return PUBLIC_CODE_RE.test(code) ? code : null;
 }
 

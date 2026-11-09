@@ -70,7 +70,13 @@ describe("validateNewSale", () => {
   it.each(["Ana 55 1234 5678", "Ana 55-1234-5678", "(55) 1234.5678"])("rechaza alias con teléfono separado: %s", (customerAlias) => {
     expect(withPatch({ customerAlias }).ok).toBe(false);
   });
-  it.each(["Talla 38 y 40", "pedido 12 34"])("acepta alias con pocos dígitos: %s", (customerAlias) => {
+  it.each(["55/1234/5678", "+52 55 1234 5678", "55_1234_5678", "５５１２３４５６７８", "Ana: 55*12*34*56"])(
+    "rechaza alias con teléfono y cualquier separador o dígitos de ancho completo: %s",
+    (customerAlias) => {
+      expect(withPatch({ customerAlias }).ok).toBe(false);
+    },
+  );
+  it.each(["Talla 38 y 40", "pedido 12 34", "chamarra azul 2"])("acepta alias con pocos dígitos: %s", (customerAlias) => {
     expect(withPatch({ customerAlias }).ok).toBe(true);
   });
   it("rechaza clientRequestId que no es uuid", () => {

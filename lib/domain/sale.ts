@@ -37,6 +37,16 @@ function optionalText(value: unknown): string | undefined | null {
   return value.trim() || undefined;
 }
 
+/**
+ * ¿Hay 7 o más dígitos seguidos al quitar todo lo que no sea letra o dígito?
+ * NFKC pasa los dígitos de ancho completo (５) a ASCII; `\p{Nd}` cuenta también
+ * dígitos de otros sistemas de escritura. Así un teléfono no se cuela con "/", "_" o "+".
+ */
+function hasLongDigitRun(text: string): boolean {
+  const compact = text.normalize("NFKC").replace(/[^\p{L}\p{N}]/gu, "");
+  return /\p{Nd}{7,}/u.test(compact);
+}
+
 /** Valida la venta que llega del cliente; los mensajes son para el operador. */
 export function validateNewSale(input: unknown): SaleValidation {
   if (typeof input !== "object" || input === null) return fail("La venta no es válida.");
@@ -59,7 +69,7 @@ export function validateNewSale(input: unknown): SaleValidation {
     if (customerAlias.length > MAX_ALIAS_LENGTH) {
       return fail(`El alias no puede pasar de ${MAX_ALIAS_LENGTH} caracteres.`);
     }
-    if (/\d{7,}/.test(customerAlias.replace(/[\s\-.()]/g, ""))) {
+    if (hasLongDigitRun(customerAlias)) {
       return fail("El alias no puede incluir teléfonos ni números largos.");
     }
   }
