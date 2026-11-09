@@ -242,7 +242,7 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-            Descripción <span className="text-gray-400">(opcional)</span>
+            Descripción <span className="text-gray-600">(opcional)</span>
           </label>
           <textarea
             id="description"
@@ -300,7 +300,7 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
 
         <div>
           <label htmlFor="size" className="block text-sm font-medium text-gray-700">
-            Talla <span className="text-gray-400">(opcional)</span>
+            Talla <span className="text-gray-600">(opcional)</span>
           </label>
           <input
             type="text"
@@ -395,15 +395,12 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
         <div className="space-y-3">
           <div role="group" aria-labelledby="foto-frente-label">
             <span id="foto-frente-label" className="mb-1 block text-sm font-medium text-gray-700">Foto de frente</span>
-            <ProductPhotoCapture onCapture={setFrontPhoto} onClear={() => setFrontPhoto(null)} onBusyChange={setFrontBusy} />
+            <ProductPhotoCapture side="front" onCapture={setFrontPhoto} onClear={() => setFrontPhoto(null)} onBusyChange={setFrontBusy} />
           </div>
           <div role="group" aria-labelledby="foto-atras-label">
             <span id="foto-atras-label" className="mb-1 block text-sm font-medium text-gray-700">Foto de atrás</span>
-            <ProductPhotoCapture onCapture={setBackPhoto} onClear={() => setBackPhoto(null)} onBusyChange={setBackBusy} />
+            <ProductPhotoCapture side="back" onCapture={setBackPhoto} onClear={() => setBackPhoto(null)} onBusyChange={setBackBusy} />
           </div>
-          {missingPhotos && (
-            <p className="text-sm text-gray-600">Para el catálogo se necesitan las dos fotos: frente y atrás.</p>
-          )}
         </div>
       )}
 
@@ -411,10 +408,16 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
         <button
           type="submit"
           disabled={loading || photoBusy || missingPhotos}
+          aria-describedby={mode === "catalog" ? "fotos-ayuda" : undefined}
           className="min-h-[44px] w-full rounded-md bg-loloteal px-4 py-2 font-semibold text-white transition hover:bg-opacity-90 active:scale-95 disabled:opacity-50 shadow-sm"
         >
           {loading ? "Guardando..." : photoBusy ? "Procesando foto…" : "Dar de alta producto"}
         </button>
+        {mode === "catalog" && (
+          <p id="fotos-ayuda" aria-live="polite" className="text-sm text-gray-600">
+            {missingPhotos ? "Para el catálogo se necesitan las dos fotos: frente y atrás." : ""}
+          </p>
+        )}
         <button
           type="button"
           onClick={onCancel}

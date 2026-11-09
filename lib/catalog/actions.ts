@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { getCurrentUser } from "@/lib/auth/current-user";
+import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
+import { UnauthenticatedError } from "@/lib/auth/errors";
 import { checkBrandName } from "@/lib/domain/brand";
 import prisma from "@/lib/prisma";
 
@@ -22,6 +23,18 @@ export type MergeBrandsResult =
   | { ok: true }
   | { ok: false; code: "FORBIDDEN" | "INVALID" | "NOT_FOUND"; message: string };
 
+const SESSION_EXPIRED = "Tu sesión terminó. Vuelve a iniciar sesión.";
+
+/** Usuario de la sesión, o null si falta o expiró (las actions responden con su forma de error, no lanzan). */
+async function sessionUser(): Promise<CurrentUser | null> {
+  try {
+    return await getCurrentUser();
+  } catch (err) {
+    if (err instanceof UnauthenticatedError) return null;
+    throw err;
+  }
+}
+
 const toOption = (b: { id: string; name: string; slug: string }): BrandOption => ({
   id: b.id,
   name: b.name,
@@ -30,7 +43,7 @@ const toOption = (b: { id: string; name: string; slug: string }): BrandOption =>
 
 /** Marcas activas para el combo del alta, por nombre. */
 export async function listBrandsAction(): Promise<BrandOption[]> {
-  await getCurrentUser();
+  if (!(await sessionUser())) return [];
   const rows = await prisma.brand.findMany({
     where: { isActive: true },
     select: { id: true, name: true, slug: true },
@@ -41,7 +54,7 @@ export async function listBrandsAction(): Promise<BrandOption[]> {
 
 /** Departamentos activos en el orden que fija el owner. */
 export async function listDepartmentsAction(): Promise<DepartmentOption[]> {
-  await getCurrentUser();
+  if (!(await sessionUser())) return [];
   const rows = await prisma.department.findMany({
     where: { isActive: true },
     select: { id: true, slug: true, name: true },
@@ -55,7 +68,8 @@ export async function listDepartmentsAction(): Promise<DepartmentOption[]> {
  * existe reutiliza esa marca: "GUESS" y "guess " caen en `guess`.
  */
 export async function createBrandAction(name: string): Promise<CreateBrandResult> {
-  const user = await getCurrentUser();
+  const user = await sessionUser();
+  if (!user) return { ok: false, message: SESSION_EXPIRED };
   const checked = checkBrandName(name);
   if (!checked.ok) return checked;
 
@@ -86,7 +100,8 @@ export async function createBrandAction(name: string): Promise<CreateBrandResult
  * productos y líneas de venta y deja la duplicada inactiva (no se borra).
  */
 export async function mergeBrandsAction(fromId: string, intoId: string): Promise<MergeBrandsResult> {
-  const user = await getCurrentUser();
+  const user = await sessionUser();
+  if (!user) return { ok: false, code: "FORBIDDEN", message: SESSION_EXPIRED };
   if (user.role !== "owner") {
     return { ok: false, code: "FORBIDDEN", message: "Solo el dueño puede fusionar marcas." };
   }

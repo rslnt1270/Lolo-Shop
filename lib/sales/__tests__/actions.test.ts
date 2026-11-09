@@ -117,6 +117,19 @@ describe("createSaleAction", () => {
       message: "El servidor tardó en responder. Intenta cobrar de nuevo.",
     });
   });
+  it("P2028 al confirmar y al anular usa el verbo de la acción", async () => {
+    as("owner");
+    source.confirmPayment.mockRejectedValue(prismaError("P2028"));
+    source.cancelSale.mockRejectedValue(prismaError("P2028"));
+    expect(await confirmSalePaymentAction("s1")).toMatchObject({
+      code: "UNAVAILABLE",
+      message: "El servidor tardó en responder. Intenta confirmar de nuevo.",
+    });
+    expect(await cancelSaleAction("s1", "motivo", true)).toMatchObject({
+      code: "UNAVAILABLE",
+      message: "El servidor tardó en responder. Intenta anular de nuevo.",
+    });
+  });
   it("otro error de Prisma se propaga", async () => {
     as("owner");
     source.createSale.mockRejectedValue(prismaError("P1001"));

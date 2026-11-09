@@ -16,6 +16,7 @@ type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
 type StockError = { message: string; signature: string; variantId?: string };
 
+const SESSION_EXPIRED = "Tu sesión terminó. Vuelve a iniciar sesión.";
 const LOCATION_KEY = "loloshop:pos:location";
 
 export default function POSPage() {
@@ -146,7 +147,10 @@ export default function POSPage() {
           : {}),
         lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice })),
       });
-      if (result.ok) {
+      if (!result) {
+        // Con la sesión vencida el middleware redirige y Next resuelve la acción con undefined.
+        setNotice({ kind: "error", text: SESSION_EXPIRED, login: true });
+      } else if (result.ok) {
         setNotice({ kind: "ok", text: `Venta #${result.sale.number} registrada` });
         setAlias("");
         draft.reset();
@@ -158,6 +162,7 @@ export default function POSPage() {
         setNotice({ kind: "error", text: result.message, login: true });
       } else if (result.code === "UNAVAILABLE") {
         // Resultado incierto: se reintenta con el mismo identificador.
+        draft.markUncertain();
         setNotice({ kind: "error", text: result.message });
       } else {
         draft.markRejected(requestSignature);
@@ -168,6 +173,7 @@ export default function POSPage() {
         }
       }
     } catch {
+      draft.markUncertain();
       setNotice({
         kind: "error",
         text: "No se pudo registrar la venta. Revisa tu conexión y vuelve a pulsar Cobrar: no se duplicará.",

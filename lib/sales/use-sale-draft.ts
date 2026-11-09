@@ -35,6 +35,10 @@ export interface DraftLine {
  * servidor no duplica la venta. Cambia con `reset()`, con `renewRequestId()`
  * (el servidor dijo que ese id ya es otra venta) y, tras un rechazo del
  * servidor (`markRejected`), en cuanto la petición cambia: `requestIdFor`.
+ * Excepción: tras un error de red o `UNAVAILABLE` el id queda "incierto"
+ * (`markUncertain`): quizá el servidor sí registró esa venta, así que ni un
+ * rechazo posterior (que puede ocurrir antes de buscar el id) ni editar el
+ * carrito lo renuevan; solo `renewRequestId` o `reset`. Decide el servidor.
  */
 export function useSaleDraft() {
   const [lines, setLines] = useState<DraftLine[]>([]);
@@ -42,16 +46,24 @@ export function useSaleDraft() {
   // Firma de la petición que el servidor rechazó sin registrar nada; null si no hubo rechazo.
   const rejectedRef = useRef<string | null>(null);
   const idRef = useRef(clientRequestId);
+  // El último envío con este id terminó sin respuesta confiable: puede haberse registrado.
+  const uncertainRef = useRef(false);
 
   const renewRequestId = useCallback(() => {
     const id = newRequestId();
     idRef.current = id;
     rejectedRef.current = null;
+    uncertainRef.current = false;
     setClientRequestId(id);
     return id;
   }, []);
 
-  /** El servidor rechazó la petición con esta firma (no registró la venta). */
+  /** Error de red o `UNAVAILABLE`: el resultado de este id es desconocido. */
+  const markUncertain = useCallback(() => {
+    uncertainRef.current = true;
+  }, []);
+
+  /** El servidor rechazó la petición con esta firma (no registró la venta, salvo que el id sea incierto). */
   const markRejected = useCallback((signature: string) => {
     rejectedRef.current = signature;
   }, []);
@@ -63,7 +75,7 @@ export function useSaleDraft() {
    */
   const requestIdFor = useCallback(
     (signature: string) => {
-      if (rejectedRef.current !== null && rejectedRef.current !== signature) return renewRequestId();
+      if (!uncertainRef.current && rejectedRef.current !== null && rejectedRef.current !== signature) return renewRequestId();
       return idRef.current;
     },
     [renewRequestId],
@@ -112,5 +124,5 @@ export function useSaleDraft() {
     renewRequestId();
   }, [renewRequestId]);
 
-  return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, requestIdFor };
+  return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, requestIdFor };
 }

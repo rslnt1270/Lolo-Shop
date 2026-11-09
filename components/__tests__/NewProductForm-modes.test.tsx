@@ -109,4 +109,19 @@ describe("NewProductForm: dos modos de alta", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Solo stock" }));
     expect(onModeChange).toHaveBeenCalledWith("stock");
   });
+
+  it("el botón deshabilitado por fotos faltantes enlaza la explicación en una región en vivo", () => {
+    render1();
+    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    const submit = screen.getByRole("button", { name: "Dar de alta producto" });
+    expect(submit).toBeDisabled();
+    const help = document.getElementById(submit.getAttribute("aria-describedby") ?? "none");
+    expect(help).toHaveTextContent("Para el catálogo se necesitan las dos fotos");
+    expect(help).toHaveAttribute("aria-live", "polite");
+  });
+
+  it('"(opcional)" no usa text-gray-400', () => {
+    render1();
+    for (const el of screen.getAllByText("(opcional)")) expect(el.className).not.toMatch(/gray-400/);
+  });
 });

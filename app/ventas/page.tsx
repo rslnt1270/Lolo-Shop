@@ -25,6 +25,7 @@ export default function VentasPage() {
   const [threshold, setThreshold] = useState<number | null>(null);
   const [locationNames, setLocationNames] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
   // Descarta respuestas de una petición vieja si el usuario cambió el rango mientras cargaba.
   const requestId = useRef(0);
   const rangeRef = useRef<{ from: string; to: string }>(presetRange("today"));
@@ -34,8 +35,15 @@ export default function VentasPage() {
     try {
       const [result, th] = await Promise.all([getDashboardAction(rangeRef.current), getLowStockThresholdAction()]);
       if (id !== requestId.current) return;
+      // `undefined`: con la sesión vencida el middleware redirige y Next resuelve la acción sin valor.
+      if (!result || "error" in result || th === null || th === undefined) {
+        setExpired(true);
+        setError(null);
+        return;
+      }
       setLoaded(result);
       setThreshold(th);
+      setExpired(false);
       setError(null);
     } catch {
       if (id === requestId.current) setError("No se pudo cargar el tablero. Intenta de nuevo.");
@@ -86,13 +94,25 @@ export default function VentasPage() {
           <RangePicker preset={preset} from={rangeRef.current.from} to={rangeRef.current.to} onChange={changeRange} />
         )}
 
+        {expired && (
+          <p role="alert" className="rounded-[11px] bg-[#FFE7E2] p-3 text-sm font-bold text-[#9B2C20]">
+            Tu sesión terminó. Vuelve a iniciar sesión.{" "}
+            <Link
+              href="/login"
+              className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#9B2C20]"
+            >
+              Iniciar sesión
+            </Link>
+          </p>
+        )}
+
         {error && (
           <p role="alert" className="rounded-[11px] bg-[#FFE7E2] p-3 text-sm font-bold text-[#9B2C20]">
             {error}
           </p>
         )}
 
-        {!loaded && !error && (
+        {!loaded && !error && !expired && (
           <p role="status" className="text-sm text-[#3A4D4A]">
             Cargando ventas…
           </p>

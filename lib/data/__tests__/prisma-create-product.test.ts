@@ -50,6 +50,15 @@ describe("PrismaDataSource.createProduct", () => {
     expect(create.mock.calls[0][0].data).toMatchObject({ brand: "Lolo", brandId: "b1", departmentId: "d1", publicCode: "K7Q2M" });
   });
 
+  it("persiste imageUrl, backImageUrl y description en el producto", async () => {
+    await new PrismaDataSource().createProduct({
+      ...base, initialStock: 1, imageUrl: "https://x/f.jpg", backImageUrl: "https://x/b.jpg", description: "Algodón",
+    });
+    expect(create.mock.calls[0][0].data).toMatchObject({
+      imageUrl: "https://x/f.jpg", backImageUrl: "https://x/b.jpg", description: "Algodón",
+    });
+  });
+
   it("talla por defecto U y barcode null permitido", async () => {
     await new PrismaDataSource().createProduct({ ...base, barcode: null, initialStock: 0 });
     const data = create.mock.calls[0][0].data;

@@ -42,7 +42,7 @@ function prismaCode(err: unknown): string | null {
   return typeof code === "string" && /^P\d{4}$/.test(code) ? code : null;
 }
 
-function mapError(err: unknown): Failure {
+function mapError(err: unknown, retryVerb: "cobrar" | "confirmar" | "anular"): Failure {
   if (err instanceof InsufficientStockError) {
     return fail(
       "NO_STOCK",
@@ -67,7 +67,7 @@ function mapError(err: unknown): Failure {
       return fail("INVALID", "La tienda o la prenda ya no existe.");
     // Transacción vencida (timeout o maxWait): Prisma hizo rollback.
     case "P2028":
-      return fail("UNAVAILABLE", "El servidor tardó en responder. Intenta cobrar de nuevo.");
+      return fail("UNAVAILABLE", `El servidor tardó en responder. Intenta ${retryVerb} de nuevo.`);
   }
   throw err;
 }
@@ -113,7 +113,7 @@ export async function createSaleAction(input: unknown): Promise<SaleActionResult
     revalidatePath("/ventas");
     return { ok: true, sale: record };
   } catch (err) {
-    return mapError(err);
+    return mapError(err, "cobrar");
   }
 }
 
@@ -140,7 +140,7 @@ export async function confirmSalePaymentAction(
     revalidatePath("/ventas");
     return { ok: true, sale };
   } catch (err) {
-    return mapError(err);
+    return mapError(err, "confirmar");
   }
 }
 
@@ -170,6 +170,6 @@ export async function cancelSaleAction(
     revalidatePath("/ventas");
     return { ok: true, sale };
   } catch (err) {
-    return mapError(err);
+    return mapError(err, "anular");
   }
 }

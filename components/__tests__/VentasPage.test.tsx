@@ -70,6 +70,23 @@ beforeEach(() => {
 });
 
 describe("VentasPage", () => {
+  it("getDashboardAction responde session_expired: aviso con enlace a iniciar sesión", async () => {
+    actions.getDashboardAction.mockResolvedValue({ error: "session_expired" });
+    render(<VentasPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+  });
+
+  it("resultado undefined (middleware): también es sesión vencida, no error de conexión", async () => {
+    actions.getDashboardAction.mockResolvedValue(undefined);
+    render(<VentasPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toBeInTheDocument();
+    expect(screen.queryByText(/no se pudo cargar/i)).toBeNull();
+  });
+
   it("el collaborator ve Hoy sin selector de rango", async () => {
     setRole("collaborator", "l1");
     render(<VentasPage />);

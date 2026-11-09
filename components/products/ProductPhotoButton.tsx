@@ -5,16 +5,25 @@ import { setProductBackImageAction, updateProductImageAction, uploadProductImage
 
 interface ProductPhotoButtonProps {
   productId: string;
+  /** Título del producto: forma parte del nombre accesible del botón. */
+  productTitle?: string;
   hasImage: boolean;
   /** Lado de la foto: "front" (por defecto) o "back". */
   side?: "front" | "back";
   onUpdated?: () => void;
 }
 
-export function ProductPhotoButton({ productId, hasImage, side = "front", onUpdated }: ProductPhotoButtonProps) {
+export function ProductPhotoButton({
+  productId,
+  productTitle,
+  hasImage,
+  side = "front",
+  onUpdated,
+}: ProductPhotoButtonProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const sideWord = side === "back" ? "atrás" : "frente";
 
   const save = async (file: File) => {
     setSaving(true);
@@ -29,7 +38,7 @@ export function ProductPhotoButton({ productId, hasImage, side = "front", onUpda
       } else {
         await updateProductImageAction(productId, fd);
       }
-      setMsg(side === "back" ? "Foto de atrás actualizada." : "Foto de frente actualizada.");
+      setMsg(`Foto de ${sideWord} actualizada.`);
       setOpen(false);
       onUpdated?.();
     } catch {
@@ -39,26 +48,36 @@ export function ProductPhotoButton({ productId, hasImage, side = "front", onUpda
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="min-h-[44px] px-2 text-sm text-loloteal hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
-      >
-        {hasImage ? "Cambiar" : "Agregar"} foto de {side === "back" ? "atrás" : "frente"}
-      </button>
-    );
-  }
+  const label = `${hasImage ? "Cambiar" : "Agregar"} foto de ${sideWord}`;
 
   return (
-    <div className="mt-2 space-y-2">
-      <ProductPhotoCapture onCapture={save} onClear={() => {}} />
-      {saving && <p className="text-sm text-gray-500">Guardando…</p>}
-      {msg && <p className="text-sm text-gray-600">{msg}</p>}
-      <button type="button" onClick={() => setOpen(false)} className="text-sm text-gray-500">
-        Cerrar
-      </button>
+    <div>
+      {open ? (
+        <div className="mt-2 space-y-2">
+          <ProductPhotoCapture side={side} onCapture={save} onClear={() => {}} />
+          {saving && <p className="text-sm text-gray-600">Guardando…</p>}
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="min-h-[44px] px-2 text-sm text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={productTitle ? `${label} de ${productTitle}` : undefined}
+          className="min-h-[44px] px-2 text-sm text-loloteal hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+        >
+          {label}
+        </button>
+      )}
+      {/* Región en vivo siempre montada: el aviso se anuncia y sigue visible tras cerrar la captura. */}
+      <p role="status" className="text-sm text-gray-600">
+        {msg}
+      </p>
     </div>
   );
 }

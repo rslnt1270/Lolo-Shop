@@ -35,17 +35,25 @@ export default function ProductosPage() {
             <div className="flex flex-wrap items-center gap-x-2">
               <ProductPhotoButton
                 productId={p.id}
+                productTitle={p.title}
                 hasImage={!!p.imageUrl}
                 onUpdated={() => fetchProductsAction().then(setProducts)}
               />
               <ProductPhotoButton
                 productId={p.id}
+                productTitle={p.title}
                 side="back"
                 hasImage={!!p.backImageUrl}
                 onUpdated={() => fetchProductsAction().then(setProducts)}
               />
               {!(p.imageUrl && p.backImageUrl) && (
-                <span className="text-xs text-gray-500">Solo stock: falta una foto para el catálogo</span>
+                <span className="text-xs text-gray-600">
+                  {!p.imageUrl && !p.backImageUrl
+                    ? "Faltan las dos fotos para el catálogo"
+                    : !p.imageUrl
+                      ? "Falta la foto de frente"
+                      : "Falta la foto de atrás"}
+                </span>
               )}
             </div>
           </div>

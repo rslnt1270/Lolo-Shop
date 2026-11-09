@@ -83,6 +83,15 @@ describe("createProductAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/productos");
   });
 
+  it("modo catálogo pasa al data source frente, atrás y descripción", async () => {
+    getServerSession.mockResolvedValue(session("owner", null));
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const back = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, backImageUrl: back, description: "  Algodón  " });
+    expect(r.ok).toBe(true);
+    expect(createProduct.mock.calls[0][0]).toMatchObject({ imageUrl: front, backImageUrl: back, description: "Algodón" });
+  });
+
   it("tienda inexistente → LOCATION", async () => {
     getServerSession.mockResolvedValue(session("owner", null));
     const r = await createProductAction({ ...input, locationId: "loc-x" });

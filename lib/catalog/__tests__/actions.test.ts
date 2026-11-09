@@ -28,6 +28,7 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+import { UnauthenticatedError } from "@/lib/auth/errors";
 import { createBrandAction, listBrandsAction, listDepartmentsAction, mergeBrandsAction } from "../actions";
 
 const as = (role: string) => getCurrentUser.mockResolvedValue({ id: "u1", role, locationId: null });
@@ -113,5 +114,20 @@ describe("mergeBrandsAction", () => {
     brandFindUnique.mockResolvedValueOnce({ id: "a", name: "A", isActive: true }).mockResolvedValueOnce(null);
     expect(await mergeBrandsAction("a", "b")).toMatchObject({ ok: false, code: "NOT_FOUND" });
     expect(brandUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("sesión vencida", () => {
+  beforeEach(() => {
+    getCurrentUser.mockRejectedValue(new UnauthenticatedError());
+  });
+  it("listBrandsAction y listDepartmentsAction devuelven lista vacía sin lanzar", async () => {
+    await expect(listBrandsAction()).resolves.toEqual([]);
+    await expect(listDepartmentsAction()).resolves.toEqual([]);
+  });
+  it("createBrandAction y mergeBrandsAction responden ok:false sin lanzar", async () => {
+    await expect(createBrandAction("Guess")).resolves.toMatchObject({ ok: false, message: expect.stringMatching(/sesión terminó/) });
+    await expect(mergeBrandsAction("a", "b")).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(brandCreate).not.toHaveBeenCalled();
   });
 });

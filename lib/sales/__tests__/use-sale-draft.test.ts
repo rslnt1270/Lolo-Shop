@@ -82,4 +82,31 @@ describe("useSaleDraft", () => {
     expect(result.current.clientRequestId).toBe(b);
     expect(result.current.requestIdFor("Z")).toBe(b);
   });
+  it("incierto: markRejected + requestIdFor con otra firma nunca renuevan el id", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    const a = result.current.requestIdFor("A");
+    act(() => {
+      result.current.markUncertain();
+      result.current.markRejected("X");
+    });
+    expect(result.current.requestIdFor("A")).toBe(a);
+    expect(result.current.requestIdFor("B")).toBe(a);
+  });
+
+  it("incierto: solo renewRequestId lo limpia", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    const a = result.current.requestIdFor("A");
+    let b = "";
+    act(() => {
+      result.current.markUncertain();
+      b = result.current.renewRequestId();
+    });
+    expect(b).not.toBe(a);
+    act(() => result.current.markRejected("A"));
+    let c = "";
+    act(() => {
+      c = result.current.requestIdFor("B");
+    });
+    expect(c).not.toBe(b);
+  });
 });

@@ -9,14 +9,18 @@ interface ProductPhotoCaptureProps {
   onCapture: (file: File) => void;
   onClear: () => void;
   onBusyChange?: (busy: boolean) => void;
+  /** Lado de la foto; distingue las dos capturas para lectores de pantalla. */
+  side?: "front" | "back";
 }
 
-export function ProductPhotoCapture({ onCapture, onClear, onBusyChange }: ProductPhotoCaptureProps) {
+export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side }: ProductPhotoCaptureProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const sideWord = side === "back" ? "atrás" : side === "front" ? "frente" : null;
+  const forSide = sideWord ? ` de ${sideWord}` : "";
 
   useEffect(() => {
     onBusyChange?.(busy);
@@ -99,12 +103,12 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange }: Produc
       {preview ? (
         <div className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="Vista previa" className="w-32 h-32 rounded-lg object-cover border" />
+          <img src={preview} alt={`Vista previa de la foto${forSide}`} className="w-32 h-32 rounded-lg object-cover border" />
           <div className="flex gap-3 text-sm">
-            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="min-h-[44px] px-2 text-loloteal">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="min-h-[44px] px-2 text-loloteal" aria-label={`Retomar foto${forSide}`}>
               Retomar
             </button>
-            <button type="button" onClick={clear} className="min-h-[44px] px-2 text-gray-500">
+            <button type="button" onClick={clear} className="min-h-[44px] px-2 text-gray-500" aria-label={`Quitar foto${forSide}`}>
               Quitar
             </button>
           </div>
@@ -114,6 +118,7 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange }: Produc
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
+          aria-label={busy ? undefined : `Tomar o subir foto${forSide}`}
           className="min-h-[44px] w-full rounded-md border border-dashed border-gray-300 py-3 text-sm text-gray-600 hover:border-loloteal disabled:opacity-50"
         >
           {busy ? "Procesando…" : "📷 Tomar o subir foto"}

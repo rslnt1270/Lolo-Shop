@@ -259,6 +259,54 @@ describe("POSPage", () => {
     expect(b).toBe(a);
   });
 
+  it("error de red, luego INVALID antes del lookup, luego editar y reenviar: conserva el mismo id", async () => {
+    actions.createSaleAction
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({ ok: false, code: "INVALID", message: "El precio no es válido." })
+      .mockResolvedValueOnce({ ok: true, sale: { number: 5 } });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText(/no se pudo registrar/i);
+    const price = screen.getByLabelText(/precio/i);
+    fireEvent.change(price, { target: { value: "99999999" } });
+    cobrar();
+    await screen.findByText("El precio no es válido.");
+    fireEvent.change(price, { target: { value: "199.95" } });
+    cobrar();
+    await screen.findByText("Venta #5 registrada");
+    const [a, b, c] = sentIds();
+    expect(b).toBe(a);
+    expect(c).toBe(a);
+  });
+
+  it("UNAVAILABLE y luego rechazo: tampoco renueva el id", async () => {
+    actions.createSaleAction
+      .mockResolvedValueOnce({ ok: false, code: "UNAVAILABLE", message: "Lento. Intenta cobrar de nuevo." })
+      .mockResolvedValueOnce({ ok: false, code: "INVALID", message: "Mal." })
+      .mockResolvedValueOnce({ ok: true, sale: { number: 6 } });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText("Lento. Intenta cobrar de nuevo.");
+    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
+    cobrar();
+    await screen.findByText("Mal.");
+    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
+    cobrar();
+    await screen.findByText("Venta #6 registrada");
+    const [a, b, c] = sentIds();
+    expect([b, c]).toEqual([a, a]);
+  });
+
+  it("resultado undefined (el middleware redirigió): sesión vencida con enlace, no mensaje de conexión", async () => {
+    actions.createSaleAction.mockResolvedValue(undefined);
+    await readyWithOneLine();
+    cobrar();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+    expect(screen.queryByText(/revisa tu conexión/i)).toBeNull();
+  });
+
   it("NO_STOCK en un carrito de varias líneas: el mensaje va junto a la prenda indicada", async () => {
     actions.lookupCodeAction.mockImplementation(async (code: string) =>
       code === "222" ? found("v2", 50, "Gorra") : found("v1", 199.95),
