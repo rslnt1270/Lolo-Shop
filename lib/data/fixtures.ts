@@ -1,8 +1,8 @@
 import type { Location, Product } from "@/lib/domain/types";
 
 export const fixtureLocations: Location[] = [
-  { id: "loc-1", name: "Tienda 1" },
-  { id: "loc-2", name: "Tienda 2" },
+  { id: "loc-1", name: "Tienda 1", type: "store" },
+  { id: "loc-2", name: "Tienda 2", type: "store" },
 ];
 
 export const fixtureProducts: Product[] = [

@@ -22,6 +22,8 @@ export interface Variant {
   price: number;
   barcode: string | null;
   inventory: InventoryLevel[];
+  /** Ausente se trata como activa (fixtures). */
+  isActive?: boolean;
 }
 
 export interface Product {
@@ -30,5 +32,9 @@ export interface Product {
   category: string;
   brand: string;
   imageUrl: string | null;
+  /** Código público corto (ER §2.7); solo los productos dados de alta lo tienen. */
+  publicCode?: string | null;
+  /** Ausente se trata como activo (fixtures). */
+  isActive?: boolean;
   variants: Variant[];
 }

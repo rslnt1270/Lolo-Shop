@@ -3,6 +3,7 @@ import { isProductBlobUrl } from "./image/blob-url";
 import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "./auth/options";
+import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
 import { validateNewProduct } from "./domain/new-product";
@@ -303,8 +304,9 @@ export async function updateProductImageAction(
   revalidatePath("/productos");
 }
 
-export async function fetchPublicProductsAction(): Promise<Product[]> {
-  return await getDataSource().getProducts();
+/** Pública (sin sesión) a propósito: devuelve solo la proyección sin SKU, barcode ni conteos (B1). */
+export async function fetchPublicProductsAction(): Promise<PublicProduct[]> {
+  return await getPublicCatalog(getDataSource());
 }
 
 export async function changePasswordAction(

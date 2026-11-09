@@ -58,8 +58,11 @@ export class PrismaDataSource implements InventoryDataSource {
       brand: p.brand,
       category: p.category,
       imageUrl: p.imageUrl,
+      publicCode: p.publicCode,
+      isActive: p.isActive,
       variants: p.variants.map(v => ({
         id: v.id,
+        isActive: v.isActive,
         size: v.size,
         color: v.color,
         title: v.title,

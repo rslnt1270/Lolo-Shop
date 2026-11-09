@@ -102,6 +102,7 @@ export class FixtureDataSource implements InventoryDataSource {
       category: data.category,
       brand: data.brand,
       imageUrl: data.imageUrl ?? null,
+      publicCode: data.publicCode,
       variants: [variant],
     };
     this.products = [...this.products, product];
