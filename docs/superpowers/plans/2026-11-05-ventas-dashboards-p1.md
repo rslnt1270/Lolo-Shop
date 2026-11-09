@@ -354,3 +354,63 @@ Pasos, tomados de ER §5.1 y ajustados a esta rama:
 - **Sitio público P3:** plan aparte, después del Buen Fin.
 - **Recorrido:** plan aparte.
 - **Retirar `Product.brand`** (texto): migración no aditiva, plan aparte.
+
+---
+
+## Ampliación 2026-11-09 (petición del dueño y residuo de la revisión final)
+
+**Decisión del dueño [D] 2026-11-09:** el alta tiene dos modos.
+- **Solo stock:** el artículo se registra sin foto, con su etiqueta (código), descripción, talla y precio. Entra al inventario y se puede vender, pero **no aparece en el catálogo público**.
+- **Para catálogo:** además lleva **dos fotos obligatorias, frente y atrás**. Solo los artículos con las dos fotos se muestran en el catálogo público.
+
+Esto resuelve D-10 del spec maestro: frente y espalda, ahora obligatorias para el catálogo.
+
+### Task 13: Alta en dos modos (solo stock / para catálogo)
+
+**Files:**
+- Modify: `prisma/schema.prisma` (agregar `Product.description String?` y `Product.backImageUrl String?`) y una migración nueva `add_product_description_back_image`, generada según la Ruling R6.
+- Modify: `lib/domain/new-product.ts`, `lib/data/source.ts` (`CreateProductData` gana `description?: string | null` y `backImageUrl?: string | null`), `lib/data/prisma-source.ts`, `lib/data/fixture-source.ts`, `lib/actions.ts` (`createProductAction`, y una acción para fijar la foto trasera), `components/products/NewProductForm.tsx`, `components/products/ProductPhotoButton.tsx` (o un componente hermano para la foto trasera), `lib/data/public-projection.ts`.
+- Test: las pruebas de alta existentes, más las nuevas pruebas de proyección y de formulario.
+
+**Interfaces:**
+- `type EntryMode = "stock" | "catalog"`.
+- `validateNewProduct` acepta `mode` y `description`:
+  - `description` es opcional, con un máximo de 500 caracteres, se recorta y se guarda como texto plano.
+  - En modo `catalog`, el servidor exige `imageUrl` y `backImageUrl`, las dos validadas con `isProductBlobUrl`. Si falta alguna responde con el mensaje "Para el catálogo se necesitan las dos fotos: frente y atrás."
+  - En modo `stock`, las dos fotos son opcionales y se ignoran.
+- `setProductBackImageAction(productId: string, url: string)`: la misma autorización y validación que la acción actual de la foto frontal, con `revalidatePath` de `/productos` y `/catalogo`.
+- `PublicProduct` gana `backImageUrl: string | null`. `getPublicCatalog` solo devuelve productos activos que tengan `imageUrl` **y** `backImageUrl`.
+
+- [ ] **Step 1: escribir las pruebas que fallan.**
+  - Modo `catalog` sin foto trasera → INVALID, con el mensaje exacto.
+  - Modo `stock` sin fotos → ok, y el producto no aparece en `getPublicCatalog`.
+  - Un producto con las dos fotos sí aparece, con `backImageUrl`.
+  - Una descripción de 501 caracteres → INVALID.
+  - En el formulario:
+    - hay un selector "Solo stock" / "Para catálogo";
+    - en "Para catálogo" aparecen dos capturas, "Foto de frente" y "Foto de atrás", y el botón de alta se deshabilita hasta tener las dos;
+    - en "Solo stock" no hay capturas y el texto dice "Se registra en inventario; no aparece en el catálogo hasta agregar las dos fotos.";
+    - el campo "Descripción" está en los dos modos.
+  - En `/productos`, un producto de solo stock muestra "Agregar foto de frente" y "Agregar foto de atrás".
+- [ ] **Step 2:** correr las pruebas y ver que FALLAN.
+- [ ] **Step 3: implementar.**
+  - Las dos fotos usan el mismo procesamiento y la misma subida de hoy (`ProductPhotoCapture`, `uploadProductImageAction`).
+  - El alta por lote recuerda el modo elegido entre un artículo y otro.
+- [ ] **Step 4:** correr `npm test`, `npm run test:db` y `npx tsc --noEmit`, y que todo PASE.
+- [ ] **Step 5:** commit `feat(alta): modo solo stock y modo catálogo con fotos de frente y atrás`.
+
+### Task 14: Residuo de la revisión final
+
+- Modify: `app/pos/page.tsx`, `lib/sales/use-sale-draft.ts`, `lib/sales/actions.ts`, `lib/sales/dashboard-actions.ts`, `lib/catalog/actions.ts`.
+
+1. **Bandera "incierto" en el id de la venta.**
+   - Se activa después de un error de red o de una respuesta `UNAVAILABLE`, y solo se limpia en `renewRequestId`.
+   - Mientras está activa, `markRejected` y `requestIdFor` nunca renuevan el id: decide la comparación del servidor.
+   - Prueba en `/pos`: error de red, luego INVALID antes del lookup, luego editar el carrito y reenviar → se manda **el mismo** id.
+2. **`UNAVAILABLE` con el verbo correcto según la acción.**
+   - Cobrar: "Intenta cobrar de nuevo."
+   - Confirmar el pago: "Intenta confirmar de nuevo."
+   - Anular: "Intenta anular de nuevo."
+3. **Sesión vencida en las acciones del dashboard y del catálogo.** Esas acciones atrapan `UnauthenticatedError` y responden con su forma de error, sin lanzar una excepción. `getDashboardAction` responde `{ error: "session_expired" }` y `/ventas` muestra el enlace "Iniciar sesión".
+   - Además, en `/pos` y `/ventas`: si la acción devuelve `undefined` (cuando el middleware redirige), mostrar "Tu sesión terminó. Vuelve a iniciar sesión." con el enlace, en lugar del mensaje de conexión.
+- Commit `fix(ventas): id incierto tras error de red, mensajes por acción y sesión vencida`.
