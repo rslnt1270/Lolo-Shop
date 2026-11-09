@@ -3,7 +3,8 @@ import { PRODUCT_CATEGORIES, validateNewProduct } from "../new-product";
 
 const valid = {
   title: "Playera Básica",
-  brand: "LoloShop",
+  brandId: "brand-1",
+  departmentId: "dep-1",
   category: "Playeras",
   price: 299,
   initialStock: 0,
@@ -16,7 +17,12 @@ describe("validateNewProduct", () => {
 
   it("exige título y marca", () => {
     expect(() => validateNewProduct({ ...valid, title: "  " })).toThrow("Título y marca son obligatorios.");
-    expect(() => validateNewProduct({ ...valid, brand: "" })).toThrow("Título y marca son obligatorios.");
+    expect(() => validateNewProduct({ ...valid, brandId: "" })).toThrow("Título y marca son obligatorios.");
+  });
+
+  it("exige el departamento", () => {
+    expect(() => validateNewProduct({ ...valid, departmentId: "" })).toThrow("Elige el departamento.");
+    expect(() => validateNewProduct({ ...valid, departmentId: "  " })).toThrow("Elige el departamento.");
   });
 
   it("exige una categoría de la lista", () => {
@@ -40,18 +46,16 @@ describe("validateNewProduct", () => {
   });
 
   it("devuelve el alta normalizada: precio a centavos y textos recortados", () => {
-    const out = validateNewProduct({ ...valid, title: "  Gorra  ", brand: " Lolo ", price: 10.005 });
+    const out = validateNewProduct({ ...valid, title: "  Gorra  ", brandId: " b1 ", price: 10.005 });
     expect(out.price).toBe(10.01);
     expect(out.title).toBe("Gorra");
-    expect(out.brand).toBe("Lolo");
+    expect(out.brandId).toBe("b1");
     expect(validateNewProduct({ ...valid, price: 19.999 }).price).toBe(20);
   });
 
-  it("limita título a 120 y marca a 60 caracteres", () => {
+  it("limita el título a 120 caracteres", () => {
     expect(() => validateNewProduct({ ...valid, title: "a".repeat(120) })).not.toThrow();
     expect(() => validateNewProduct({ ...valid, title: "a".repeat(121) })).toThrow(/120/);
-    expect(() => validateNewProduct({ ...valid, brand: "b".repeat(60) })).not.toThrow();
-    expect(() => validateNewProduct({ ...valid, brand: "b".repeat(61) })).toThrow(/60/);
   });
 
   it("talla opcional: por defecto U y máximo 20 caracteres", () => {

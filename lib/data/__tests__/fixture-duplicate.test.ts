@@ -3,7 +3,7 @@ import { FixtureDataSource } from "../fixture-source";
 import { uniqueViolationField } from "../errors";
 
 const data = {
-  barcode: "DUP-1", sku: "LS-000000-0", title: "A", brand: "B", price: 1,
+  barcode: "DUP-1", sku: "LS-000000-0", title: "A", brand: "B", brandId: "b1", departmentId: "d1", publicCode: "K7Q2M", price: 1,
   category: "Accesorios", initialStock: 1, locationId: "loc-1", userId: "u1",
 };
 
@@ -23,10 +23,17 @@ describe("createProduct: código duplicado", () => {
     expect(uniqueViolationField(err)).toBe("sku");
   });
 
+  it("rechaza un publicCode que ya existe", async () => {
+    const ds = new FixtureDataSource();
+    await ds.createProduct(data);
+    const err = await ds.createProduct({ ...data, barcode: "OTRO", sku: "LS-00000Z-Z" }).catch((e) => e);
+    expect(uniqueViolationField(err)).toBe("publicCode");
+  });
+
   it("varios productos sin código (barcode null) no chocan", async () => {
     const ds = new FixtureDataSource();
     await ds.createProduct({ ...data, barcode: null });
-    await expect(ds.createProduct({ ...data, barcode: null, sku: "LS-00000Z-Z" })).resolves.toBeTruthy();
+    await expect(ds.createProduct({ ...data, barcode: null, sku: "LS-00000Z-Z", publicCode: "AAAAA" })).resolves.toBeTruthy();
   });
 });
 
@@ -77,7 +84,7 @@ describe("FixtureDataSource.createProduct: talla", () => {
   it("guarda la talla o U por defecto", async () => {
     const ds = new FixtureDataSource();
     expect((await ds.createProduct({ ...data, barcode: "T1", sku: "LS-000001-1" })).variant.size).toBe("U");
-    expect((await ds.createProduct({ ...data, barcode: "T2", sku: "LS-000002-2", size: "M" })).variant.size).toBe("M");
+    expect((await ds.createProduct({ ...data, barcode: "T2", sku: "LS-000002-2", publicCode: "BBBBB", size: "M" })).variant.size).toBe("M");
   });
 });
 

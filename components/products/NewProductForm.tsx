@@ -1,8 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createProductAction, uploadProductImageAction } from "@/lib/actions";
 import type { CreateProductInput } from "@/lib/actions";
 import { PRODUCT_CATEGORIES, validateNewProduct } from "@/lib/domain/new-product";
+import { createBrandAction, listBrandsAction, listDepartmentsAction } from "@/lib/catalog/actions";
+import type { BrandOption, DepartmentOption } from "@/lib/catalog/actions";
+import { BrandCombobox } from "./BrandCombobox";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
 
 export interface CreatedInfo {
@@ -30,14 +33,40 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
+  const [brands, setBrands] = useState<BrandOption[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [brand, setBrand] = useState<BrandOption | null>(null);
+  const [catalogError, setCatalogError] = useState("");
   const [formData, setFormData] = useState({
     title: "",
-    brand: "",
+    departmentId: "",
     size: "",
     price: "",
     category: "",
     initialStock: "0",
   });
+
+  useEffect(() => {
+    let alive = true;
+    Promise.all([listBrandsAction(), listDepartmentsAction()])
+      .then(([b, d]) => {
+        if (!alive) return;
+        setBrands(b);
+        setDepartments(d);
+      })
+      .catch(() => {
+        if (alive) setCatalogError("No se pudieron cargar las marcas y los departamentos. Recarga la página.");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const createBrand = async (name: string) => {
+    const r = await createBrandAction(name);
+    if (r.ok) setBrands((prev) => (prev.some((b) => b.id === r.brand.id) ? prev : [...prev, r.brand]));
+    return r;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +75,8 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
 
     const input = {
       title: formData.title,
-      brand: formData.brand,
+      brandId: brand?.id ?? "",
+      departmentId: formData.departmentId,
       category: formData.category,
       price: parseFloat(formData.price),
       initialStock: Number(formData.initialStock),
@@ -146,16 +176,26 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
           <label htmlFor="brand" className="block text-sm font-medium text-gray-700">
             Marca
           </label>
-          <input
-            type="text"
-            id="brand"
-            name="brand"
-            required
-            value={formData.brand}
+          <BrandCombobox id="brand" brands={brands} value={brand} onChange={setBrand} onCreate={createBrand} />
+        </div>
+
+        <div>
+          <label htmlFor="departmentId" className="block text-sm font-medium text-gray-700">
+            Departamento
+          </label>
+          <select
+            id="departmentId"
+            name="departmentId"
+            aria-required="true"
+            value={formData.departmentId}
             onChange={handleChange}
-            placeholder="Ej. Tommy Hilfiger"
-            className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-loloteal focus:outline-none focus:ring-1 focus:ring-loloteal bg-white text-gray-900"
-          />
+            className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal bg-white text-gray-900"
+          >
+            <option value="">Elige el departamento</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
         </div>
 
         <div>
@@ -207,7 +247,7 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
               value={formData.price}
               onChange={handleChange}
               placeholder="0.00"
-              className="block w-full rounded-md border border-gray-200 pl-7 pr-3 py-2 text-sm font-mono focus:border-loloteal focus:outline-none focus:ring-1 focus:ring-loloteal bg-white text-gray-900"
+              className="block min-h-[44px] w-full rounded-md border border-gray-200 pl-7 pr-3 py-2 text-sm font-mono focus:border-loloteal focus:outline-none focus:ring-1 focus:ring-loloteal bg-white text-gray-900"
             />
           </div>
         </div>
@@ -247,6 +287,10 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
           />
         </div>
       </div>
+
+      {catalogError && (
+        <p role="alert" className="rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">{catalogError}</p>
+      )}
 
       {error && (
         <div role="alert" className="space-y-2 rounded-md bg-red-50 p-3 text-sm font-medium text-red-700">

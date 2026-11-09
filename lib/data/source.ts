@@ -11,7 +11,12 @@ export interface CreateProductData {
   /** SKU interno generado en el servidor (`generateInternalSku`). */
   sku: string;
   title: string;
+  /** Nombre canónico de la marca (se sigue guardando en `Product.brand` durante la transición, ER §2.3). */
   brand: string;
+  brandId: string;
+  departmentId: string;
+  /** Código público corto (`generatePublicCode`); único, el llamador reintenta ante P2002. */
+  publicCode: string;
   price: number;
   category: string;
   /** Talla de la variante; por defecto "U". */

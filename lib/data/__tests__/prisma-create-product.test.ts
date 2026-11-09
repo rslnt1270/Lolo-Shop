@@ -31,7 +31,7 @@ describe("PrismaDataSource.createProduct", () => {
   });
 
   const base = {
-    barcode: "750123", sku: "LS-000000-0", title: "Gorra", brand: "Lolo", price: 100,
+    barcode: "750123", sku: "LS-000000-0", title: "Gorra", brand: "Lolo", brandId: "b1", departmentId: "d1", publicCode: "K7Q2M", price: 100,
     category: "Accesorios", locationId: "loc-1", userId: "u1",
   };
 
@@ -43,6 +43,11 @@ describe("PrismaDataSource.createProduct", () => {
     expect(data.variants.create.sku).toBe("LS-000000-0");
     expect(data.variants.create.size).toBe("M");
     expect(data.variants.create.inventory.create.available).toBe(7);
+  });
+
+  it("persiste brand (texto canónico), brandId, departmentId y publicCode", async () => {
+    await new PrismaDataSource().createProduct({ ...base, initialStock: 1 });
+    expect(create.mock.calls[0][0].data).toMatchObject({ brand: "Lolo", brandId: "b1", departmentId: "d1", publicCode: "K7Q2M" });
   });
 
   it("talla por defecto U y barcode null permitido", async () => {

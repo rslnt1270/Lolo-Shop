@@ -6,6 +6,8 @@ import { authOptions } from "./auth/options";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
 import { validateNewProduct } from "./domain/new-product";
+import { generatePublicCode } from "./domain/public-code";
+import prisma from "./prisma";
 import { normalizeCode, canonicalCode, isValidGtin, generateInternalSku } from "./domain/barcode";
 import type { VariantMatch } from "./data/source";
 import { uniqueViolationField } from "./data/errors";
@@ -92,7 +94,10 @@ export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
 
 export type CreateProductInput = {
   title: string;
-  brand: string;
+  /** `Brand.id` del combo (elegida o creada al vuelo); el nombre canónico lo pone el servidor. */
+  brandId: string;
+  /** `Department.id`, obligatorio en altas nuevas. */
+  departmentId: string;
   category: string;
   price: number;
   size?: string;
@@ -114,6 +119,8 @@ export type CreateProductResult =
 
 /** Un intento inicial + hasta 3 reintentos si el SKU generado choca (P2002). */
 const SKU_ATTEMPTS = 4;
+/** Hasta 5 intentos si el código público generado choca (P2002 en publicCode). */
+const PUBLIC_CODE_ATTEMPTS = 5;
 const MAX_BARCODE_LENGTH = 64;
 
 function withVariant(match: VariantMatch): Product {
@@ -193,6 +200,17 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
       }
     }
 
+    const [brand, department] = await Promise.all([
+      prisma.brand.findUnique({ where: { id: data.brandId }, select: { name: true, isActive: true } }),
+      prisma.department.findUnique({ where: { id: data.departmentId }, select: { isActive: true } }),
+    ]);
+    if (!brand?.isActive) {
+      return { ok: false, code: "INVALID", message: "Elige una marca de la lista o créala." };
+    }
+    if (!department?.isActive) {
+      return { ok: false, code: "INVALID", message: "Elige el departamento." };
+    }
+
     const ds = getDataSource();
     const locations = await ds.getLocations();
     if (!locationId || !locations.some((l) => l.id === locationId)) {
@@ -204,11 +222,15 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
       if (existing) return duplicateResult(existing);
     }
 
-    for (let attempt = 0; attempt < SKU_ATTEMPTS; attempt++) {
+    let skuTries = 0;
+    let codeTries = 0;
+    for (;;) {
       const sku = generateInternalSku();
       try {
         const match = await ds.createProduct({
           ...data,
+          brand: brand.name,
+          publicCode: generatePublicCode(),
           barcode,
           sku,
           locationId,
@@ -225,17 +247,20 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
       } catch (err) {
         const field = uniqueViolationField(err);
         if (field === null) throw err;
-        if (barcode && field !== "sku") {
+        if (barcode && field !== "sku" && field !== "publicCode") {
           const existing = await ds.getProductByBarcode(barcode);
           if (existing) return duplicateResult(existing);
           if (field === "barcode") {
             return { ok: false, code: "DUPLICATE", message: "Ese código ya está registrado. Búscalo para sumar piezas." };
           }
         }
-        // Choque de SKU (improbable): se reintenta con otro.
+        // Choque de SKU o de código público (improbable): se reintenta con otro.
+        const exhausted = field === "publicCode" ? ++codeTries >= PUBLIC_CODE_ATTEMPTS : ++skuTries >= SKU_ATTEMPTS;
+        if (exhausted) {
+          return { ok: false, code: "ERROR", message: "No se pudo generar un código único. Intenta guardar de nuevo." };
+        }
       }
     }
-    return { ok: false, code: "ERROR", message: "No se pudo generar un SKU único. Intenta guardar de nuevo." };
   } catch (err) {
     console.error("createProductAction", err);
     return { ok: false, code: "ERROR", message: "No se pudo guardar el producto. Revisa tu conexión e intenta de nuevo." };

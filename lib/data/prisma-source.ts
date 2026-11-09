@@ -182,6 +182,9 @@ export class PrismaDataSource implements InventoryDataSource {
         data: {
           title: data.title,
           brand: data.brand,
+          brandId: data.brandId,
+          departmentId: data.departmentId,
+          publicCode: data.publicCode,
           category: data.category,
           imageUrl: data.imageUrl ?? null,
           variants: {

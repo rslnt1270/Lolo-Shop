@@ -19,6 +19,7 @@ const nextId = (prefix: string) => `${prefix}-${Date.now()}-${++seq}`;
 export class FixtureDataSource implements InventoryDataSource {
   private locations: Location[] = fixtureLocations.map((l) => ({ ...l }));
   private products: Product[] = cloneProducts(fixtureProducts);
+  private publicCodes = new Set<string>();
 
   async getLocations(): Promise<Location[]> {
     return this.locations;
@@ -79,6 +80,10 @@ export class FixtureDataSource implements InventoryDataSource {
     if (variants.some((v) => v.sku === data.sku)) {
       throw new UniqueConstraintError("sku");
     }
+    if (this.publicCodes.has(data.publicCode)) {
+      throw new UniqueConstraintError("publicCode");
+    }
+    this.publicCodes.add(data.publicCode);
 
     const productId = nextId("prod");
     const variant: Variant = {

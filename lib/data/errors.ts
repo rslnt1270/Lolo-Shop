@@ -11,14 +11,15 @@ export class UniqueConstraintError extends Error {
 
 /**
  * Si `err` es una violación de unicidad (P2002) devuelve el campo afectado
- * ("barcode", "sku" o "unknown"); si no, null.
+ * ("barcode", "sku", "publicCode" o "unknown"); si no, null.
  */
-export function uniqueViolationField(err: unknown): "barcode" | "sku" | "unknown" | null {
+export function uniqueViolationField(err: unknown): "barcode" | "sku" | "publicCode" | "unknown" | null {
   if (!err || typeof err !== "object" || (err as { code?: unknown }).code !== "P2002") return null;
   const target = (err as { meta?: { target?: unknown } }).meta?.target;
   const text = Array.isArray(target) ? target.join(",") : String(target ?? "");
   if (/barcode/i.test(text)) return "barcode";
   if (/sku/i.test(text)) return "sku";
+  if (/public_?code/i.test(text)) return "publicCode";
   return "unknown";
 }
 

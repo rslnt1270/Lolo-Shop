@@ -7,6 +7,14 @@ vi.mock("@/lib/actions", () => ({
   createProductAction: (...a: unknown[]) => createProductAction(...a),
   uploadProductImageAction: (...a: unknown[]) => uploadProductImageAction(...a),
 }));
+const listBrandsAction = vi.fn();
+const createBrandAction = vi.fn();
+const listDepartmentsAction = vi.fn();
+vi.mock("@/lib/catalog/actions", () => ({
+  listBrandsAction: (...a: unknown[]) => listBrandsAction(...a),
+  createBrandAction: (...a: unknown[]) => createBrandAction(...a),
+  listDepartmentsAction: (...a: unknown[]) => listDepartmentsAction(...a),
+}));
 vi.mock("../products/ProductPhotoCapture", () => ({
   ProductPhotoCapture: ({ onCapture, onBusyChange }: { onCapture: (f: File) => void; onBusyChange?: (b: boolean) => void }) => (
     <><button type="button" onClick={() => onBusyChange?.(true)}>foto-ocupada</button><button type="button" onClick={() => onBusyChange?.(false)}>foto-lista</button><button type="button" onClick={() => onCapture(new File(["x"], "p.jpg", { type: "image/jpeg" }))}>tomar-foto</button></>
@@ -15,10 +23,17 @@ vi.mock("../products/ProductPhotoCapture", () => ({
 
 import { NewProductForm } from "../products/NewProductForm";
 
-function submitValid(onSuccess = vi.fn(), onDuplicate?: (id: string) => void) {
+async function pickBrandAndDepartment() {
+  fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
+  fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
+  await waitFor(() => expect(screen.getByRole("option", { name: "Dama", hidden: true })).toBeTruthy());
+  fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
+}
+
+async function submitValid(onSuccess = vi.fn(), onDuplicate?: (id: string) => void) {
   render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} onDuplicate={onDuplicate} />);
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
-  fireEvent.change(screen.getByLabelText(/marca/i), { target: { value: "Lolo" } });
+  await pickBrandAndDepartment();
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
   fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
   fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
@@ -26,11 +41,15 @@ function submitValid(onSuccess = vi.fn(), onDuplicate?: (id: string) => void) {
 }
 
 describe("NewProductForm: errores del servidor", () => {
-  beforeEach(() => { createProductAction.mockReset(); uploadProductImageAction.mockReset(); vi.spyOn(console, "error").mockImplementation(() => {}); });
+  beforeEach(() => {
+    listBrandsAction.mockReset().mockResolvedValue([{ id: "b1", name: "Lolo", slug: "lolo" }, { id: "b2", name: "Psycho Bunny", slug: "psycho-bunny" }]);
+    listDepartmentsAction.mockReset().mockResolvedValue([{ id: "d1", slug: "dama", name: "Dama" }, { id: "d2", slug: "caballero", name: "Caballero" }]);
+    createBrandAction.mockReset();
+    createProductAction.mockReset(); uploadProductImageAction.mockReset(); vi.spyOn(console, "error").mockImplementation(() => {}); });
 
   it("muestra el código en solo lectura y lo envía como barcode", async () => {
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
-    submitValid();
+    await submitValid();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(screen.getByTestId("codigo-escaneado").textContent).toBe("750123");
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ barcode: "750123", noBarcode: false, locationId: "loc-1" });
@@ -43,7 +62,7 @@ describe("NewProductForm: errores del servidor", () => {
       message: "Ese código ya está registrado: «Gorra». Abre el producto para sumar piezas.",
     });
     const onDuplicate = vi.fn();
-    const onSuccess = submitValid(vi.fn(), onDuplicate);
+    const onSuccess = await submitValid(vi.fn(), onDuplicate);
     expect(await screen.findByText(/ya está registrado/i)).toBeTruthy();
     expect(onSuccess).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /registrar entrada/i }));
@@ -55,13 +74,13 @@ describe("NewProductForm: errores del servidor", () => {
       ok: false, code: "FORBIDDEN",
       message: "No autorizado: solo puedes dar de alta productos en tu tienda asignada.",
     });
-    submitValid();
+    await submitValid();
     expect(await screen.findByText(/tu tienda asignada/i)).toBeTruthy();
   });
 
   it("si la acción lanza, no deja la pantalla colgada", async () => {
     createProductAction.mockRejectedValue(new Error("boom"));
-    const onSuccess = submitValid();
+    const onSuccess = await submitValid();
     expect(await screen.findByText(/no se pudo dar de alta/i)).toBeTruthy();
     expect(onSuccess).not.toHaveBeenCalled();
   });
@@ -73,7 +92,7 @@ describe("NewProductForm: errores del servidor", () => {
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} />);
     fireEvent.click(screen.getByText("tomar-foto"));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
-    fireEvent.change(screen.getByLabelText(/marca/i), { target: { value: "Lolo" } });
+    await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
     fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
@@ -82,7 +101,7 @@ describe("NewProductForm: errores del servidor", () => {
     expect(createProductAction.mock.calls[0][0].imageUrl).toBeNull();
   });
 
-  it("deshabilita el alta mientras la foto se procesa", () => {
+  it("deshabilita el alta mientras la foto se procesa", async () => {
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
     fireEvent.click(screen.getByText("foto-ocupada"));
     const btn = screen.getByRole("button", { name: /procesando foto/i });
@@ -98,7 +117,7 @@ describe("NewProductForm: errores del servidor", () => {
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} />);
     fireEvent.click(screen.getByText("tomar-foto"));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
-    fireEvent.change(screen.getByLabelText(/marca/i), { target: { value: "Lolo" } });
+    await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
     fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));

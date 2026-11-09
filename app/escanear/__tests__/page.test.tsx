@@ -17,6 +17,11 @@ vi.mock("@/lib/actions", () => ({
   fetchLocationsAction: (...a: unknown[]) => fetchLocations(...a),
   uploadProductImageAction: vi.fn(),
 }));
+vi.mock("@/lib/catalog/actions", () => ({
+  listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
+  listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
+  createBrandAction: vi.fn(),
+}));
 vi.mock("@/lib/domain/barcode", () => ({ isValidGtin: () => true }));
 vi.mock("@/components/inventory/Scanner", () => ({
   Scanner: ({ onScan }: { onScan: (c: string) => void }) => (
@@ -32,9 +37,12 @@ const existingProduct = {
   variants: [{ id: "v1", title: "M", sku: "S", barcode: "750999", price: 100, inventory: [] }],
 };
 
-function fillForm() {
+async function fillForm() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
-  fireEvent.change(screen.getByLabelText(/marca/i), { target: { value: "Lolo" } });
+  fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
+  fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
+  await screen.findByRole("option", { name: "Dama" });
+  fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "50" } });
   fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
   fireEvent.change(screen.getByLabelText(/stock inicial/i), { target: { value: "4" } });
@@ -56,7 +64,7 @@ describe("/escanear: flujo de alta por lote", () => {
     expect((await screen.findByTestId("codigo-escaneado")).textContent).toBe("750999");
     expect(screen.queryByTestId("scanner")).toBeNull();
 
-    fillForm();
+    await fillForm();
 
     await waitFor(() => expect(screen.getByTestId("scanner")).toBeTruthy());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({
@@ -105,7 +113,7 @@ describe("/escanear: flujo de alta por lote", () => {
     render(<EscanearPage />);
     fireEvent.click(screen.getByRole("button", { name: /prenda sin código/i }));
     expect(await screen.findByText(/se generará un sku interno/i)).toBeTruthy();
-    fillForm();
+    await fillForm();
     expect(await screen.findByRole("link", { name: /imprimir etiqueta/i })).toHaveAttribute("href", "/etiquetas");
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ noBarcode: true, barcode: null });
     expect(lookup).not.toHaveBeenCalled();
@@ -119,7 +127,7 @@ describe("/escanear: flujo de alta por lote", () => {
     fireEvent.change(sel, { target: { value: "loc-B" } });
     fireEvent.click(screen.getByText("simular-escaneo"));
     await screen.findByTestId("codigo-escaneado");
-    fillForm();
+    await fillForm();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ locationId: "loc-B" });
     expect(sessionStorage.getItem("loloshop:escanear:location")).toBe("loc-B");

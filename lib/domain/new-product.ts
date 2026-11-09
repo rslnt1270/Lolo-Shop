@@ -3,7 +3,6 @@ export const PRODUCT_CATEGORIES = [
 ] as const;
 
 export const MAX_TITLE_LENGTH = 120;
-export const MAX_BRAND_LENGTH = 60;
 export const MAX_SIZE_LENGTH = 20;
 /** Tope de `Variant.price` (Decimal(10,2)). */
 export const MAX_PRICE = 99_999_999.99;
@@ -11,7 +10,10 @@ export const DEFAULT_SIZE = "U";
 
 export interface NewProductInput {
   title: string;
-  brand: string;
+  /** Marca canónica elegida o creada en el combo (`Brand.id`). */
+  brandId: string;
+  /** Departamento obligatorio en altas nuevas (ER §2.3, A3). */
+  departmentId: string;
   category: string;
   price: number;
   initialStock: number;
@@ -20,7 +22,8 @@ export interface NewProductInput {
 
 export interface NormalizedNewProduct {
   title: string;
-  brand: string;
+  brandId: string;
+  departmentId: string;
   category: string;
   price: number;
   initialStock: number;
@@ -41,15 +44,16 @@ export function roundToCents(value: number): number {
  */
 export function validateNewProduct(input: NewProductInput): NormalizedNewProduct {
   const title = (input.title ?? "").trim();
-  const brand = (input.brand ?? "").trim();
-  if (!title || !brand) {
+  const brandId = (input.brandId ?? "").trim();
+  const departmentId = (input.departmentId ?? "").trim();
+  if (!title || !brandId) {
     throw new Error("Título y marca son obligatorios.");
   }
   if (title.length > MAX_TITLE_LENGTH) {
     throw new Error(`El título no puede pasar de ${MAX_TITLE_LENGTH} caracteres.`);
   }
-  if (brand.length > MAX_BRAND_LENGTH) {
-    throw new Error(`La marca no puede pasar de ${MAX_BRAND_LENGTH} caracteres.`);
+  if (!departmentId) {
+    throw new Error("Elige el departamento.");
   }
   if (!(PRODUCT_CATEGORIES as readonly string[]).includes(input.category)) {
     throw new Error("Elige una categoría válida.");
@@ -71,5 +75,5 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
   if (size.length > MAX_SIZE_LENGTH) {
     throw new Error(`La talla no puede pasar de ${MAX_SIZE_LENGTH} caracteres.`);
   }
-  return { title, brand, category: input.category, price, initialStock: input.initialStock, size };
+  return { title, brandId, departmentId, category: input.category, price, initialStock: input.initialStock, size };
 }
