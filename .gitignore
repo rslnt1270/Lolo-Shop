@@ -17,3 +17,6 @@ graphify-out/
 .graphify_labels.json
 .graphify_labels.json.sig
 .graphify_root
+
+# Espacio de trabajo de agentes (ledgers, reportes)
+.superpowers/

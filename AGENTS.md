@@ -23,8 +23,10 @@ Fuente de verdad: `docs/superpowers/specs/2026-11-05-modelo-datos-er.md`.
 - Móvil primero: objetivos táctiles ≥ 44 px, 375 px, `prefers-reduced-motion`, español de México.
 
 ## Trabajo entre Claude y Antigravity
+> Por ahora (decisión del dueño 2026-11-09) no se delegan tareas a Antigravity: Claude ejecuta todo el plan `docs/superpowers/plans/2026-11-09-implementaciones-posteriores.md`. Si Antigravity vuelve, se le devuelve su zona.
+
 Reparto, flujo de Git, contrato y backlog: `docs/superpowers/specs/2026-11-09-loloshop-implementaciones-posteriores-design.md` (§3). Resumen:
-- Antigravity: `components/virtual-store/`, `lib/virtual-store/`, aspecto de `/catalogo`. Claude: `prisma/`, `lib/data/`, `lib/sales/`, `lib/catalog/`, `lib/actions.ts`, `lib/auth/`, `app/api/`, `app/pos`, `app/ventas`, `app/escanear`. Fuera de tu zona, pide el cambio por escrito.
+- Antigravity: `components/virtual-store/`, `lib/virtual-store/`, aspecto de `/catalogo`. Claude: `prisma/`, `lib/data/`, `lib/sales/`, `lib/catalog/`, `lib/image/`, `lib/public/`, `lib/actions.ts`, `lib/auth/`, `app/api/`, `app/pos`, `app/ventas`, `app/escanear`, `app/recorrido/`. Fuera de tu zona, pide el cambio por escrito.
 - Rama por tarea desde `feat/demo-alta-lote` (hasta que llegue a `main`). Sin commits en `main`, sin `push` ni `--force` sin visto bueno del dueño.
 - Terminado = evidencia pegada de `npx tsc --noEmit`, `npm test` y `npm run build`.
 
