@@ -46,7 +46,7 @@ Sin responsable asignado, las fases A y B no empiezan (pendiente abierto del ER 
 
 ## Fase 0. Comprobaciones previas (máquina local)
 
-Rama `feat/ventas-p1` (o `main` si ya se mergeó), árbol limpio.
+Rama `feat/demo-alta-lote` (o `main` si ya se mergeó), árbol limpio.
 
 ```bash
 git status --short
@@ -144,7 +144,7 @@ npx prisma migrate deploy
 npx prisma migrate status
 ```
 
-Salida esperada: el primer `status` lista `*_add_brand_department` y `*_add_sales` como pendientes (`Following migrations have not yet been applied`); `deploy` termina con `All migrations have been successfully applied.`; el segundo `status` dice `Database schema is up to date!`.
+Salida esperada: el primer `status` lista `*_add_brand_department`, `*_add_sales` y `*_add_product_description_back_image` como pendientes (`Following migrations have not yet been applied`); `deploy` termina con `All migrations have been successfully applied.`; el segundo `status` dice `Database schema is up to date!`.
 **Continuar si:** `up to date`. Si `deploy` falla a medias, no reintentar a ciegas: la rama se descarta y se recrea desde producción (Fase B), y se analiza el error.
 
 ### C4. Relleno de datos (idempotente)
@@ -182,7 +182,7 @@ Salida esperada: cada `collaborator` con una `tienda` no vacía; `owner` y `mana
 ## Fase D. Preview de Vercel contra la rama (paso 6 del ER)
 
 1. En Vercel, configurar para el entorno **Preview** `DATABASE_URL` con la conexión de la **rama** con *pooler* (`<NEON_BRANCH_DATABASE_URL>`, nunca la de producción), además de `NEXTAUTH_SECRET`, `NEXTAUTH_URL` del preview, `BOT_API_KEY`, `BLOB_READ_WRITE_TOKEN` y `WHATSAPP_APP_SECRET`. `DIRECT_URL` no hace falta. Anotar los valores que tenía Preview para devolverlos al terminar.
-2. Desplegar la rama `feat/ventas-p1` (push o `vercel deploy` sin `--prod`) y esperar a que el build termine en verde.
+2. Desplegar la rama `feat/demo-alta-lote` (push o `vercel deploy` sin `--prod`) y esperar a que el build termine en verde.
 3. Pruebas de humo en la URL del preview (lista de la Fase G, pero sobre la rama).
 
 **Continuar si:** build en verde y todas las pruebas de humo de la Fase G pasan en el preview.
@@ -223,7 +223,7 @@ Orden obligatorio: **primero la base, después el código**. En una terminal nue
    Salida esperada: `All migrations have been successfully applied.` y luego `Database schema is up to date!`.
 6. **Relleno**: `npx tsx prisma/scripts/backfill-brand-department.ts` con `DATABASE_URL` de producción. Salida: `Relleno listo: ...` con las mismas cifras que en el ensayo (salvo cambios de catálogo desde entonces).
 7. **Variables en Vercel (Production)**: confirmar que existen `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BOT_API_KEY`, `BLOB_READ_WRITE_TOKEN` y **`WHATSAPP_APP_SECRET`** (sin ella el webhook de WhatsApp no valida la firma de Meta y acepta mensajes de cualquiera). `DIRECT_URL` no hace falta en Vercel. Si en la Fase D cambiaste valores de Preview, devolverlos a su estado original.
-8. **Desplegar el código**: mergear `feat/ventas-p1` a `main` (Vercel despliega a Production) o promover el deploy verificado. Esperar build en verde. Anotar el identificador del deploy **anterior** (para el retroceso).
+8. **Desplegar el código**: mergear `feat/demo-alta-lote` a `main` (Vercel despliega a Production) o promover el deploy verificado. Esperar build en verde. Anotar el identificador del deploy **anterior** (para el retroceso).
 
 **Continuar si:** `migrate status` dice `up to date` y el build de producción es verde.
 

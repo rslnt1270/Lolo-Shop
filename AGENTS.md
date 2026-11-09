@@ -12,7 +12,21 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 - **Deploy:** Vercel.
 
 ## Modelo de datos (Prisma)
-`User` (role: owner|manager|collaborator, ligado a Location) · `Location` (store|warehouse) · `Product` → `Variant` (sku/barcode únicos, price) · `InventoryLevel` (available por variant×location, `@@unique`) · `Movement` (delta ±1, auditoría de entradas/salidas por usuario).
+Fuente de verdad: `docs/superpowers/specs/2026-11-05-modelo-datos-er.md`.
+`User` (role: owner|manager|collaborator, ligado a Location) · `Location` (store|warehouse; tiendas: LoloShop_Lomas y LoloShop_ClubAlva) · `Product` (marca `Brand`, `Department`, `publicCode` de 5 caracteres, `imageUrl` frente, `backImageUrl` atrás) → `Variant` (sku/barcode únicos, price) · `InventoryLevel` (available por variant×location) · `Movement` (auditoría) · `Sale` → `SaleLine` (ventas; stock nunca negativo, idempotencia por `clientRequestId`) · `AppSetting` (umbral de stock bajo).
+
+## Reglas que no se rompen
+- **Lo público usa solo `PublicProduct`** (`lib/data/public-projection.ts`): sin SKU, sin código de barras, sin conteos; disponibilidad sí/no por talla. Un producto es público solo con foto de frente y de atrás.
+- **Nada inventado ante el cliente:** ni productos, precios o existencias de ejemplo, ni promesas de apartado o envío.
+- El servidor decide permisos (rol releído de la base). Colaborador: solo su tienda, no cambia precios. Manager con tienda: solo esa tienda. Solo el owner anula ventas.
+- No se guardan contactos de clientes.
+- Móvil primero: objetivos táctiles ≥ 44 px, 375 px, `prefers-reduced-motion`, español de México.
+
+## Trabajo entre Claude y Antigravity
+Reparto, flujo de Git, contrato y backlog: `docs/superpowers/specs/2026-11-09-loloshop-implementaciones-posteriores-design.md` (§3). Resumen:
+- Antigravity: `components/virtual-store/`, `lib/virtual-store/`, aspecto de `/catalogo`. Claude: `prisma/`, `lib/data/`, `lib/sales/`, `lib/catalog/`, `lib/actions.ts`, `lib/auth/`, `app/api/`, `app/pos`, `app/ventas`, `app/escanear`. Fuera de tu zona, pide el cambio por escrito.
+- Rama por tarea desde `feat/demo-alta-lote` (hasta que llegue a `main`). Sin commits en `main`, sin `push` ni `--force` sin visto bueno del dueño.
+- Terminado = evidencia pegada de `npx tsc --noEmit`, `npm test` y `npm run build`.
 
 ## Convenciones
 - **Secretos:** todo `.env`/`.env*.local` está gitignoreado; solo se versiona `.env.example`. **PROHIBIDO** commitear `.env`.
@@ -22,7 +36,7 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 ## Seguridad
 - **Incidente 2026-07-21 (remediado):** `.env` estuvo trackeado en el repo público (commit `6f2e79b`) con `DATABASE_URL` + `NEXTAUTH_SECRET`. La auditoría automática (`4e5c510`) lo destrackeó y endureció `.gitignore`.
 - **Rotación completada 2026-07-22:** las credenciales expuestas fueron **rotadas y verificadas inservibles**. Password de Neon (`neondb_owner`) cambiado vía `ALTER ROLE` (viejo rechazado con `psql`); `NEXTAUTH_SECRET` regenerado (`openssl rand -base64 32`). Aplicado en `.env` local + Vercel (Production/Preview) + redeploy. Se agregó `DATABASE_URL` (faltaba en Vercel) y `BOT_API_KEY` (endpoint n8n). El blob del `.env` **sigue en la historia pública** pero con credenciales muertas → **purga de historia opcional** (git-filter-repo/BFG), no urgente.
-- `User.password`: verificar que use hashing fuerte (bcrypt/argon2), no "hash simple".
+- `User.password`: bcrypt (seed coste 10; `/cuenta` coste 12). Producción usa contraseñas propias (verificado 2026-11-09), nunca las de desarrollo del seed.
 
 ## MCP disponibles (`.mcp.json`)
 - `shopify-dev` — docs/API de Shopify.
@@ -33,7 +47,8 @@ Punto de venta e inventario multi-ubicación (PWA). Repo: `rslnt1270/Lolo-Shop` 
 ```
 npm run dev        # desarrollo
 npm run build      # build de producción
-npm run lint
-npm test           # tests
+npx tsc --noEmit   # tipos
+npm test           # pruebas unitarias
+npm run test:db    # pruebas contra Postgres local (ver test/db/)
 npx prisma studio  # inspección de datos
 ```
