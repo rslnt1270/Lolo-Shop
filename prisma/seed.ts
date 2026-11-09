@@ -42,7 +42,24 @@ async function main() {
     console.log(`✅ Usuario: ${user.username} (${user.role})`);
   }
 
-  // 3. Producto de demostración
+  // 3. Departamentos (el alta de productos exige uno). Upsert por slug: idempotente.
+  const departments = [
+    { slug: 'dama', name: 'Dama', sortOrder: 1 },
+    { slug: 'caballero', name: 'Caballero', sortOrder: 2 },
+    { slug: 'ninos', name: 'Niños', sortOrder: 3 },
+    { slug: 'calzado', name: 'Calzado', sortOrder: 4 },
+    { slug: 'accesorios', name: 'Accesorios', sortOrder: 5 },
+  ];
+  for (const dept of departments) {
+    await prisma.department.upsert({
+      where: { slug: dept.slug },
+      update: { name: dept.name, sortOrder: dept.sortOrder },
+      create: dept,
+    });
+    console.log(`✅ Departamento: ${dept.name}`);
+  }
+
+  // 4. Producto de demostración
   const existing = await prisma.variant.findUnique({ where: { sku: 'TSH-BLK-M-01' } });
   if (!existing) {
     const product = await prisma.product.create({

@@ -22,6 +22,8 @@ Lo ejecuta el dueño, con un asistente al lado. Fuente: `docs/superpowers/specs/
 
 Variables que lee Prisma (`prisma/schema.prisma`): `DATABASE_URL` (app y scripts), `DIRECT_URL` (CLI de migraciones), `SHADOW_DATABASE_URL` (solo `migrate dev`, no se usa aquí).
 
+Quién necesita `DIRECT_URL`: solo `prisma validate` y los comandos `prisma migrate …`, que corres tú desde la terminal. `next build`, `prisma generate` (el `postinstall`) y la app en Vercel **no** la usan: el cliente de Prisma se conecta con `DATABASE_URL`.
+
 Para apuntar la terminal a un destino sin escribir valores en archivos, exporta las variables **en esa terminal** y ciérrala al terminar. Las variables de la terminal tienen prioridad sobre `.env`:
 
 ```bash
@@ -100,10 +102,10 @@ Después de la prueba, vaciar o borrar la rama usada para restaurar (la base som
 ## Fase B. Rama de Neon desde producción (pasos 1 y 2 del ER)
 
 1. En la consola de Neon, crear una rama desde producción (nombre sugerido `ventas-prueba`). Copiar su conexión con *pooler* y su conexión directa **solo a tu terminal o a `.env` local**.
-2. En Vercel (Settings, Environment Variables), añadir `DIRECT_URL` con la conexión directa de **producción**, para los entornos Production y Preview. Se hace **antes** de cualquier `migrate deploy` que dependa de Vercel; aquí las migraciones se corren desde tu máquina, pero Prisma valida el esquema con `directUrl` y el build/`prisma generate` debe encontrar la variable definida. Confirmar en el panel que la variable existe (sin mostrar el valor).
+2. **`DIRECT_URL` no se añade a Vercel.** El build (`next build`), `prisma generate` y la app no la necesitan; solo la usan `prisma validate` y `prisma migrate`, que se corren desde tu terminal. En particular, **nunca** pongas la conexión directa de producción en el entorno **Preview**: un preview con esa variable podría migrar o escribir en producción por error. El Preview usa solo los valores de la **rama** de Neon (Fase D).
 3. Exportar en tu terminal los valores de la **rama** (`<NEON_BRANCH_DATABASE_URL>` y `<NEON_BRANCH_DIRECT_URL>`) como se mostró arriba y verificar el *host* con la función auxiliar de la Fase 0.
 
-**Continuar si:** la rama existe, `DIRECT_URL` está en Vercel y la terminal apunta a la rama.
+**Continuar si:** la rama existe y la terminal apunta a la rama.
 
 ## Fase C. Ensayo completo en la rama (pasos 3 a 5 del ER)
 
@@ -179,7 +181,7 @@ Salida esperada: cada `collaborator` con una `tienda` no vacía; `owner` y `mana
 
 ## Fase D. Preview de Vercel contra la rama (paso 6 del ER)
 
-1. En Vercel, configurar para el entorno **Preview** `DATABASE_URL` (conexión de la rama con *pooler*) y `DIRECT_URL` (de la rama), además de `NEXTAUTH_SECRET`, `NEXTAUTH_URL` del preview, `BOT_API_KEY` y `BLOB_READ_WRITE_TOKEN`. Anotar que se cambiarán **de vuelta** a producción al terminar.
+1. En Vercel, configurar para el entorno **Preview** `DATABASE_URL` con la conexión de la **rama** con *pooler* (`<NEON_BRANCH_DATABASE_URL>`, nunca la de producción), además de `NEXTAUTH_SECRET`, `NEXTAUTH_URL` del preview, `BOT_API_KEY`, `BLOB_READ_WRITE_TOKEN` y `WHATSAPP_APP_SECRET`. `DIRECT_URL` no hace falta. Anotar los valores que tenía Preview para devolverlos al terminar.
 2. Desplegar la rama `feat/ventas-p1` (push o `vercel deploy` sin `--prod`) y esperar a que el build termine en verde.
 3. Pruebas de humo en la URL del preview (lista de la Fase G, pero sobre la rama).
 
@@ -220,7 +222,7 @@ Orden obligatorio: **primero la base, después el código**. En una terminal nue
    ```
    Salida esperada: `All migrations have been successfully applied.` y luego `Database schema is up to date!`.
 6. **Relleno**: `npx tsx prisma/scripts/backfill-brand-department.ts` con `DATABASE_URL` de producción. Salida: `Relleno listo: ...` con las mismas cifras que en el ensayo (salvo cambios de catálogo desde entonces).
-7. **Variables en Vercel (Production)**: confirmar que existen `DATABASE_URL`, `DIRECT_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BOT_API_KEY`, `BLOB_READ_WRITE_TOKEN`. Si en la Fase D cambiaste valores de Preview, devolverlos a su estado original.
+7. **Variables en Vercel (Production)**: confirmar que existen `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `BOT_API_KEY`, `BLOB_READ_WRITE_TOKEN` y **`WHATSAPP_APP_SECRET`** (sin ella el webhook de WhatsApp no valida la firma de Meta y acepta mensajes de cualquiera). `DIRECT_URL` no hace falta en Vercel. Si en la Fase D cambiaste valores de Preview, devolverlos a su estado original.
 8. **Desplegar el código**: mergear `feat/ventas-p1` a `main` (Vercel despliega a Production) o promover el deploy verificado. Esperar build en verde. Anotar el identificador del deploy **anterior** (para el retroceso).
 
 **Continuar si:** `migrate status` dice `up to date` y el build de producción es verde.
@@ -230,7 +232,7 @@ Orden obligatorio: **primero la base, después el código**. En una terminal nue
 - [ ] Iniciar sesión como **owner**.
 - [ ] En `/pos`, registrar una **venta en efectivo** de una prenda real o de prueba (anotar el SKU y el stock antes).
 - [ ] La venta aparece en `/ventas` con el importe correcto y el stock bajó en 1.
-- [ ] Anular esa venta de prueba como owner (el stock regresa si se elige) o dejar constancia de que es real.
+- [ ] Anular esa venta de prueba como owner: en `/ventas`, sección **"Ventas de hoy"**, pulsar **Anular** en su folio, escribir el motivo ("Prueba de salida") y responder **Sí** a "¿La prenda regresó a la tienda?". La venta desaparece de la lista y el stock vuelve al valor anotado. (Si la venta es real, no anularla y dejar constancia.)
 - [ ] `/catalogo` **no muestra SKU ni cantidades de stock**.
 - [ ] `/api/bot/products` con la cabecera de `BOT_API_KEY` responde y **no incluye SKU ni conteos de stock** (usa tu clave desde una variable de la terminal, sin imprimirla):
       ```bash
@@ -243,6 +245,11 @@ Orden obligatorio: **primero la base, después el código**. En una terminal nue
 - [ ] Sin errores en Vercel (Runtime Logs) durante 10 minutos tras las pruebas.
 
 Si alguna casilla falla, evaluar: si es un fallo de código sin datos corruptos, retroceder el deploy (opción 1 abajo); si hay datos dañados, restaurar (opción 2).
+
+## Operación durante el Buen Fin
+
+- **Desactivar la suspensión automática de Neon** (consola de Neon, rama de producción, *Compute*: "Scale to zero"/autosuspend desactivado) desde la víspera hasta que termine el Buen Fin. Con la suspensión activa, el primer cobro tras unos minutos sin uso espera a que la base despierte; con dos tiendas cobrando a la vez eso se nota en caja y puede acabar en "El servidor tardó en responder. Intenta cobrar de nuevo." Al terminar el Buen Fin, volver a activarla (cuesta horas de cómputo).
+- Si un cobro responde "El servidor tardó en responder", pulsar **Cobrar** otra vez sin cambiar el carrito: el mismo identificador evita duplicar la venta.
 
 ## Retroceso
 
