@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
 import { getPublicCatalog, toPublicProduct } from "../public-projection";
 import { parsePublicCodeRequest } from "@/lib/domain/public-code";
+import type { Product } from "@/lib/domain/types";
+import type { InventoryDataSource } from "../source";
 
 const base = {
   barcode: "7501", sku: "LS-000001-1", title: "Playera", brand: "Nike", brandId: "b1", departmentId: "d1",
@@ -32,14 +34,29 @@ describe("proyección pública (B1)", () => {
   });
 
   it("excluye productos y variantes inactivos", async () => {
-    const mk = (active: boolean) => ({
-      id: "p", title: "t", brand: "b", category: "c", imageUrl: null, publicCode: "AAAAA", isActive: active,
-      variants: [{ id: "v", sku: "s", title: "t", size: "M", color: "x", price: 1, barcode: null, isActive: false, inventory: [] }],
+    const variant = (id: string, size: string, isActive?: boolean) => ({
+      id, sku: `S-${id}`, title: size, size, color: "x", price: 100, barcode: null,
+      ...(isActive === undefined ? {} : { isActive }),
+      inventory: [{ locationId: "st", available: 3 }],
     });
-    expect(toPublicProduct(mk(true), new Set()).sizes).toEqual([]);
-    const ds = new FixtureDataSource();
-    const all = await getPublicCatalog(ds);
-    expect(all.every((p) => p.sizes.length > 0)).toBe(true);
+    const product = (id: string, publicCode: string, variants: ReturnType<typeof variant>[], isActive?: boolean) => ({
+      id, title: `t-${id}`, brand: "b", category: "c", imageUrl: null, publicCode, variants,
+      ...(isActive === undefined ? {} : { isActive }),
+    });
+    const products: Product[] = [
+      product("activo", "AAAAA", [variant("a1", "M", true), variant("a2", "L", false)]),
+      product("inactivo", "BBBBB", [variant("b1", "M", true)], false),
+      product("sin-variantes-activas", "CCCCC", [variant("c1", "M", false)], true),
+    ];
+    const ds = {
+      getProducts: async () => products,
+      getLocations: async () => [{ id: "st", name: "Tienda", type: "store" as const }],
+    } as unknown as InventoryDataSource;
+
+    const catalog = await getPublicCatalog(ds);
+    expect(catalog.map((p) => p.publicCode)).toEqual(["AAAAA"]);
+    // La variante inactiva (L) no aparece aunque tenga stock.
+    expect(catalog[0].sizes).toEqual([{ size: "M", available: true }]);
   });
 });
 

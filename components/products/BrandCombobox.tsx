@@ -42,6 +42,12 @@ export function BrandCombobox({ id, brands, value, onChange, onCreate, disabled 
     return items;
   }, [brands, query, slug]);
 
+  /** Marca activa cuyo slug es exactamente el del texto ("psycho bunny" → Psycho Bunny). */
+  const exactMatch = (raw: string): BrandOption | null => {
+    const s = slugify(normalizeBrandName(raw));
+    return (s && brands.find((b) => b.slug === s)) || null;
+  };
+
   const optionId = (i: number) => `${listId}-opt-${i}`;
   const expanded = open && options.length > 0;
 
@@ -109,10 +115,18 @@ export function BrandCombobox({ id, brands, value, onChange, onCreate, disabled 
           setActive(0);
           setOpen(true);
           setError("");
-          if (value) onChange(null);
+          // Escribir el nombre exacto de una marca existente la elige sin abrir la lista.
+          const exact = exactMatch(e.target.value);
+          if ((exact?.id ?? null) !== (value?.id ?? null)) onChange(exact);
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onBlur={() => {
+          setOpen(false);
+          const chosen = value ?? exactMatch(text);
+          if (!chosen) return;
+          if (!value) onChange(chosen);
+          setText(chosen.name);
+        }}
         onKeyDown={onKeyDown}
         placeholder="Busca o escribe la marca"
         className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal"

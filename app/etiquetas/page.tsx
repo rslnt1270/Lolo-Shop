@@ -44,6 +44,11 @@ export default function EtiquetasPage() {
             <span className="text-xs font-semibold text-center leading-tight">
               {variant.title} - ${variant.price}
             </span>
+            {product.publicCode && (
+              <span className="text-xs text-center leading-tight">
+                Código <span className="font-mono font-bold tracking-wider">{product.publicCode}</span>
+              </span>
+            )}
             <div className="mt-2 scale-75 transform origin-top">
               {/* Si tiene barcode de fábrica, mostramos ese, si no, su SKU */}
               <Barcode 

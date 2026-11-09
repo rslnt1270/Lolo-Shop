@@ -125,13 +125,46 @@ describe("NewProductForm", () => {
     expect(combo).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("sin elegir marca de la lista no se envía", async () => {
+  it("con un texto que no es una marca existente no se envía", async () => {
     render(<NewProductForm scannedCode="750100" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
+    await waitFor(() => expect(listBrandsAction).toHaveBeenCalled());
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "X" } });
-    fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lol" } });
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
     expect(await screen.findByText("Título y marca son obligatorios.")).toBeInTheDocument();
     expect(createProductAction).not.toHaveBeenCalled();
+  });
+
+  it.each(["Lolo", "  lolo ", "LOLO"])(
+    "escribir el nombre exacto de una marca existente (%s) la elige sin tocar la lista",
+    async (typed) => {
+      render(<NewProductForm scannedCode="750100" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
+      await screen.findByRole("option", { name: "Dama" });
+      fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera" } });
+      const combo = screen.getByRole("combobox", { name: /marca/i });
+      fireEvent.change(combo, { target: { value: typed } });
+      fireEvent.blur(combo);
+      expect(combo).toHaveValue("Lolo");
+      fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "299" } });
+      fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
+      fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "Playeras" } });
+      fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+      await waitFor(() => expect(createProductAction).toHaveBeenCalledWith(expect.objectContaining({ brandId: "b1" })));
+      expect(screen.queryByText("Título y marca son obligatorios.")).not.toBeInTheDocument();
+    },
+  );
+
+  it("si la marca termina de cargar después de escribir, al salir del campo se elige", async () => {
+    let resolve!: (v: unknown) => void;
+    listBrandsAction.mockReset().mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<NewProductForm scannedCode="750100" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
+    const combo = screen.getByRole("combobox", { name: /marca/i });
+    fireEvent.change(combo, { target: { value: "psycho bunny" } });
+    resolve([{ id: "b2", name: "Psycho Bunny", slug: "psycho-bunny" }]);
+    // Marcas y departamentos llegan juntos.
+    await screen.findByRole("option", { name: "Dama" });
+    fireEvent.blur(combo);
+    expect(combo).toHaveValue("Psycho Bunny");
   });
 });
