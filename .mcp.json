@@ -39,7 +39,7 @@
         "proxy"
       ],
       "env": {
-        "STITCH_API_KEY": "<TU_API_KEY_AQUI>"
+        "STITCH_API_KEY": "${STITCH_API_KEY}"
       }
     }
   }
