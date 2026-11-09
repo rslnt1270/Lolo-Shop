@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { KeyRound } from "lucide-react";
+import { KeyRound, ShoppingCart } from "lucide-react";
 import type { Location, Product } from "@/lib/domain/types";
 import { fetchProductsAction, fetchLocationsAction, createLocationAction } from "@/lib/actions";
 import { getLowStockThresholdAction } from "@/lib/sales/dashboard-actions";
@@ -72,8 +72,16 @@ export default function Home() {
           </div>
         </div>
 
+        <Link
+          href="/pos"
+          className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#0B5E5E] px-4 text-base font-extrabold text-white shadow-sm transition-colors hover:bg-[#084848] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5E5E]"
+        >
+          <ShoppingCart size={20} strokeWidth={2.5} aria-hidden="true" />
+          Vender
+        </Link>
+
         {/* Link al catálogo público */}
-        <div className="pt-2">
+        <div>
           <a href="/catalogo" target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#147E7E] p-3 text-sm font-extrabold text-white shadow-sm transition-all hover:bg-[#106666] active:scale-95">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />

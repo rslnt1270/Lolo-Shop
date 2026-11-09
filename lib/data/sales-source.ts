@@ -28,7 +28,16 @@ export interface DashboardQuery {
    * "range" (collaborator) los limita a from..to. Lo fija el servidor por rol.
    */
   pendingScope: "all_dates" | "range";
+  /**
+   * Solo el dueño: día de negocio de la lista "Ventas de hoy" (para anular).
+   * Sin valor no se devuelve `recentSales`. Lo fija el servidor por rol.
+   */
+  recentSalesDate?: string;
 }
+
+/** Máximo de filas en "Ventas de hoy" y en stock bajo. */
+export const RECENT_SALES_LIMIT = 50;
+export const LOW_STOCK_LIMIT = 50;
 
 /** Importes en pesos con 2 decimales. */
 export interface DashboardData {
@@ -43,7 +52,30 @@ export interface DashboardData {
   byPaymentMethod: { method: PaymentMethod; total: number }[];
   byBrand: { brandId: string | null; name: string; units: number; total: number }[];
   byDepartment: { departmentId: string | null; name: string; units: number; total: number }[];
-  pendingPayments: { saleId: string; number: number; total: number; locationId: string; createdAt: string }[];
+  pendingPayments: {
+    saleId: string;
+    number: number;
+    total: number;
+    locationId: string;
+    createdAt: string;
+    /** Alias del pedido (solo personal), para reconocerlo. */
+    customerAlias: string | null;
+  }[];
+  /**
+   * Solo con `recentSalesDate`: ventas paid y pending_payment de ese día, en
+   * las tiendas del alcance, de la más nueva a la más vieja (máx. 50).
+   */
+  recentSales?: {
+    saleId: string;
+    number: number;
+    total: number;
+    locationId: string;
+    status: SaleStatus;
+    channel: SaleChannel;
+    paymentMethod: PaymentMethod;
+    createdAt: string;
+  }[];
+  /** Las 50 filas con menos piezas. */
   lowStock: {
     variantId: string;
     locationId: string;

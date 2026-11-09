@@ -12,6 +12,8 @@ import { fixtureProducts } from "./fixtures";
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
+  LOW_STOCK_LIMIT,
+  RECENT_SALES_LIMIT,
   isValidLowStockThreshold,
   type DashboardData,
   type DashboardQuery,
@@ -42,6 +44,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
   private nextNumber = 1;
   private brandOf = new Map<string, string>();
   private titleOf = new Map<string, { title: string; size: string }>();
+  private aliasOf = new Map<string, string | null>();
 
   constructor(products: Product[] = fixtureProducts) {
     for (const p of products) {
@@ -102,6 +105,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
     };
     this.sales.set(rec.id, rec);
     this.byRequestId.set(sale.clientRequestId, rec);
+    this.aliasOf.set(rec.id, sale.customerAlias ?? null);
     return copy(rec);
   }
 
@@ -179,7 +183,32 @@ export class FixtureSalesDataSource implements SalesDataSource {
       pendingPayments: all
         .filter((s) => s.status === "pending_payment" && (q.pendingScope !== "range" || (s.businessDate >= q.from && s.businessDate <= q.to)))
         .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
-        .map((s) => ({ saleId: s.id, number: s.number, total: s.total, locationId: s.locationId, createdAt: s.createdAt })),
+        .map((s) => ({
+          saleId: s.id,
+          number: s.number,
+          total: s.total,
+          locationId: s.locationId,
+          createdAt: s.createdAt,
+          customerAlias: this.aliasOf.get(s.id) ?? null,
+        })),
+      ...(q.recentSalesDate
+        ? {
+            recentSales: all
+              .filter((s) => (s.status === "paid" || s.status === "pending_payment") && s.businessDate === q.recentSalesDate)
+              .sort((a, b) => (a.createdAt === b.createdAt ? b.number - a.number : a.createdAt < b.createdAt ? 1 : -1))
+              .slice(0, RECENT_SALES_LIMIT)
+              .map((s) => ({
+                saleId: s.id,
+                number: s.number,
+                total: s.total,
+                locationId: s.locationId,
+                status: s.status,
+                channel: s.channel,
+                paymentMethod: s.paymentMethod,
+                createdAt: s.createdAt,
+              })),
+          }
+        : {}),
       lowStock: [...this.stock.entries()]
         .map(([key, available]) => ({ key, available, ...splitKey(key) }))
         .filter((r) => inScope(r.locationId) && r.available <= this.threshold && this.titleOf.has(r.variantId))
@@ -190,7 +219,9 @@ export class FixtureSalesDataSource implements SalesDataSource {
           size: this.titleOf.get(r.variantId)!.size,
           available: r.available,
           threshold: this.threshold,
-        })),
+        }))
+        .sort((a, b) => a.available - b.available || (a.variantId < b.variantId ? -1 : 1))
+        .slice(0, LOW_STOCK_LIMIT),
     };
   }
 

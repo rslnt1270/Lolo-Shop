@@ -2,8 +2,10 @@
 import { useId, useState } from "react";
 import type { DashboardData } from "@/lib/data/sales-source";
 import { MAX_REFERENCE_LENGTH } from "@/lib/domain/sale";
-import { confirmSalePaymentAction, cancelSaleAction } from "@/lib/sales/actions";
+import { confirmSalePaymentAction } from "@/lib/sales/actions";
 import { formatMoney, timeAgo } from "@/lib/sales/format";
+import { CancelSalePanel } from "./CancelSalePanel";
+import { saleButton as btn, saleInput as input } from "./styles";
 
 type Pending = DashboardData["pendingPayments"][number];
 type Panel = "confirm" | "cancel" | null;
@@ -17,19 +19,12 @@ type Props = {
   onChanged: () => void;
 };
 
-const btn =
-  "min-h-11 rounded-[11px] px-4 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal disabled:opacity-60";
-const input =
-  "min-h-11 w-full rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-3 text-sm text-[#12211F]";
-
 function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: Omit<Props, "sales"> & { sale: Pending }) {
   const uid = useId();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reference, setReference] = useState("");
-  const [reason, setReason] = useState("");
-  const [returned, setReturned] = useState<"yes" | "no" | null>(null);
 
   function open(next: Panel) {
     setError(null);
@@ -50,22 +45,6 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
     }
   }
 
-  async function cancel() {
-    if (!reason.trim()) return setError("Escribe el motivo de la anulación.");
-    if (returned === null) return setError("Indica si la prenda regresó a la tienda.");
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await cancelSaleAction(sale.saleId, reason.trim(), returned === "yes");
-      if (res.ok) onChanged();
-      else setError(res.message);
-    } catch {
-      setError("No se pudo anular la venta. Intenta de nuevo.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <li className="rounded-[14px] border border-[rgba(18,33,31,0.12)] border-l-[3px] border-l-[#B7791F] bg-white p-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -75,6 +54,11 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
         </p>
         <p className="flex-none font-mono text-sm font-bold text-[#12211F]">{formatMoney(sale.total)}</p>
       </div>
+      {sale.customerAlias && (
+        <p className="mt-0.5 break-words text-sm text-[#12211F]">
+          <span className="sr-only">Alias del pedido: </span>“{sale.customerAlias}”
+        </p>
+      )}
       <p className="mt-0.5 text-xs text-[#3A4D4A]">{timeAgo(sale.createdAt)}</p>
 
       {(canConfirm || canCancel) && (
@@ -120,39 +104,7 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
         </div>
       )}
 
-      {panel === "cancel" && (
-        <div className="mt-3 space-y-3">
-          <div className="space-y-1">
-            <label htmlFor={`${uid}-reason`} className="block text-sm text-[#12211F]">
-              Motivo de la anulación
-            </label>
-            <input id={`${uid}-reason`} value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} className={input} />
-          </div>
-          <fieldset className="space-y-1">
-            <legend className="text-sm text-[#12211F]">¿La prenda regresó a la tienda?</legend>
-            <div className="flex gap-2">
-              {(["yes", "no"] as const).map((v) => (
-                <label
-                  key={v}
-                  className="flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-4 text-sm font-bold text-[#12211F] has-[:checked]:border-loloteal has-[:checked]:bg-[#E6F2F1] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-loloteal"
-                >
-                  <input
-                    type="radio"
-                    name={`${uid}-returned`}
-                    checked={returned === v}
-                    onChange={() => setReturned(v)}
-                    className="h-4 w-4 accent-[#006a6a]"
-                  />
-                  {v === "yes" ? "Sí" : "No"}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <button type="button" disabled={busy} onClick={cancel} className={`${btn} bg-[#C23A2B] text-white hover:bg-[#9B2C20]`}>
-            Confirmar anulación
-          </button>
-        </div>
-      )}
+      {panel === "cancel" && <CancelSalePanel saleId={sale.saleId} onCancelled={onChanged} />}
 
       {error && (
         <p role="alert" className="mt-2 text-sm font-bold text-[#9B2C20]">

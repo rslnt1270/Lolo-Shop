@@ -204,4 +204,84 @@ describe("VentasPage", () => {
     expect(screen.getByText(/umbral ≤ 2/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/umbral de stock bajo/i)).not.toBeInTheDocument();
   });
+
+  it("muestra el botón Vender que lleva a /pos", async () => {
+    render(<VentasPage />);
+    await screen.findByTestId("card-vendido");
+    expect(screen.getByRole("link", { name: /vender/i })).toHaveAttribute("href", "/pos");
+  });
+
+  it("cobros pendientes muestra el alias del pedido", async () => {
+    actions.getDashboardAction.mockResolvedValue({
+      query: { from: "2026-11-06", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates" },
+      data: {
+        ...dashboard(),
+        pendingPayments: [{ saleId: "s1", number: 12, total: 234.5, locationId: "l1", createdAt: threeHoursAgo(), customerAlias: "chamarra azul" }],
+      },
+    });
+    render(<VentasPage />);
+    await screen.findByText(/hace 3 h/);
+    expect(screen.getByText(/chamarra azul/)).toBeInTheDocument();
+  });
+
+  describe("Ventas de hoy", () => {
+    const recentSales = [
+      { saleId: "r2", number: 31, total: 450, locationId: "l1", status: "pending_payment", channel: "whatsapp", paymentMethod: "spay_transfer", createdAt: threeHoursAgo() },
+      { saleId: "r1", number: 30, total: 1299.9, locationId: "l1", status: "paid", channel: "store", paymentMethod: "cash", createdAt: threeHoursAgo() },
+    ];
+    const withRecent = () => ({
+      query: { from: "2026-11-06", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates", recentSalesDate: "2026-11-06" },
+      data: { ...dashboard(), pendingPayments: [], recentSales },
+    });
+
+    it("el owner ve folio, tienda, total, método y canal, en el orden del servidor", async () => {
+      actions.getDashboardAction.mockResolvedValue(withRecent());
+      render(<VentasPage />);
+      const section = await screen.findByRole("region", { name: "Ventas de hoy" });
+      const rows = within(section).getAllByRole("listitem");
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toHaveTextContent("Venta #31");
+      expect(rows[0]).toHaveTextContent("Transferencia SPAY, WhatsApp");
+      expect(rows[0]).toHaveTextContent("Pago pendiente");
+      expect(rows[1]).toHaveTextContent("Venta #30");
+      expect(rows[1]).toHaveTextContent("Centro");
+      expect(rows[1]).toHaveTextContent("$1,299.90");
+      expect(rows[1]).toHaveTextContent("Efectivo, Tienda");
+    });
+
+    it("Anular una venta pagada pide motivo y Sí/No sin omisión, y recarga", async () => {
+      actions.getDashboardAction.mockResolvedValue(withRecent());
+      actions.cancelSaleAction.mockResolvedValue({ ok: true, sale: {} });
+      render(<VentasPage />);
+      const section = await screen.findByRole("region", { name: "Ventas de hoy" });
+      fireEvent.click(within(section).getByRole("button", { name: "Anular venta #30" }));
+      expect(within(section).getByRole("radio", { name: "Sí" })).not.toBeChecked();
+      expect(within(section).getByRole("radio", { name: "No" })).not.toBeChecked();
+      const submit = within(section).getByRole("button", { name: /confirmar anulación/i });
+      fireEvent.change(within(section).getByLabelText(/motivo/i), { target: { value: "Cobro duplicado" } });
+      fireEvent.click(submit);
+      expect(actions.cancelSaleAction).not.toHaveBeenCalled();
+      expect(within(section).getByRole("alert")).toHaveTextContent(/regresó/i);
+      fireEvent.click(within(section).getByRole("radio", { name: "Sí" }));
+      fireEvent.click(submit);
+      await waitFor(() => expect(actions.cancelSaleAction).toHaveBeenCalledWith("r1", "Cobro duplicado", true));
+      await waitFor(() => expect(actions.getDashboardAction.mock.calls.length).toBeGreaterThan(1));
+    });
+
+    it("lista vacía: avisa que aún no hay ventas", async () => {
+      actions.getDashboardAction.mockResolvedValue({ ...withRecent(), data: { ...dashboard(), recentSales: [] } });
+      render(<VentasPage />);
+      const section = await screen.findByRole("region", { name: "Ventas de hoy" });
+      expect(section).toHaveTextContent("Todavía no hay ventas hoy.");
+    });
+
+    it.each([["manager", null], ["collaborator", "l1"]] as const)("el %s no ve la lista ni puede anular", async (role, loc) => {
+      setRole(role, loc);
+      actions.getDashboardAction.mockResolvedValue(withRecent());
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByRole("region", { name: "Ventas de hoy" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /anular/i })).not.toBeInTheDocument();
+    });
+  });
 });

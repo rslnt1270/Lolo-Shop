@@ -97,3 +97,24 @@ describe("FixtureSalesDataSource", () => {
     });
   });
 });
+
+describe("FixtureSalesDataSource.getDashboard: alias y Ventas de hoy", () => {
+  it("pendientes con alias; recentSales solo con recentSalesDate, sin canceladas, más nueva primero", async () => {
+    const ds = new FixtureSalesDataSource();
+    const a = await ds.createSale(
+      { ...sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }], "spay_transfer"), channel: "whatsapp", customerAlias: "chamarra azul" },
+      "u1",
+    );
+    const b = await ds.createSale(sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }]), "u1");
+    const c = await ds.createSale(sale([{ variantId: "var-2", quantity: 1, unitPrice: 450 }]), "u1");
+    await ds.cancelSale(c.id, "owner", "error", false);
+    const q = { from: a.businessDate, to: a.businessDate, locationIds: "all" as const, pendingScope: "all_dates" as const };
+
+    const plain = await ds.getDashboard(q);
+    expect(plain.recentSales).toBeUndefined();
+    expect(plain.pendingPayments.map((p) => p.customerAlias)).toEqual(["chamarra azul"]);
+
+    const withRecent = await ds.getDashboard({ ...q, recentSalesDate: a.businessDate });
+    expect(withRecent.recentSales!.map((r) => r.saleId)).toEqual([b.id, a.id]);
+  });
+});

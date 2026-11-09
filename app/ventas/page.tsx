@@ -1,11 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { ShoppingCart } from "lucide-react";
 import type { DashboardData, DashboardQuery } from "@/lib/data/sales-source";
 import { fetchLocationsAction } from "@/lib/actions";
 import { getDashboardAction, getLowStockThresholdAction } from "@/lib/sales/dashboard-actions";
 import { DashboardCards } from "@/components/sales/DashboardCards";
 import { PendingPayments } from "@/components/sales/PendingPayments";
+import { RecentSales } from "@/components/sales/RecentSales";
 import { LowStockTable } from "@/components/sales/LowStockTable";
 import { RangePicker, presetRange, type RangePreset } from "@/components/sales/RangePicker";
 import { shortDate } from "@/lib/sales/format";
@@ -64,9 +67,18 @@ export default function VentasPage() {
 
   return (
     <main className="mx-auto max-w-2xl pb-24 md:pb-8">
-      <div className="bg-gradient-to-br from-loloteal to-[#147E7E] px-5 pb-8 pt-6 text-white">
-        <h1 className="text-lg font-extrabold leading-tight">Ventas</h1>
-        <p className="mt-0.5 text-sm text-white/90">{isCollaborator ? "Hoy" : period || "Cargando…"}</p>
+      <div className="flex items-center justify-between gap-3 bg-gradient-to-br from-loloteal to-[#147E7E] px-5 pb-8 pt-6 text-white">
+        <div>
+          <h1 className="text-lg font-extrabold leading-tight">Ventas</h1>
+          <p className="mt-0.5 text-sm text-white/90">{isCollaborator ? "Hoy" : period || "Cargando…"}</p>
+        </div>
+        <Link
+          href="/pos"
+          className="inline-flex min-h-11 flex-none items-center gap-2 rounded-[11px] bg-white px-4 text-sm font-extrabold text-[#0B5E5E] hover:bg-[#E6F2F1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          <ShoppingCart size={18} strokeWidth={2.5} aria-hidden="true" />
+          Vender
+        </Link>
       </div>
 
       <div className="-mt-3 space-y-5 rounded-t-2xl bg-[#F4FBFA] px-4 pb-6 pt-4">
@@ -102,6 +114,15 @@ export default function VentasPage() {
                 onChanged={load}
               />
             </section>
+
+            {canCancel && loaded.data.recentSales && (
+              <section aria-labelledby="hoy-h">
+                <h2 id="hoy-h" className="mb-2 text-sm font-bold text-[#12211F]">
+                  Ventas de hoy
+                </h2>
+                <RecentSales sales={loaded.data.recentSales} locationNames={locationNames} onChanged={load} />
+              </section>
+            )}
 
             <section aria-labelledby="stock-h">
               <h2 id="stock-h" className="mb-2 text-sm font-bold text-[#12211F]">

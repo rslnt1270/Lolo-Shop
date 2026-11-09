@@ -13,7 +13,9 @@ import {
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
+  LOW_STOCK_LIMIT,
   LOW_STOCK_THRESHOLD_KEY,
+  RECENT_SALES_LIMIT,
   isValidLowStockThreshold,
   type DashboardData,
   type DashboardQuery,
@@ -269,7 +271,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
       AND s."status" IN ('paid'::"SaleStatus", 'pending_payment'::"SaleStatus") ${locSql}`;
     const threshold = await this.getLowStockThreshold();
 
-    const [sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels] =
+    const [sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
       await Promise.all([
         this.db.sale.aggregate({ where: valid, _sum: { total: true }, _count: true }),
         this.db.sale.aggregate({ where: { ...valid, status: "paid" }, _sum: { total: true } }),
@@ -302,7 +304,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
             ...(q.pendingScope === "range" ? { businessDate: range } : {}),
           },
           orderBy: { createdAt: "asc" },
-          select: { id: true, number: true, total: true, locationId: true, createdAt: true },
+          select: { id: true, number: true, total: true, locationId: true, createdAt: true, customerAlias: true },
         }),
         this.db.inventoryLevel.findMany({
           where: {
@@ -315,6 +317,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
             ],
           },
           orderBy: [{ available: "asc" }, { variantId: "asc" }],
+          take: LOW_STOCK_LIMIT,
           select: {
             variantId: true,
             locationId: true,
@@ -323,6 +326,23 @@ export class PrismaSalesDataSource implements SalesDataSource {
             variant: { select: { size: true, product: { select: { title: true } } } },
           },
         }),
+        q.recentSalesDate
+          ? this.db.sale.findMany({
+              where: { businessDate: dateOnly(q.recentSalesDate), status: { in: VALID_STATUSES }, ...locFilter },
+              orderBy: [{ createdAt: "desc" }, { number: "desc" }],
+              take: RECENT_SALES_LIMIT,
+              select: {
+                id: true,
+                number: true,
+                total: true,
+                locationId: true,
+                status: true,
+                channel: true,
+                paymentMethod: true,
+                createdAt: true,
+              },
+            })
+          : null,
       ]);
 
     return {
@@ -341,7 +361,22 @@ export class PrismaSalesDataSource implements SalesDataSource {
         total: pesos(p.total),
         locationId: p.locationId,
         createdAt: p.createdAt.toISOString(),
+        customerAlias: p.customerAlias,
       })),
+      ...(recent
+        ? {
+            recentSales: recent.map((r) => ({
+              saleId: r.id,
+              number: r.number,
+              total: pesos(r.total),
+              locationId: r.locationId,
+              status: r.status,
+              channel: r.channel,
+              paymentMethod: r.paymentMethod,
+              createdAt: r.createdAt.toISOString(),
+            })),
+          }
+        : {}),
       lowStock: levels.map((l) => ({
         variantId: l.variantId,
         locationId: l.locationId,

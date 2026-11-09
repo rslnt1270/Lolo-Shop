@@ -18,7 +18,8 @@ function addDays(date: string, days: number): string {
 
 /**
  * Recorte por rol (ER §4): el servidor fija rango y tiendas, la UI solo pide.
- * `today` es el día de negocio en curso (America/Mexico_City).
+ * `today` es el día de negocio en curso (America/Mexico_City). Solo el dueño
+ * recibe la lista "Ventas de hoy" (`recentSalesDate`), porque solo él anula.
  */
 export function scopeDashboardQuery(
   user: { role: Role; locationId: string | null },
@@ -46,5 +47,7 @@ export function scopeDashboardQuery(
   const clean = Array.isArray(ids)
     ? [...new Set(ids.filter((id): id is string => typeof id === "string" && id.trim() !== ""))]
     : null;
-  return { from, to, locationIds: clean ?? "all", pendingScope: "all_dates" };
+  const query: DashboardQuery = { from, to, locationIds: clean ?? "all", pendingScope: "all_dates" };
+  if (user.role === "owner") query.recentSalesDate = today;
+  return query;
 }

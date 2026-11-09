@@ -23,13 +23,14 @@ describe("scopeDashboardQuery", () => {
       to: today,
       locationIds: "all",
       pendingScope: "all_dates",
+      recentSalesDate: today,
     });
   });
 
   it("owner respeta rango y tiendas pedidas", () => {
     expect(
       scopeDashboardQuery({ role: "owner", locationId: null }, { from: "2026-10-01", to: "2026-10-31", locationIds: ["B"] }, today),
-    ).toEqual({ from: "2026-10-01", to: "2026-10-31", locationIds: ["B"], pendingScope: "all_dates" });
+    ).toEqual({ from: "2026-10-01", to: "2026-10-31", locationIds: ["B"], pendingScope: "all_dates", recentSalesDate: today });
   });
 
   it("manager de A que pide all recibe [A]; ids ajenos se descartan", () => {
@@ -49,7 +50,7 @@ describe("scopeDashboardQuery", () => {
 
   it("fechas inválidas caen al valor por defecto", () => {
     const q = scopeDashboardQuery({ role: "owner", locationId: null }, { from: "basura", to: "2026-13-45" }, today);
-    expect(q).toEqual({ from: "2026-10-07", to: today, locationIds: "all", pendingScope: "all_dates" });
+    expect(q).toEqual({ from: "2026-10-07", to: today, locationIds: "all", pendingScope: "all_dates", recentSalesDate: today });
   });
 
   it("manager: pendingScope all_dates", () => {
@@ -61,5 +62,13 @@ describe("scopeDashboardQuery", () => {
     const o = { role: "owner" as const, locationId: null };
     const bad = ["B", "", "  ", 5, null, "B"] as unknown as string[];
     expect(scopeDashboardQuery(o, { locationIds: bad }, today).locationIds).toEqual(["B"]);
+  });
+
+  it("Ventas de hoy: solo el owner, siempre con el día en curso aunque pida otro", () => {
+    const asked = { recentSalesDate: "2020-01-01", from: "2026-10-01", to: "2026-10-02" };
+    expect(scopeDashboardQuery({ role: "owner", locationId: null }, asked, today).recentSalesDate).toBe(today);
+    expect(scopeDashboardQuery({ role: "manager", locationId: "A" }, asked, today)).not.toHaveProperty("recentSalesDate");
+    expect(scopeDashboardQuery({ role: "manager", locationId: null }, asked, today)).not.toHaveProperty("recentSalesDate");
+    expect(scopeDashboardQuery({ role: "collaborator", locationId: "A" }, asked, today)).not.toHaveProperty("recentSalesDate");
   });
 });
