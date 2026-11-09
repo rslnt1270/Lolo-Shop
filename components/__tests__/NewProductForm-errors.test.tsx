@@ -129,4 +129,13 @@ describe("NewProductForm: errores del servidor", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0][0].message).not.toMatch(/\.\./);
   });
+
+  it("listas del catálogo en null (sesión vencida): muestra el aviso con enlace, no selectores vacíos", async () => {
+    listBrandsAction.mockReset().mockResolvedValue(null);
+    listDepartmentsAction.mockReset().mockResolvedValue(null);
+    render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(screen.getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+  });
 });

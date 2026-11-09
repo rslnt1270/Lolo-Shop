@@ -345,4 +345,16 @@ describe("POSPage", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(actions.createSaleAction).toHaveBeenCalledTimes(1);
   });
+
+  it("lookupCodeAction devuelve undefined: sesión vencida con enlace, no mensaje de conexión", async () => {
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    actions.lookupCodeAction.mockResolvedValue(undefined);
+    fireEvent.change(screen.getByLabelText(/código del producto/i), { target: { value: "111" } });
+    fireEvent.click(screen.getByRole("button", { name: /usar este código/i }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+    expect(screen.queryByText(/revisa tu conexión/i)).toBeNull();
+  });
 });

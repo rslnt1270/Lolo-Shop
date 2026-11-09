@@ -82,7 +82,9 @@ export default function POSPage() {
       setSearching(true);
       try {
         const result = await lookupCodeAction(code);
-        if (result.found) {
+        if (!result) {
+          setNotice({ kind: "error", text: SESSION_EXPIRED, login: true });
+        } else if (result.found) {
           const variant = result.product.variants.find((v) => v.id === result.variantId);
           if (variant) {
             add({ product: result.product, variant });

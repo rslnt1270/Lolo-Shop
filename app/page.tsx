@@ -20,7 +20,7 @@ export default function Home() {
   useEffect(() => {
     fetchProductsAction().then(setProducts);
     fetchLocationsAction().then(setLocations);
-    getLowStockThresholdAction().then((n) => n !== null && setThreshold(n)).catch(() => undefined);
+    getLowStockThresholdAction().then((n) => typeof n === "number" && setThreshold(n)).catch(() => undefined);
   }, []);
 
   const stockTotal = products.reduce((sum, p) => sum + productStock(p), 0);

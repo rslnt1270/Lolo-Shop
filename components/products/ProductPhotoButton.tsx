@@ -55,7 +55,6 @@ export function ProductPhotoButton({
       {open ? (
         <div className="mt-2 space-y-2">
           <ProductPhotoCapture side={side} onCapture={save} onClear={() => {}} />
-          {saving && <p className="text-sm text-gray-600">Guardando…</p>}
           <button
             type="button"
             onClick={() => setOpen(false)}
@@ -76,7 +75,7 @@ export function ProductPhotoButton({
       )}
       {/* Región en vivo siempre montada: el aviso se anuncia y sigue visible tras cerrar la captura. */}
       <p role="status" className="text-sm text-gray-600">
-        {msg}
+        {saving ? "Guardando…" : msg}
       </p>
     </div>
   );

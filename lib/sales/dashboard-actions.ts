@@ -37,9 +37,9 @@ export async function getLowStockThresholdAction(): Promise<number | null> {
   return getSalesSource().getLowStockThreshold();
 }
 
-export async function setLowStockThresholdAction(n: number): Promise<{ ok: boolean; message?: string }> {
+export async function setLowStockThresholdAction(n: number): Promise<{ ok: boolean; message?: string; reason?: "session_expired" }> {
   const user = await sessionUser();
-  if (!user) return { ok: false, message: SESSION_EXPIRED };
+  if (!user) return { ok: false, message: SESSION_EXPIRED, reason: "session_expired" };
   if (user.role !== "owner") return { ok: false, message: "Solo el dueño puede cambiar el umbral." };
   try {
     await getSalesSource().setLowStockThreshold(n, user.id);

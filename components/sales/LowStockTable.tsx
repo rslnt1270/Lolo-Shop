@@ -1,6 +1,7 @@
 "use client";
 import { useId, useState } from "react";
 import type { DashboardData } from "@/lib/data/sales-source";
+import { LoginLink, SESSION_EXPIRED_TEXT, isSessionExpired } from "./session-expired";
 import { setLowStockThresholdAction } from "@/lib/sales/dashboard-actions";
 
 type Props = {
@@ -17,15 +18,18 @@ function ThresholdEditor({ threshold, onSaved }: { threshold: number; onSaved: (
   const [value, setValue] = useState(String(threshold));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
 
   async function save() {
     const n = Number(value);
     if (!Number.isInteger(n) || n < 0 || n > 99) return setMessage("El umbral es un número entero de 0 a 99.");
     setBusy(true);
     setMessage(null);
+    setExpired(false);
     try {
       const res = await setLowStockThresholdAction(n);
-      if (res.ok) onSaved();
+      if (isSessionExpired(res)) setExpired(true);
+      else if (res.ok) onSaved();
       else setMessage(res.message ?? "No se pudo guardar el umbral.");
     } catch {
       setMessage("No se pudo guardar el umbral. Intenta de nuevo.");
@@ -62,6 +66,11 @@ function ThresholdEditor({ threshold, onSaved }: { threshold: number; onSaved: (
       {message && (
         <p role="alert" className="mt-1 text-sm font-bold text-[#9B2C20]">
           {message}
+        </p>
+      )}
+      {expired && (
+        <p role="alert" className="mt-1 text-sm font-bold text-[#9B2C20]">
+          {SESSION_EXPIRED_TEXT} <LoginLink />
         </p>
       )}
     </div>

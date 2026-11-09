@@ -121,9 +121,9 @@ describe("sesión vencida", () => {
   beforeEach(() => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
   });
-  it("listBrandsAction y listDepartmentsAction devuelven lista vacía sin lanzar", async () => {
-    await expect(listBrandsAction()).resolves.toEqual([]);
-    await expect(listDepartmentsAction()).resolves.toEqual([]);
+  it("listBrandsAction y listDepartmentsAction devuelven null sin lanzar", async () => {
+    await expect(listBrandsAction()).resolves.toBeNull();
+    await expect(listDepartmentsAction()).resolves.toBeNull();
   });
   it("createBrandAction y mergeBrandsAction responden ok:false sin lanzar", async () => {
     await expect(createBrandAction("Guess")).resolves.toMatchObject({ ok: false, message: expect.stringMatching(/sesión terminó/) });

@@ -41,9 +41,9 @@ const toOption = (b: { id: string; name: string; slug: string }): BrandOption =>
   slug: b.slug,
 });
 
-/** Marcas activas para el combo del alta, por nombre. */
-export async function listBrandsAction(): Promise<BrandOption[]> {
-  if (!(await sessionUser())) return [];
+/** Marcas activas para el combo del alta, por nombre. `null`: la sesión terminó. */
+export async function listBrandsAction(): Promise<BrandOption[] | null> {
+  if (!(await sessionUser())) return null;
   const rows = await prisma.brand.findMany({
     where: { isActive: true },
     select: { id: true, name: true, slug: true },
@@ -52,9 +52,9 @@ export async function listBrandsAction(): Promise<BrandOption[]> {
   return rows.map(toOption);
 }
 
-/** Departamentos activos en el orden que fija el owner. */
-export async function listDepartmentsAction(): Promise<DepartmentOption[]> {
-  if (!(await sessionUser())) return [];
+/** Departamentos activos en el orden que fija el owner. `null`: la sesión terminó. */
+export async function listDepartmentsAction(): Promise<DepartmentOption[] | null> {
+  if (!(await sessionUser())) return null;
   const rows = await prisma.department.findMany({
     where: { isActive: true },
     select: { id: true, slug: true, name: true },

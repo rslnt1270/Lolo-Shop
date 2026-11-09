@@ -60,4 +60,17 @@ describe("/productos: fotos de frente y atrás", () => {
     expect(screen.queryByRole("button", { name: "Cancelar" })).toBeNull();
     expect(screen.getAllByRole("status")[0]).toHaveTextContent("Foto de frente actualizada.");
   });
+
+  it('"Guardando…" se anuncia en la región en vivo', async () => {
+    let finish!: () => void;
+    const actions = await import("@/lib/actions");
+    vi.mocked(actions.updateProductImageAction).mockReturnValueOnce(new Promise<void>((r) => (finish = r)) as never);
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: null, backImageUrl: null }]);
+    render(<ProductosPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Agregar foto de frente de Gorra" }));
+    fireEvent.click(screen.getByText("capturar"));
+    await waitFor(() => expect(screen.getAllByRole("status")[0]).toHaveTextContent("Guardando…"));
+    finish();
+    await waitFor(() => expect(screen.getAllByRole("status")[0]).toHaveTextContent("Foto de frente actualizada."));
+  });
 });

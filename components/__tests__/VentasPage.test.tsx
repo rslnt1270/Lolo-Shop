@@ -301,4 +301,45 @@ describe("VentasPage", () => {
       expect(screen.queryByRole("button", { name: /anular/i })).not.toBeInTheDocument();
     });
   });
+
+  describe("sesión vencida en las acciones del tablero", () => {
+    const expiredVariants: [string, unknown][] = [
+      ["undefined", undefined],
+      ["session_expired", { ok: false, code: "FORBIDDEN", reason: "session_expired", message: "x" }],
+    ];
+    const expectExpired = (alert: HTMLElement) => {
+      expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+      expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+      expect(alert).not.toHaveTextContent(/intenta de nuevo/i);
+    };
+
+    it.each(expiredVariants)("confirmar pago (%s)", async (_n, value) => {
+      actions.confirmSalePaymentAction.mockResolvedValue(value);
+      render(<VentasPage />);
+      await screen.findByText(/hace 3 h/);
+      fireEvent.click(screen.getByRole("button", { name: /confirmar pago/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+      expectExpired(await screen.findByRole("alert"));
+    });
+
+    it.each(expiredVariants)("anular (%s)", async (_n, value) => {
+      actions.cancelSaleAction.mockResolvedValue(value);
+      render(<VentasPage />);
+      await screen.findByText(/hace 3 h/);
+      fireEvent.click(screen.getByRole("button", { name: /^anular/i }));
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Error" } });
+      fireEvent.click(screen.getByRole("radio", { name: "No" }));
+      fireEvent.click(screen.getByRole("button", { name: /confirmar anulación/i }));
+      expectExpired(await screen.findByRole("alert"));
+    });
+
+    it.each(expiredVariants)("guardar umbral (%s)", async (_n, value) => {
+      actions.setLowStockThresholdAction.mockResolvedValue(value);
+      render(<VentasPage />);
+      await screen.findByRole("table", { name: /stock bajo/i });
+      fireEvent.change(screen.getByLabelText(/umbral de stock bajo/i), { target: { value: "5" } });
+      fireEvent.click(screen.getByRole("button", { name: /guardar umbral/i }));
+      expectExpired(await screen.findByRole("alert"));
+    });
+  });
 });

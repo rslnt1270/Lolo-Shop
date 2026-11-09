@@ -5,6 +5,7 @@ import { MAX_REFERENCE_LENGTH } from "@/lib/domain/sale";
 import { confirmSalePaymentAction } from "@/lib/sales/actions";
 import { formatMoney, timeAgo } from "@/lib/sales/format";
 import { CancelSalePanel } from "./CancelSalePanel";
+import { LoginLink, SESSION_EXPIRED_TEXT, isSessionExpired } from "./session-expired";
 import { saleButton as btn, saleInput as input } from "./styles";
 
 type Pending = DashboardData["pendingPayments"][number];
@@ -25,6 +26,7 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reference, setReference] = useState("");
+  const [expired, setExpired] = useState(false);
 
   function open(next: Panel) {
     setError(null);
@@ -34,9 +36,11 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
   async function confirm() {
     setBusy(true);
     setError(null);
+    setExpired(false);
     try {
       const res = await confirmSalePaymentAction(sale.saleId, reference.trim() || undefined);
-      if (res.ok) onChanged();
+      if (isSessionExpired(res)) setExpired(true);
+      else if (res.ok) onChanged();
       else setError(res.message);
     } catch {
       setError("No se pudo confirmar el pago. Intenta de nuevo.");
@@ -109,6 +113,11 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
       {error && (
         <p role="alert" className="mt-2 text-sm font-bold text-[#9B2C20]">
           {error}
+        </p>
+      )}
+      {expired && (
+        <p role="alert" className="mt-2 text-sm font-bold text-[#9B2C20]">
+          {SESSION_EXPIRED_TEXT} <LoginLink />
         </p>
       )}
     </li>

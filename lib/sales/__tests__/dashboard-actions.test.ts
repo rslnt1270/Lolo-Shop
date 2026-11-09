@@ -26,6 +26,7 @@ describe("dashboard-actions con sesión vencida", () => {
     await expect(setLowStockThresholdAction(3)).resolves.toEqual({
       ok: false,
       message: "Tu sesión terminó. Vuelve a iniciar sesión.",
+      reason: "session_expired",
     });
   });
   it("otro error al leer el usuario se propaga", async () => {

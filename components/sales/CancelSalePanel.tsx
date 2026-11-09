@@ -2,6 +2,7 @@
 import { useId, useState } from "react";
 import { MAX_CANCEL_REASON_LENGTH } from "@/lib/domain/sale";
 import { cancelSaleAction } from "@/lib/sales/actions";
+import { LoginLink, SESSION_EXPIRED_TEXT, isSessionExpired } from "./session-expired";
 import { saleButton, saleInput } from "./styles";
 
 type Props = {
@@ -20,15 +21,18 @@ export function CancelSalePanel({ saleId, onCancelled }: Props) {
   const [returned, setReturned] = useState<"yes" | "no" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
 
   async function cancel() {
     if (!reason.trim()) return setError("Escribe el motivo de la anulación.");
     if (returned === null) return setError("Indica si la prenda regresó a la tienda.");
     setBusy(true);
     setError(null);
+    setExpired(false);
     try {
       const res = await cancelSaleAction(saleId, reason.trim(), returned === "yes");
-      if (res.ok) onCancelled();
+      if (isSessionExpired(res)) setExpired(true);
+      else if (res.ok) onCancelled();
       else setError(res.message);
     } catch {
       setError("No se pudo anular la venta. Intenta de nuevo.");
@@ -77,6 +81,11 @@ export function CancelSalePanel({ saleId, onCancelled }: Props) {
       {error && (
         <p role="alert" className="text-sm font-bold text-[#9B2C20]">
           {error}
+        </p>
+      )}
+      {expired && (
+        <p role="alert" className="text-sm font-bold text-[#9B2C20]">
+          {SESSION_EXPIRED_TEXT} <LoginLink />
         </p>
       )}
     </div>
