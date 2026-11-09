@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createProductAction, uploadProductImageAction } from "@/lib/actions";
 import type { CreateProductInput } from "@/lib/actions";
-import { PRODUCT_CATEGORIES, validateNewProduct } from "@/lib/domain/new-product";
+import { MAX_DESCRIPTION_LENGTH, PRODUCT_CATEGORIES, validateNewProduct, type EntryMode } from "@/lib/domain/new-product";
 import { createBrandAction, listBrandsAction, listDepartmentsAction } from "@/lib/catalog/actions";
 import type { BrandOption, DepartmentOption } from "@/lib/catalog/actions";
 import { BrandCombobox } from "./BrandCombobox";
@@ -24,15 +24,39 @@ interface NewProductFormProps {
   onCancel: () => void;
   /** El código ya existía: ofrece registrar entradas del producto existente. */
   onDuplicate?: (existingVariantId: string) => void;
+  /** Modo con el que arranca el formulario (el alta por lote lo conserva entre artículos). */
+  initialMode?: EntryMode;
+  onModeChange?: (mode: EntryMode) => void;
 }
 
-export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, onDuplicate }: NewProductFormProps) {
+const MODE_OPTIONS: { value: EntryMode; label: string }[] = [
+  { value: "stock", label: "Solo stock" },
+  { value: "catalog", label: "Para catálogo" },
+];
+
+async function uploadPhoto(file: File): Promise<{ url: string | null; warning: string }> {
+  try {
+    const fd = new FormData();
+    fd.append("image", file);
+    const up = await uploadProductImageAction(fd);
+    return up.ok ? { url: up.url, warning: "" } : { url: null, warning: up.message };
+  } catch {
+    return { url: null, warning: "No se pudo subir la foto." };
+  }
+}
+
+export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, onDuplicate, initialMode = "stock", onModeChange }: NewProductFormProps) {
   const noBarcode = !scannedCode;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [duplicateId, setDuplicateId] = useState<string | null>(null);
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [photoBusy, setPhotoBusy] = useState(false);
+  const [mode, setMode] = useState<EntryMode>(initialMode);
+  const [frontPhoto, setFrontPhoto] = useState<File | null>(null);
+  const [backPhoto, setBackPhoto] = useState<File | null>(null);
+  const [frontBusy, setFrontBusy] = useState(false);
+  const [backBusy, setBackBusy] = useState(false);
+  const photoBusy = frontBusy || backBusy;
+  const missingPhotos = mode === "catalog" && (!frontPhoto || !backPhoto);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [brand, setBrand] = useState<BrandOption | null>(null);
@@ -44,7 +68,13 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
     price: "",
     category: "",
     initialStock: "0",
+    description: "",
   });
+
+  const changeMode = (next: EntryMode) => {
+    setMode(next);
+    onModeChange?.(next);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -81,6 +111,7 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
       price: parseFloat(formData.price),
       initialStock: Number(formData.initialStock),
       size: formData.size,
+      description: formData.description,
     };
     try {
       validateNewProduct(input);
@@ -88,20 +119,26 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
       setError(err instanceof Error ? err.message : "Revisa los datos del producto.");
       return;
     }
+    if (missingPhotos) {
+      setError("Para el catálogo se necesitan las dos fotos: frente y atrás.");
+      return;
+    }
 
     setLoading(true);
     try {
+      let effectiveMode = mode;
       let imageUrl: string | null = null;
+      let backImageUrl: string | null = null;
       let photoWarning = "";
-      if (photo) {
-        try {
-          const fd = new FormData();
-          fd.append("image", photo);
-          const up = await uploadProductImageAction(fd);
-          if (up.ok) imageUrl = up.url;
-          else photoWarning = up.message;
-        } catch {
-          photoWarning = "No se pudo subir la foto.";
+      if (mode === "catalog" && frontPhoto && backPhoto) {
+        const [front, back] = await Promise.all([uploadPhoto(frontPhoto), uploadPhoto(backPhoto)]);
+        if (front.url && back.url) {
+          imageUrl = front.url;
+          backImageUrl = back.url;
+        } else {
+          // Sin las dos fotos no puede entrar al catálogo: se da de alta solo en inventario.
+          effectiveMode = "stock";
+          photoWarning = front.warning || back.warning;
         }
       }
 
@@ -111,7 +148,9 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
         barcode: scannedCode,
         noBarcode,
         locationId,
+        mode: effectiveMode,
         imageUrl,
+        backImageUrl,
       };
       const result = await createProductAction(payload);
 
@@ -124,10 +163,10 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
       }
 
       const photoText = photoWarning
-        ? `Dado de alta SIN foto: ${photoWarning.trim().replace(/[.\s]+$/, "")}. Agrégala desde /productos.`
+        ? `Dado de alta SIN fotos: ${photoWarning.trim().replace(/[.\s]+$/, "")}. Agrégalas desde /productos.`
         : imageUrl
-          ? `"${input.title}" dado de alta con foto.`
-          : `"${input.title}" dado de alta sin foto.`;
+          ? `"${input.title}" dado de alta para el catálogo con foto de frente y de atrás.`
+          : `"${input.title}" dado de alta en inventario.`;
       onSuccess({
         message: photoText,
         title: input.title.trim(),
@@ -143,7 +182,7 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -154,6 +193,35 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
         <h3 className="text-lg font-semibold text-gray-900">Nuevo Producto</h3>
         <p className="text-sm text-gray-500">Completa los datos para dar de alta el producto.</p>
       </div>
+
+      <fieldset>
+        <legend className="mb-1 block text-sm font-medium text-gray-700">Tipo de alta</legend>
+        <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
+          {MODE_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-3 text-sm font-medium transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-loloteal has-[:focus-visible]:ring-offset-1 ${
+                mode === o.value ? "bg-white text-loloteal shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <input
+                type="radio"
+                name="entryMode"
+                value={o.value}
+                checked={mode === o.value}
+                onChange={() => changeMode(o.value)}
+                className="sr-only"
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+        {mode === "stock" && (
+          <p className="mt-2 text-sm text-gray-600">
+            Se registra en inventario; no aparece en el catálogo hasta agregar las dos fotos.
+          </p>
+        )}
+      </fieldset>
 
       <div className="space-y-3">
         <div>
@@ -169,6 +237,22 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
             onChange={handleChange}
             placeholder="Ej. Playera Básica"
             className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-loloteal focus:outline-none focus:ring-1 focus:ring-loloteal bg-white text-gray-900"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+            Descripción <span className="text-gray-400">(opcional)</span>
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            rows={2}
+            maxLength={MAX_DESCRIPTION_LENGTH}
+            value={formData.description}
+            onChange={handleChange}
+            placeholder="Ej. Algodón, corte regular, color azul marino"
+            className="mt-1 block w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-loloteal focus:outline-none focus:ring-1 focus:ring-loloteal bg-white text-gray-900"
           />
         </div>
 
@@ -307,17 +391,26 @@ export function NewProductForm({ scannedCode, locationId, onSuccess, onCancel, o
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Foto del producto <span className="text-gray-400">(opcional)</span>
-        </label>
-        <ProductPhotoCapture onCapture={setPhoto} onClear={() => setPhoto(null)} onBusyChange={setPhotoBusy} />
-      </div>
+      {mode === "catalog" && (
+        <div className="space-y-3">
+          <div role="group" aria-labelledby="foto-frente-label">
+            <span id="foto-frente-label" className="mb-1 block text-sm font-medium text-gray-700">Foto de frente</span>
+            <ProductPhotoCapture onCapture={setFrontPhoto} onClear={() => setFrontPhoto(null)} onBusyChange={setFrontBusy} />
+          </div>
+          <div role="group" aria-labelledby="foto-atras-label">
+            <span id="foto-atras-label" className="mb-1 block text-sm font-medium text-gray-700">Foto de atrás</span>
+            <ProductPhotoCapture onCapture={setBackPhoto} onClear={() => setBackPhoto(null)} onBusyChange={setBackBusy} />
+          </div>
+          {missingPhotos && (
+            <p className="text-sm text-gray-600">Para el catálogo se necesitan las dos fotos: frente y atrás.</p>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-2 pt-2">
         <button
           type="submit"
-          disabled={loading || photoBusy}
+          disabled={loading || photoBusy || missingPhotos}
           className="min-h-[44px] w-full rounded-md bg-loloteal px-4 py-2 font-semibold text-white transition hover:bg-opacity-90 active:scale-95 disabled:opacity-50 shadow-sm"
         >
           {loading ? "Guardando..." : photoBusy ? "Procesando foto…" : "Dar de alta producto"}

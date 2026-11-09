@@ -6,7 +6,7 @@ import { authOptions } from "./auth/options";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
-import { validateNewProduct } from "./domain/new-product";
+import { validateNewProduct, type EntryMode } from "./domain/new-product";
 import { generatePublicCode } from "./domain/public-code";
 import prisma from "./prisma";
 import { normalizeCode, canonicalCode, isValidGtin, generateInternalSku } from "./domain/barcode";
@@ -106,7 +106,11 @@ export type CreateProductInput = {
   noBarcode?: boolean;
   locationId: string;
   initialStock: number;
+  /** "stock" (por defecto): sin fotos. "catalog": exige imageUrl y backImageUrl. */
+  mode?: EntryMode;
+  description?: string | null;
   imageUrl?: string | null;
+  backImageUrl?: string | null;
 };
 
 export type CreateProductResult =
@@ -183,14 +187,6 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
       }
     }
 
-    let imageUrl: string | null = null;
-    if (input.imageUrl) {
-      if (!isProductBlobUrl(input.imageUrl)) {
-        return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
-      }
-      imageUrl = input.imageUrl;
-    }
-
     const locationId = typeof input.locationId === "string" ? input.locationId : "";
     if (session.user.role === "collaborator") {
       if (!session.user.locationId) {
@@ -235,7 +231,6 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           barcode,
           sku,
           locationId,
-          imageUrl,
           userId: session.user.id,
         });
         try {
@@ -287,6 +282,17 @@ export async function uploadProductImageAction(formData: FormData): Promise<Uplo
     console.error("uploadProductImageAction", err);
     return { ok: false, message: "No se pudo subir la foto. Revisa tu conexión e intenta de nuevo." };
   }
+}
+
+/** Fija la foto de atrás (URL ya subida con uploadProductImageAction). Misma autorización que la de frente. */
+export async function setProductBackImageAction(productId: string, url: string): Promise<void> {
+  await requireSession();
+  if (!isProductBlobUrl(url)) {
+    throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
+  }
+  await getDataSource().updateProductBackImage(productId, url);
+  revalidatePath("/catalogo");
+  revalidatePath("/productos");
 }
 
 export async function updateProductImageAction(

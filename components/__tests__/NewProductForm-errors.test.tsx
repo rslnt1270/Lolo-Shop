@@ -90,23 +90,27 @@ describe("NewProductForm: errores del servidor", () => {
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
     const onSuccess = vi.fn();
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} />);
-    fireEvent.click(screen.getByText("tomar-foto"));
+    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    screen.getAllByText("tomar-foto").forEach((b) => fireEvent.click(b));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
     fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(onSuccess.mock.calls[0][0].message).toMatch(/Dado de alta SIN foto: Falta el token del almacén\. Agrégala desde \/productos/);
-    expect(createProductAction.mock.calls[0][0].imageUrl).toBeNull();
+    expect(onSuccess.mock.calls[0][0].message).toMatch(/Dado de alta SIN fotos: Falta el token del almacén\. Agrégalas desde \/productos/);
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ mode: "stock", imageUrl: null, backImageUrl: null });
   });
 
   it("deshabilita el alta mientras la foto se procesa", async () => {
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    fireEvent.click(screen.getByText("foto-ocupada"));
+    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getAllByText("tomar-foto")[0]);
+    fireEvent.click(screen.getAllByText("tomar-foto")[1]);
+    fireEvent.click(screen.getAllByText("foto-ocupada")[0]);
     const btn = screen.getByRole("button", { name: /procesando foto/i });
     expect(btn).toBeDisabled();
-    fireEvent.click(screen.getByText("foto-lista"));
+    fireEvent.click(screen.getAllByText("foto-lista")[0]);
     expect(screen.getByRole("button", { name: /dar de alta/i })).toBeEnabled();
   });
 
@@ -115,7 +119,8 @@ describe("NewProductForm: errores del servidor", () => {
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
     const onSuccess = vi.fn();
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} />);
-    fireEvent.click(screen.getByText("tomar-foto"));
+    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    screen.getAllByText("tomar-foto").forEach((b) => fireEvent.click(b));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });

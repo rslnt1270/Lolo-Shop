@@ -58,6 +58,8 @@ export class PrismaDataSource implements InventoryDataSource {
       brand: p.brand,
       category: p.category,
       imageUrl: p.imageUrl,
+      backImageUrl: p.backImageUrl,
+      description: p.description,
       publicCode: p.publicCode,
       isActive: p.isActive,
       variants: p.variants.map(v => ({
@@ -190,6 +192,8 @@ export class PrismaDataSource implements InventoryDataSource {
           publicCode: data.publicCode,
           category: data.category,
           imageUrl: data.imageUrl ?? null,
+          backImageUrl: data.backImageUrl ?? null,
+          description: data.description ?? null,
           variants: {
             create: {
               title: data.title,
@@ -257,6 +261,13 @@ export class PrismaDataSource implements InventoryDataSource {
     await prisma.product.update({
       where: { id: productId },
       data: { imageUrl },
+    });
+  }
+
+  async updateProductBackImage(productId: string, backImageUrl: string): Promise<void> {
+    await prisma.product.update({
+      where: { id: productId },
+      data: { backImageUrl },
     });
   }
 }

@@ -90,6 +90,8 @@ model Product {
   department   Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   publicCode   String?     @unique
   imageUrl     String?
+  backImageUrl String?
+  description  String?
   isActive     Boolean     @default(true)
   variants     Variant[]
   createdAt    DateTime    @default(now())

@@ -8,6 +8,7 @@ import type { InventoryDataSource } from "../source";
 const base = {
   barcode: "7501", sku: "LS-000001-1", title: "Playera", brand: "Nike", brandId: "b1", departmentId: "d1",
   publicCode: "K7Q2M", price: 250, category: "Playeras", initialStock: 7, locationId: "loc-1", userId: "u1",
+  imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg",
 };
 
 describe("proyección pública (B1)", () => {
@@ -40,7 +41,7 @@ describe("proyección pública (B1)", () => {
       inventory: [{ locationId: "st", available: 3 }],
     });
     const product = (id: string, publicCode: string, variants: ReturnType<typeof variant>[], isActive?: boolean) => ({
-      id, title: `t-${id}`, brand: "b", category: "c", imageUrl: null, publicCode, variants,
+      id, title: `t-${id}`, brand: "b", category: "c", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg", publicCode, variants,
       ...(isActive === undefined ? {} : { isActive }),
     });
     const products: Product[] = [
@@ -69,5 +70,26 @@ describe("parsePublicCodeRequest", () => {
     expect(parsePublicCodeRequest("Código K7Q2")).toEqual({ kind: "invalid" });
     expect(parsePublicCodeRequest("Código K7Q2U")).toEqual({ kind: "invalid" });
     expect(parsePublicCodeRequest("quiero apartar")).toEqual({ kind: "none" });
+  });
+});
+
+describe("catálogo público: solo productos con las dos fotos", () => {
+  it("un producto de solo stock no aparece; con frente y atrás sí, con backImageUrl", async () => {
+    const ds = new FixtureDataSource();
+    const store = (await ds.getLocations()).find((l) => l.type === "store")!;
+    await ds.createProduct({ ...base, imageUrl: null, backImageUrl: null, locationId: store.id, publicCode: "AAAA1", sku: "S-1", barcode: "9001" });
+    await ds.createProduct({
+      ...base, locationId: store.id, publicCode: "BBBB2", sku: "S-2", barcode: "9002",
+      imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg",
+    });
+    await ds.createProduct({
+      ...base, locationId: store.id, publicCode: "CCCC3", sku: "S-3", barcode: "9003", imageUrl: "https://a/f.jpg", backImageUrl: null,
+    });
+    const codes = (await getPublicCatalog(ds)).map((p) => p.publicCode);
+    expect(codes).not.toContain("AAAA1");
+    expect(codes).not.toContain("CCCC3");
+    const both = (await getPublicCatalog(ds)).find((p) => p.publicCode === "BBBB2")!;
+    expect(both.imageUrl).toBe("https://a/f.jpg");
+    expect(both.backImageUrl).toBe("https://a/b.jpg");
   });
 });

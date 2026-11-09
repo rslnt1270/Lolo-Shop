@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
+import type { EntryMode } from "@/lib/domain/new-product";
 import { NewProductForm, type CreatedInfo } from "@/components/products/NewProductForm";
 import {
   lookupCodeAction,
@@ -21,6 +22,8 @@ const LOCATION_KEY = "loloshop:escanear:location";
 export default function EscanearPage() {
   const { data: session, status } = useSession();
   const [found, setFound] = useState<Found | null>(null);
+  // El alta por lote recuerda el modo elegido entre un artículo y el siguiente.
+  const [entryMode, setEntryMode] = useState<EntryMode>("stock");
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   // undefined = sin formulario; null = alta sin código; string = alta con código.
   const [newCode, setNewCode] = useState<string | null | undefined>(undefined);
@@ -280,6 +283,8 @@ export default function EscanearPage() {
             <NewProductForm
               scannedCode={newCode}
               locationId={locationId}
+              initialMode={entryMode}
+              onModeChange={setEntryMode}
               onSuccess={(info) => {
                 setIsError(false);
                 setMessage(`${info.message} Escanea la siguiente etiqueta.`);

@@ -25,6 +25,8 @@ export interface CreateProductData {
   initialStock: number;
   locationId: string;
   imageUrl?: string | null;
+  backImageUrl?: string | null;
+  description?: string | null;
   /** Usuario que da de alta; queda en el Movement RESTOCK si initialStock > 0. */
   userId: string;
 }
@@ -52,4 +54,5 @@ export interface InventoryDataSource {
    */
   createProduct(data: CreateProductData): Promise<VariantMatch>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
+  updateProductBackImage(productId: string, backImageUrl: string): Promise<void>;
 }

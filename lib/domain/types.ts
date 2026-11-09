@@ -32,6 +32,8 @@ export interface Product {
   category: string;
   brand: string;
   imageUrl: string | null;
+  backImageUrl?: string | null;
+  description?: string | null;
   /** Código público corto (ER §2.7); solo los productos dados de alta lo tienen. */
   publicCode?: string | null;
   /** Ausente se trata como activo (fixtures). */

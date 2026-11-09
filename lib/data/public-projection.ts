@@ -9,6 +9,7 @@ export interface PublicProduct {
   brand: string;
   category: string;
   imageUrl: string | null;
+  backImageUrl: string | null;
   sizes: { size: string; available: boolean }[];
   price: number | null;
 }
@@ -37,17 +38,18 @@ export function toPublicProduct(
     brand: p.brand,
     category: p.category,
     imageUrl: p.imageUrl,
+    backImageUrl: p.backImageUrl ?? null,
     sizes: [...bySize].map(([size, available]) => ({ size, available })),
     price: prices.length ? Math.min(...prices) : null,
   };
 }
 
-/** Catálogo público: productos activos con al menos una variante activa. */
+/** Catálogo público: productos activos con las dos fotos (frente y atrás) y al menos una variante activa. */
 export async function getPublicCatalog(ds: InventoryDataSource): Promise<PublicProduct[]> {
   const [products, locations] = await Promise.all([ds.getProducts(), ds.getLocations()]);
   const storeIds = new Set(locations.filter((l) => l.type === "store").map((l) => l.id));
   return products
-    .filter((p) => p.isActive !== false)
+    .filter((p) => p.isActive !== false && !!p.imageUrl && !!p.backImageUrl)
     .map((p) => toPublicProduct({ ...p, publicCode: p.publicCode ?? null }, storeIds))
     .filter((p) => p.sizes.length > 0);
 }

@@ -1,15 +1,17 @@
 "use client";
 import { useState } from "react";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
-import { updateProductImageAction } from "@/lib/actions";
+import { setProductBackImageAction, updateProductImageAction, uploadProductImageAction } from "@/lib/actions";
 
 interface ProductPhotoButtonProps {
   productId: string;
   hasImage: boolean;
+  /** Lado de la foto: "front" (por defecto) o "back". */
+  side?: "front" | "back";
   onUpdated?: () => void;
 }
 
-export function ProductPhotoButton({ productId, hasImage, onUpdated }: ProductPhotoButtonProps) {
+export function ProductPhotoButton({ productId, hasImage, side = "front", onUpdated }: ProductPhotoButtonProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
@@ -20,8 +22,14 @@ export function ProductPhotoButton({ productId, hasImage, onUpdated }: ProductPh
     try {
       const fd = new FormData();
       fd.append("image", file);
-      await updateProductImageAction(productId, fd);
-      setMsg("Foto actualizada.");
+      if (side === "back") {
+        const up = await uploadProductImageAction(fd);
+        if (!up.ok) throw new Error(up.message);
+        await setProductBackImageAction(productId, up.url);
+      } else {
+        await updateProductImageAction(productId, fd);
+      }
+      setMsg(side === "back" ? "Foto de atrás actualizada." : "Foto de frente actualizada.");
       setOpen(false);
       onUpdated?.();
     } catch {
@@ -36,9 +44,9 @@ export function ProductPhotoButton({ productId, hasImage, onUpdated }: ProductPh
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="text-sm text-loloteal hover:underline"
+        className="min-h-[44px] px-2 text-sm text-loloteal hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
       >
-        {hasImage ? "Cambiar foto" : "Agregar foto"}
+        {hasImage ? "Cambiar" : "Agregar"} foto de {side === "back" ? "atrás" : "frente"}
       </button>
     );
   }

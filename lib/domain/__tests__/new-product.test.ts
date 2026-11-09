@@ -74,3 +74,38 @@ describe("validateNewProduct", () => {
     expect(PRODUCT_CATEGORIES).toContain("Accesorios");
   });
 });
+
+describe("validateNewProduct: modos de alta y descripción", () => {
+  const blob = (n: string) => `https://abc.public.blob.vercel-storage.com/productos/${n}.jpg`;
+
+  it("modo catalog sin foto trasera es inválido con el mensaje exacto", () => {
+    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f") })).toThrow(
+      "Para el catálogo se necesitan las dos fotos: frente y atrás.",
+    );
+    expect(() => validateNewProduct({ ...valid, mode: "catalog", backImageUrl: blob("b") })).toThrow(
+      "Para el catálogo se necesitan las dos fotos: frente y atrás.",
+    );
+  });
+
+  it("modo catalog valida las dos URLs con isProductBlobUrl", () => {
+    expect(() =>
+      validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: "https://evil.example/b.jpg" }),
+    ).toThrow(/foto/);
+    const ok = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") });
+    expect(ok).toMatchObject({ mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") });
+  });
+
+  it("modo stock (por defecto) acepta sin fotos e ignora las que lleguen", () => {
+    expect(validateNewProduct(valid)).toMatchObject({ mode: "stock", imageUrl: null, backImageUrl: null });
+    expect(validateNewProduct({ ...valid, mode: "stock", imageUrl: blob("f"), backImageUrl: "basura" })).toMatchObject({
+      imageUrl: null, backImageUrl: null,
+    });
+  });
+
+  it("descripción opcional, recortada y de máximo 500 caracteres", () => {
+    expect(validateNewProduct(valid).description).toBeNull();
+    expect(validateNewProduct({ ...valid, description: "  Algodón  " }).description).toBe("Algodón");
+    expect(validateNewProduct({ ...valid, description: "a".repeat(500) }).description).toHaveLength(500);
+    expect(() => validateNewProduct({ ...valid, description: "a".repeat(501) })).toThrow(/500/);
+  });
+});

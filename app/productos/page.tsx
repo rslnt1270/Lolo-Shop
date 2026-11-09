@@ -32,11 +32,22 @@ export default function ProductosPage() {
         {visible.map((p) => (
           <div key={p.id} className="space-y-1">
             <ProductCard product={p} />
-            <ProductPhotoButton
-              productId={p.id}
-              hasImage={!!p.imageUrl}
-              onUpdated={() => fetchProductsAction().then(setProducts)}
-            />
+            <div className="flex flex-wrap items-center gap-x-2">
+              <ProductPhotoButton
+                productId={p.id}
+                hasImage={!!p.imageUrl}
+                onUpdated={() => fetchProductsAction().then(setProducts)}
+              />
+              <ProductPhotoButton
+                productId={p.id}
+                side="back"
+                hasImage={!!p.backImageUrl}
+                onUpdated={() => fetchProductsAction().then(setProducts)}
+              />
+              {!(p.imageUrl && p.backImageUrl) && (
+                <span className="text-xs text-gray-500">Solo stock: falta una foto para el catálogo</span>
+              )}
+            </div>
           </div>
         ))}
         {visible.length === 0 && <p className="text-gray-500">Sin resultados.</p>}

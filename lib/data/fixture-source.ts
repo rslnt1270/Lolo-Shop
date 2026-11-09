@@ -102,6 +102,8 @@ export class FixtureDataSource implements InventoryDataSource {
       category: data.category,
       brand: data.brand,
       imageUrl: data.imageUrl ?? null,
+      backImageUrl: data.backImageUrl ?? null,
+      description: data.description ?? null,
       publicCode: data.publicCode,
       variants: [variant],
     };
@@ -113,5 +115,11 @@ export class FixtureDataSource implements InventoryDataSource {
     const product = this.products.find((p) => p.id === productId);
     if (!product) throw new Error("Producto no encontrado");
     product.imageUrl = imageUrl;
+  }
+
+  async updateProductBackImage(productId: string, backImageUrl: string): Promise<void> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) throw new Error("Producto no encontrado");
+    product.backImageUrl = backImageUrl;
   }
 }

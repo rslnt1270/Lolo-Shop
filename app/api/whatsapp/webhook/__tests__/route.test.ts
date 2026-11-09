@@ -18,7 +18,7 @@ describe("webhook WhatsApp", () => {
   beforeEach(async () => {
     state.ds = new FixtureDataSource();
     const store = (await state.ds.getLocations()).find((l) => l.type === "store")!;
-    await state.ds.createProduct({ barcode: "1", sku: "LS-1", title: "Playera Nike", brand: "Nike", brandId: "b", departmentId: "d", publicCode: "K7Q2M", price: 1, category: "c", size: "M", initialStock: 3, locationId: store.id, userId: "u" });
+    await state.ds.createProduct({ barcode: "1", sku: "LS-1", title: "Playera Nike", brand: "Nike", brandId: "b", departmentId: "d", publicCode: "K7Q2M", price: 1, category: "c", size: "M", initialStock: 3, locationId: store.id, userId: "u", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" });
     state.spy = vi.spyOn(state.ds, "getProducts") as never;
   });
 
