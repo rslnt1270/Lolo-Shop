@@ -61,8 +61,10 @@ export interface DashboardData {
 export interface SalesDataSource {
   /**
    * Registra la venta y descuenta stock en una sola transacción. Idempotente
-   * por `clientRequestId`: un reintento devuelve la venta ya creada. Si falta
-   * stock en algún renglón lanza `InsufficientStockError` y no deja nada.
+   * por `clientRequestId`: un reintento con los mismos datos devuelve la venta
+   * ya creada; con otra tienda, canal, método o renglones lanza
+   * `SaleRequestConflictError`. Si falta stock en algún renglón lanza
+   * `InsufficientStockError` y no deja nada.
    */
   createSale(input: NewSaleInput, userId: string): Promise<SaleRecord>;
   /** `pending_payment` → `paid`. Cualquier otro estado lanza `SalesRuleError`. */

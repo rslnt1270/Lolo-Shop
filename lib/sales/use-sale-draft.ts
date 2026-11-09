@@ -1,5 +1,20 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { VariantMatch } from "@/lib/data/source";
+
+/**
+ * UUID v4 para `clientRequestId`. `crypto.randomUUID` solo existe en contextos
+ * seguros (HTTPS o localhost) y en navegadores recientes; si falta se arma con
+ * `crypto.getRandomValues` (RFC 4122 §4.4: versión 4 y variante 10xx).
+ */
+export function newRequestId(): string {
+  const c = globalThis.crypto;
+  if (typeof c?.randomUUID === "function") return c.randomUUID();
+  const b = c.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 export interface DraftLine {
   variantId: string;
@@ -15,13 +30,44 @@ export interface DraftLine {
 }
 
 /**
- * Borrador de la venta en curso. El `clientRequestId` nace con el borrador y
- * solo cambia con `reset()`: un reintento tras un error de red lo reutiliza,
- * así el servidor no duplica la venta.
+ * Borrador de la venta en curso. El `clientRequestId` nace con el borrador:
+ * un reintento tras un error de red (resultado incierto) lo reutiliza y el
+ * servidor no duplica la venta. Cambia con `reset()`, con `renewRequestId()`
+ * (el servidor dijo que ese id ya es otra venta) y, tras un rechazo del
+ * servidor (`markRejected`), en cuanto la petición cambia: `requestIdFor`.
  */
 export function useSaleDraft() {
   const [lines, setLines] = useState<DraftLine[]>([]);
-  const [clientRequestId, setClientRequestId] = useState(() => crypto.randomUUID());
+  const [clientRequestId, setClientRequestId] = useState(newRequestId);
+  // Firma de la petición que el servidor rechazó sin registrar nada; null si no hubo rechazo.
+  const rejectedRef = useRef<string | null>(null);
+  const idRef = useRef(clientRequestId);
+
+  const renewRequestId = useCallback(() => {
+    const id = newRequestId();
+    idRef.current = id;
+    rejectedRef.current = null;
+    setClientRequestId(id);
+    return id;
+  }, []);
+
+  /** El servidor rechazó la petición con esta firma (no registró la venta). */
+  const markRejected = useCallback((signature: string) => {
+    rejectedRef.current = signature;
+  }, []);
+
+  /**
+   * Identificador para cobrar la petición con esta firma (tienda, canal,
+   * método y renglones). Si la anterior fue rechazada y algo cambió desde
+   * entonces, es un cobro distinto: id nuevo.
+   */
+  const requestIdFor = useCallback(
+    (signature: string) => {
+      if (rejectedRef.current !== null && rejectedRef.current !== signature) return renewRequestId();
+      return idRef.current;
+    },
+    [renewRequestId],
+  );
 
   const add = useCallback((match: VariantMatch) => {
     setLines((prev) => {
@@ -63,8 +109,8 @@ export function useSaleDraft() {
 
   const reset = useCallback(() => {
     setLines([]);
-    setClientRequestId(crypto.randomUUID());
-  }, []);
+    renewRequestId();
+  }, [renewRequestId]);
 
-  return { lines, add, setQty, setPrice, remove, clientRequestId, reset };
+  return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, requestIdFor };
 }

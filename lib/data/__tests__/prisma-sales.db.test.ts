@@ -5,7 +5,7 @@ import { hasTestDb, testPrisma } from "../../../test/db/setup";
 import { getTestDatabaseUrl } from "../../../test/db/guard";
 import { resetDb } from "../../../test/db/reset";
 import { PrismaSalesDataSource } from "../prisma-sales-source";
-import { InsufficientStockError, SalesRuleError } from "../errors";
+import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "../errors";
 import type { NewSaleInput, PaymentMethod } from "@/lib/domain/sale";
 
 // Dos clientes con su propio pool, como dos funciones de Vercel atendiendo dos cajas.
@@ -192,6 +192,66 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
       expect(await testPrisma.sale.count()).toBe(1);
       expect(await testPrisma.movement.count()).toBe(1);
       expect(await available(w.v1, w.storeA)).toBe(4);
+      await expectLedger(w.v1, w.storeA, 5);
+    });
+  });
+
+  describe("idempotencia por clientRequestId", () => {
+    it("mismo id y mismos renglones (en otro orden): devuelve la misma venta sin descontar de nuevo", async () => {
+      await setStock(w.v1, w.storeA, 5);
+      await setStock(w.v2, w.storeA, 5);
+      const rid = randomUUID();
+      const first = await ds.createSale(sale(w.storeA, [one(w.v1, 1), one(w.v2, 2, 150)], "cash", rid), w.owner);
+      const again = await ds.createSale(sale(w.storeA, [one(w.v2, 2, 150), one(w.v1, 1)], "cash", rid), w.owner);
+
+      expect(again.id).toBe(first.id);
+      expect(again.number).toBe(first.number);
+      expect(await testPrisma.sale.count()).toBe(1);
+      expect(await available(w.v1, w.storeA)).toBe(4);
+      expect(await available(w.v2, w.storeA)).toBe(3);
+    });
+
+    it.each([
+      ["otra cantidad", (w: World) => ({ lines: [one(w.v1, 2)] })],
+      ["otro precio", (w: World) => ({ lines: [one(w.v1, 1, 250)] })],
+      ["otra prenda", (w: World) => ({ lines: [one(w.v2, 1)] })],
+      ["renglón de más", (w: World) => ({ lines: [one(w.v1, 1), one(w.v2, 1)] })],
+      ["otro método", () => ({ paymentMethod: "card" as const })],
+      ["otro canal", () => ({ channel: "whatsapp" as const })],
+      ["otra tienda", (w: World) => ({ locationId: w.storeB })],
+    ])("mismo id con %s: SaleRequestConflictError con el folio y sin tocar stock", async (_label, patch) => {
+      await setStock(w.v1, w.storeA, 5);
+      await setStock(w.v2, w.storeA, 5);
+      await setStock(w.v1, w.storeB, 5);
+      const rid = randomUUID();
+      const first = await ds.createSale(sale(w.storeA, [one(w.v1, 1)], "cash", rid), w.owner);
+
+      const err = await ds
+        .createSale({ ...sale(w.storeA, [one(w.v1, 1)], "cash", rid), ...patch(w) }, w.owner)
+        .catch((e) => e);
+
+      expect(err).toBeInstanceOf(SaleRequestConflictError);
+      expect(err.saleNumber).toBe(first.number);
+      expect(await testPrisma.sale.count()).toBe(1);
+      expect(await available(w.v1, w.storeA)).toBe(4);
+      expect(await available(w.v2, w.storeA)).toBe(5);
+      expect(await available(w.v1, w.storeB)).toBe(5);
+    });
+
+    it("carrera con el mismo id y carritos distintos: una venta y la otra recibe conflicto", async () => {
+      await setStock(w.v1, w.storeA, 5);
+      const rid = randomUUID();
+      const results = await Promise.allSettled([
+        dsA.createSale(sale(w.storeA, [one(w.v1, 1)], "cash", rid), w.owner),
+        dsB.createSale(sale(w.storeA, [one(w.v1, 2)], "cash", rid), w.owner),
+      ]);
+
+      const ok = results.filter((r) => r.status === "fulfilled");
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      expect(ok).toHaveLength(1);
+      expect(failed).toHaveLength(1);
+      expect(failed[0].reason).toBeInstanceOf(SaleRequestConflictError);
+      expect(await testPrisma.sale.count()).toBe(1);
       await expectLedger(w.v1, w.storeA, 5);
     });
   });

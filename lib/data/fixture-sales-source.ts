@@ -2,13 +2,14 @@ import type { Product } from "@/lib/domain/types";
 import {
   businessDateMx,
   initialStatus,
+  isSameSaleRequest,
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
   type NewSaleInput,
 } from "@/lib/domain/sale";
 import { fixtureProducts } from "./fixtures";
-import { InsufficientStockError, SalesRuleError } from "./errors";
+import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   isValidLowStockThreshold,
@@ -64,7 +65,10 @@ export class FixtureSalesDataSource implements SalesDataSource {
     const sale = checked.value;
 
     const existing = this.byRequestId.get(sale.clientRequestId);
-    if (existing) return copy(existing);
+    if (existing) {
+      if (!isSameSaleRequest(existing, sale)) throw new SaleRequestConflictError(existing.number);
+      return copy(existing);
+    }
 
     const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : 1));
     for (const line of lines) {

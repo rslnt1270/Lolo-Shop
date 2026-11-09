@@ -24,6 +24,7 @@ export const SALE_CHANNELS: readonly SaleChannel[] = ["store", "whatsapp"];
 export const PAYMENT_METHODS: readonly PaymentMethod[] = ["spay_transfer", "cash", "card"];
 export const MAX_ALIAS_LENGTH = 40;
 export const MAX_REFERENCE_LENGTH = 80;
+export const MAX_CANCEL_REASON_LENGTH = 200;
 const BUSINESS_TIME_ZONE = "America/Mexico_City";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -137,4 +138,31 @@ export function businessDateMx(at: Date): string {
     month: "2-digit",
     day: "2-digit",
   }).format(at);
+}
+
+/** Lo que se compara en un reintento con el mismo `clientRequestId`. */
+export interface SaleRequestShape {
+  locationId: string;
+  channel: SaleChannel;
+  paymentMethod: PaymentMethod;
+  lines: SaleLineInput[];
+}
+
+/**
+ * ¿La venta guardada corresponde a esta petición? Misma tienda, canal, método
+ * y el mismo conjunto de renglones (variante, cantidad y precio en centavos),
+ * sin importar el orden. Si no, el reintento trae un carrito editado.
+ */
+export function isSameSaleRequest(stored: SaleRequestShape, request: SaleRequestShape): boolean {
+  if (
+    stored.locationId !== request.locationId ||
+    stored.channel !== request.channel ||
+    stored.paymentMethod !== request.paymentMethod ||
+    stored.lines.length !== request.lines.length
+  ) {
+    return false;
+  }
+  const key = (l: SaleLineInput) => `${l.variantId}|${l.quantity}|${Math.round(l.unitPrice * 100)}`;
+  const storedKeys = new Set(stored.lines.map(key));
+  return request.lines.every((l) => storedKeys.has(key(l)));
 }

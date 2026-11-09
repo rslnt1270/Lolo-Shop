@@ -3,13 +3,14 @@ import prisma from "../prisma";
 import {
   businessDateMx,
   initialStatus,
+  isSameSaleRequest,
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
   type NewSaleInput,
   type SaleStatus,
 } from "../domain/sale";
-import { InsufficientStockError, SalesRuleError } from "./errors";
+import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   LOW_STOCK_THRESHOLD_KEY,
@@ -69,6 +70,12 @@ function toRecord(s: SaleWithLines): SaleRecord {
   };
 }
 
+/** Mismo `clientRequestId`: idempotente si es el mismo cobro; si no, conflicto. */
+function replayOrConflict(existing: SaleRecord, request: NewSaleInput): SaleRecord {
+  if (!isSameSaleRequest(existing, request)) throw new SaleRequestConflictError(existing.number);
+  return existing;
+}
+
 function isClientRequestIdRace(err: unknown): boolean {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== "P2002") return false;
   const target = (err.meta as { target?: unknown } | undefined)?.target;
@@ -90,7 +97,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
     const sale = checked.value;
 
     const existing = await this.findByClientRequestId(sale.clientRequestId);
-    if (existing) return existing;
+    if (existing) return replayOrConflict(existing, sale);
 
     const variants = await this.db.variant.findMany({
       where: { id: { in: sale.lines.map((l) => l.variantId) } },
@@ -184,7 +191,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
       // Carrera del mismo reintento: la otra transacción ya registró la venta.
       if (isClientRequestIdRace(err)) {
         const winner = await this.findByClientRequestId(sale.clientRequestId);
-        if (winner) return winner;
+        if (winner) return replayOrConflict(winner, sale);
       }
       throw err;
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateNewSale, initialStatus, saleTotal, businessDateMx } from "../sale";
+import { validateNewSale, initialStatus, saleTotal, businessDateMx, isSameSaleRequest } from "../sale";
 
 const base = {
   clientRequestId: "3f2b8c1e-9d4a-4e6b-8a1c-2b7d5e9f0a11",
@@ -88,5 +88,40 @@ describe("validateNewSale", () => {
   });
   it("rechaza entradas que no son objeto", () => {
     expect(validateNewSale(null).ok).toBe(false);
+  });
+});
+
+describe("isSameSaleRequest", () => {
+  const base = {
+    locationId: "A",
+    channel: "store" as const,
+    paymentMethod: "cash" as const,
+    lines: [
+      { variantId: "v1", quantity: 1, unitPrice: 100 },
+      { variantId: "v2", quantity: 2, unitPrice: 49.9 },
+    ],
+  };
+  it("misma petición en otro orden y con deriva de flotante: igual", () => {
+    expect(
+      isSameSaleRequest(base, {
+        ...base,
+        lines: [
+          { variantId: "v2", quantity: 2, unitPrice: 49.900000001 },
+          { variantId: "v1", quantity: 1, unitPrice: 100 },
+        ],
+      }),
+    ).toBe(true);
+  });
+  it.each([
+    ["tienda", { locationId: "B" }],
+    ["canal", { channel: "whatsapp" as const }],
+    ["método", { paymentMethod: "card" as const }],
+    ["cantidad", { lines: [{ variantId: "v1", quantity: 2, unitPrice: 100 }, base.lines[1]] }],
+    ["precio", { lines: [{ variantId: "v1", quantity: 1, unitPrice: 99.99 }, base.lines[1]] }],
+    ["renglón de más", { lines: [...base.lines, { variantId: "v3", quantity: 1, unitPrice: 1 }] }],
+    ["renglón de menos", { lines: [base.lines[0]] }],
+    ["otra prenda", { lines: [base.lines[0], { variantId: "v9", quantity: 2, unitPrice: 49.9 }] }],
+  ])("distinto %s: diferente", (_label, patch) => {
+    expect(isSameSaleRequest(base, { ...base, ...patch })).toBe(false);
   });
 });

@@ -13,8 +13,8 @@ import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
 
 type LocationOption = { id: string; name: string };
-type Notice = { kind: "ok" | "error"; text: string };
-type StockError = { message: string; signature: string };
+type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
+type StockError = { message: string; signature: string; variantId?: string };
 
 const LOCATION_KEY = "loloshop:pos:location";
 
@@ -104,9 +104,25 @@ export default function POSPage() {
   );
 
   const signature = lines.map((l) => `${l.variantId}:${l.quantity}`).join(",");
-  const activeStockError = stockError && stockError.signature === signature ? stockError.message : null;
+  const activeStockError = stockError && stockError.signature === signature ? stockError : null;
+  // El mensaje va junto a la prenda que no alcanzó; si no se sabe cuál, junto a la única línea o arriba.
+  const stockLineId =
+    activeStockError?.variantId && lines.some((l) => l.variantId === activeStockError.variantId)
+      ? activeStockError.variantId
+      : lines.length === 1
+        ? lines[0].variantId
+        : null;
   const lineErrors: Record<string, string> =
-    activeStockError && lines.length === 1 ? { [lines[0].variantId]: activeStockError } : {};
+    activeStockError && stockLineId ? { [stockLineId]: activeStockError.message } : {};
+  // Lo que el servidor compara en un reintento: tienda, canal, método y renglones (precio en centavos).
+  const requestSignature = [
+    locationId,
+    channel,
+    method,
+    ...[...lines]
+      .sort((a, b) => (a.variantId < b.variantId ? -1 : a.variantId > b.variantId ? 1 : 0))
+      .map((l) => `${l.variantId}:${l.quantity}:${Math.round(l.unitPrice * 100)}`),
+  ].join("|");
 
   const charge = async () => {
     if (submittingRef.current || lines.length === 0) return;
@@ -121,7 +137,7 @@ export default function POSPage() {
     try {
       const trimmedAlias = alias.trim();
       const result = await createSaleAction({
-        clientRequestId: draft.clientRequestId,
+        clientRequestId: draft.requestIdFor(requestSignature),
         locationId,
         channel,
         paymentMethod: method,
@@ -134,10 +150,22 @@ export default function POSPage() {
         setNotice({ kind: "ok", text: `Venta #${result.sale.number} registrada` });
         setAlias("");
         draft.reset();
-      } else if (result.code === "NO_STOCK") {
-        setStockError({ message: result.message, signature });
-      } else {
+      } else if (result.reason === "request_conflict") {
+        // Ese identificador ya es otra venta: el siguiente Cobrar registra una nueva con este carrito.
+        draft.renewRequestId();
         setNotice({ kind: "error", text: result.message });
+      } else if (result.reason === "session_expired") {
+        setNotice({ kind: "error", text: result.message, login: true });
+      } else if (result.code === "UNAVAILABLE") {
+        // Resultado incierto: se reintenta con el mismo identificador.
+        setNotice({ kind: "error", text: result.message });
+      } else {
+        draft.markRejected(requestSignature);
+        if (result.code === "NO_STOCK") {
+          setStockError({ message: result.message, signature, variantId: result.variantId });
+        } else {
+          setNotice({ kind: "error", text: result.message });
+        }
       }
     } catch {
       setNotice({
@@ -219,13 +247,24 @@ export default function POSPage() {
                 }`}
               >
                 {notice.text}
+                {notice.login && (
+                  <>
+                    {" "}
+                    <Link
+                      href="/login"
+                      className="inline-flex min-h-[44px] items-center rounded-lg px-1 underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                      Iniciar sesión
+                    </Link>
+                  </>
+                )}
               </p>
             )}
           </div>
 
-          {activeStockError && lines.length > 1 && (
+          {activeStockError && !stockLineId && (
             <p role="alert" className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">
-              {activeStockError} Revisa las cantidades de la venta.
+              {activeStockError.message} Revisa las cantidades de la venta.
             </p>
           )}
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 const session = vi.hoisted(() => ({
   value: {
@@ -9,7 +9,11 @@ const session = vi.hoisted(() => ({
 }));
 vi.mock("next-auth/react", () => ({ useSession: () => session.value }));
 vi.mock("next/link", () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  default: ({ children, href, className }: { children: React.ReactNode; href: string; className?: string }) => (
+    <a href={href} className={className}>
+      {children}
+    </a>
+  ),
 }));
 
 const actions = vi.hoisted(() => ({
@@ -38,11 +42,22 @@ const variant = (id: string, price: number) => ({
   barcode: null,
   inventory: [],
 });
-const found = (id: string, price: number) => ({
+const found = (id: string, price: number, title = "Playera") => ({
   found: true as const,
   variantId: id,
-  product: { id: "p", title: "Playera", category: "Ropa", brand: "Acme", imageUrl: null, variants: [variant(id, price)] },
+  product: { id: `p-${id}`, title, category: "Ropa", brand: "Acme", imageUrl: null, variants: [variant(id, price)] },
 });
+
+const sentIds = () => actions.createSaleAction.mock.calls.map((c) => c[0].clientRequestId as string);
+const cobrar = () => fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+async function readyWithOneLine() {
+  render(<POSPage />);
+  await screen.findByDisplayValue("Centro");
+  await scan("111");
+  await screen.findByText("Playera");
+}
 
 async function scan(code: string) {
   fireEvent.change(screen.getByLabelText(/código del producto/i), { target: { value: code } });
@@ -165,5 +180,121 @@ describe("POSPage", () => {
     await screen.findByText("Venta #12 registrada");
     expect(screen.queryByText("Playera")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^cobrar/i })).toBeDisabled();
+  });
+
+  it("conflicto de identificador: conserva el carrito y el siguiente Cobrar usa un id nuevo", async () => {
+    actions.createSaleAction
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "INVALID",
+        reason: "request_conflict",
+        message: "La venta #9 ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.",
+      })
+      .mockResolvedValueOnce({ ok: true, sale: { number: 10 } });
+    await readyWithOneLine();
+    cobrar();
+    expect(await screen.findByRole("alert")).toHaveTextContent("La venta #9 ya se registró con otros datos.");
+    expect(screen.getByText("Playera")).toBeInTheDocument();
+    cobrar();
+    await screen.findByText("Venta #10 registrada");
+    const [first, second] = sentIds();
+    expect(second).not.toBe(first);
+    expect(second).toMatch(UUID_V4);
+  });
+
+  it("tras un rechazo del servidor, editar el carrito cambia el id; sin cambios lo conserva", async () => {
+    actions.createSaleAction.mockResolvedValue({ ok: false, code: "INVALID", message: "Algo no cuadra." });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText("Algo no cuadra.");
+    cobrar();
+    await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
+    cobrar();
+    await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(3));
+    const [a, b, c] = sentIds();
+    expect(b).toBe(a);
+    expect(c).not.toBe(b);
+  });
+
+  it.each([
+    ["el método de pago", () => fireEvent.click(screen.getByLabelText("Tarjeta"))],
+    ["el canal", () => fireEvent.click(screen.getByLabelText("WhatsApp"))],
+    ["la tienda", () => fireEvent.change(screen.getByRole("combobox", { name: /tienda/i }), { target: { value: "l2" } })],
+  ])("tras un rechazo, cambiar %s cambia el id", async (_label, change) => {
+    actions.createSaleAction.mockResolvedValue({ ok: false, code: "FORBIDDEN", message: "No." });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText("No.");
+    change();
+    cobrar();
+    await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(2));
+    const [a, b] = sentIds();
+    expect(b).not.toBe(a);
+  });
+
+  it("tras un error de red, editar el carrito conserva el id (el servidor decide si ya existía)", async () => {
+    actions.createSaleAction.mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce({ ok: true, sale: { number: 3 } });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText(/no se pudo registrar/i);
+    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
+    cobrar();
+    await screen.findByText("Venta #3 registrada");
+    const [a, b] = sentIds();
+    expect(b).toBe(a);
+  });
+
+  it("UNAVAILABLE (servidor lento): muestra el mensaje y reintenta con el mismo id", async () => {
+    actions.createSaleAction
+      .mockResolvedValueOnce({ ok: false, code: "UNAVAILABLE", message: "El servidor tardó en responder. Intenta cobrar de nuevo." })
+      .mockResolvedValueOnce({ ok: true, sale: { number: 4 } });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText("El servidor tardó en responder. Intenta cobrar de nuevo.");
+    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
+    cobrar();
+    await screen.findByText("Venta #4 registrada");
+    const [a, b] = sentIds();
+    expect(b).toBe(a);
+  });
+
+  it("NO_STOCK en un carrito de varias líneas: el mensaje va junto a la prenda indicada", async () => {
+    actions.lookupCodeAction.mockImplementation(async (code: string) =>
+      code === "222" ? found("v2", 50, "Gorra") : found("v1", 199.95),
+    );
+    actions.createSaleAction.mockResolvedValue({
+      ok: false,
+      code: "NO_STOCK",
+      variantId: "v2",
+      message: "Solo hay 0 de esta prenda en la tienda (pediste 1).",
+    });
+    await readyWithOneLine();
+    await scan("222");
+    await screen.findByText("Gorra");
+    cobrar();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Solo hay 0 de esta prenda");
+    const items = screen.getAllByRole("listitem");
+    const gorra = items.find((li) => within(li).queryByText("Gorra"))!;
+    const playera = items.find((li) => within(li).queryByText("Playera"))!;
+    expect(gorra).toContainElement(alert);
+    expect(playera).not.toContainElement(alert);
+  });
+
+  it("sesión vencida: muestra el aviso con enlace a iniciar sesión y no reintenta solo", async () => {
+    actions.createSaleAction.mockResolvedValue({
+      ok: false,
+      code: "FORBIDDEN",
+      reason: "session_expired",
+      message: "Tu sesión terminó. Vuelve a iniciar sesión.",
+    });
+    await readyWithOneLine();
+    cobrar();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(actions.createSaleAction).toHaveBeenCalledTimes(1);
   });
 });

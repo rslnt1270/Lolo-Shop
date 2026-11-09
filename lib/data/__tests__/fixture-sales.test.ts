@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FixtureSalesDataSource } from "../fixture-sales-source";
-import { InsufficientStockError, SalesRuleError } from "../errors";
+import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "../errors";
 import type { NewSaleInput, PaymentMethod } from "@/lib/domain/sale";
 
 // Fixtures: var-1 tiene 3 en loc-1; var-2 tiene 1 en loc-1.
@@ -47,6 +47,18 @@ describe("FixtureSalesDataSource", () => {
       const input = sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }]);
       const [a, b] = await Promise.all([ds.createSale(input, "u1"), ds.createSale(input, "u1")]);
       expect(a.id).toBe(b.id);
+      expect(ds.available("var-1", "loc-1")).toBe(2);
+    });
+
+    it("el mismo clientRequestId con otro carrito: conflicto con el folio y sin descontar", async () => {
+      const ds = new FixtureSalesDataSource();
+      const rid = reqId();
+      const first = await ds.createSale(sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }], "cash", rid), "u1");
+      const err = await ds
+        .createSale(sale([{ variantId: "var-1", quantity: 2, unitPrice: 450 }], "cash", rid), "u1")
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(SaleRequestConflictError);
+      expect(err.saleNumber).toBe(first.number);
       expect(ds.available("var-1", "loc-1")).toBe(2);
     });
   });
