@@ -76,6 +76,20 @@ describe("createSaleAction", () => {
     expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Solo puedes vender en tu tienda." });
     expect(source.createSale).not.toHaveBeenCalled();
   });
+  it("manager con tienda A vende en B: FORBIDDEN (misma regla que R13)", async () => {
+    as("manager", "A");
+    const r = await createSaleAction(input());
+    expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Solo puedes vender en tu tienda." });
+    expect(source.createSale).not.toHaveBeenCalled();
+  });
+  it("manager con tienda B vende en B: ok", async () => {
+    as("manager", "B");
+    expect((await createSaleAction(input())).ok).toBe(true);
+  });
+  it("manager sin tienda asignada vende en cualquier tienda: ok", async () => {
+    as("manager");
+    expect((await createSaleAction(input())).ok).toBe(true);
+  });
   it("owner vende en B: ok y revalida", async () => {
     as("owner");
     const r = await createSaleAction(input());

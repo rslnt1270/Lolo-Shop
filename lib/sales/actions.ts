@@ -89,7 +89,11 @@ export async function createSaleAction(input: unknown): Promise<SaleActionResult
   if (!parsed.ok) return fail("INVALID", parsed.message);
   const sale = parsed.value;
 
-  if (user.role === "collaborator" && sale.locationId !== user.locationId) {
+  // Colaborador: solo su tienda. Manager con tienda asignada: solo esa (como R13).
+  // Owner y manager sin tienda pueden vender en cualquiera.
+  const storeBound =
+    user.role === "collaborator" || (user.role === "manager" && !!user.locationId);
+  if (storeBound && sale.locationId !== user.locationId) {
     return fail("FORBIDDEN", "Solo puedes vender en tu tienda.");
   }
 
