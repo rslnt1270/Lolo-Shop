@@ -6,9 +6,10 @@ const valid = {
   brandId: "brand-1",
   departmentId: "dep-1",
   category: "Playeras",
-  price: 299,
-  initialStock: 0,
+  sizes: [{ size: "", barcode: null, price: 299, initialStock: 0 }],
 };
+/** Alta válida con la única talla modificada (antes `price`, `size` e `initialStock` eran sueltos). */
+const row = (patch: Record<string, unknown>) => ({ ...valid, sizes: [{ ...valid.sizes[0], ...patch }] });
 
 describe("validateNewProduct", () => {
   it("acepta un alta válida con stock inicial 0", () => {
@@ -31,26 +32,26 @@ describe("validateNewProduct", () => {
   });
 
   it("rechaza precio negativo o no numérico", () => {
-    expect(() => validateNewProduct({ ...valid, price: -1 })).toThrow(/precio/);
-    expect(() => validateNewProduct({ ...valid, price: Number.NaN })).toThrow(/precio/);
+    expect(() => validateNewProduct(row({ price: -1 }))).toThrow(/precio/);
+    expect(() => validateNewProduct(row({ price: Number.NaN }))).toThrow(/precio/);
   });
 
   it("exige precio mayor a cero (también tras redondear a centavos)", () => {
-    expect(() => validateNewProduct({ ...valid, price: 0 })).toThrow(/precio/);
-    expect(() => validateNewProduct({ ...valid, price: 0.004 })).toThrow(/precio/);
+    expect(() => validateNewProduct(row({ price: 0 }))).toThrow(/precio/);
+    expect(() => validateNewProduct(row({ price: 0.004 }))).toThrow(/precio/);
   });
 
   it("tope de precio 99 999 999.99 (Decimal(10,2))", () => {
-    expect(() => validateNewProduct({ ...valid, price: 99_999_999.99 })).not.toThrow();
-    expect(() => validateNewProduct({ ...valid, price: 100_000_000 })).toThrow(/precio/);
+    expect(() => validateNewProduct(row({ price: 99_999_999.99 }))).not.toThrow();
+    expect(() => validateNewProduct(row({ price: 100_000_000 }))).toThrow(/precio/);
   });
 
   it("devuelve el alta normalizada: precio a centavos y textos recortados", () => {
-    const out = validateNewProduct({ ...valid, title: "  Gorra  ", brandId: " b1 ", price: 10.005 });
-    expect(out.price).toBe(10.01);
+    const out = validateNewProduct({ ...row({ price: 10.005 }), title: "  Gorra  ", brandId: " b1 " });
+    expect(out.sizes[0].price).toBe(10.01);
     expect(out.title).toBe("Gorra");
     expect(out.brandId).toBe("b1");
-    expect(validateNewProduct({ ...valid, price: 19.999 }).price).toBe(20);
+    expect(validateNewProduct(row({ price: 19.999 })).sizes[0].price).toBe(20);
   });
 
   it("limita el título a 120 caracteres", () => {
@@ -59,14 +60,14 @@ describe("validateNewProduct", () => {
   });
 
   it("talla opcional: por defecto U y máximo 20 caracteres", () => {
-    expect(validateNewProduct(valid).size).toBe("U");
-    expect(validateNewProduct({ ...valid, size: " M " }).size).toBe("M");
-    expect(() => validateNewProduct({ ...valid, size: "x".repeat(21) })).toThrow(/talla/i);
+    expect(validateNewProduct(valid).sizes[0].size).toBe("U");
+    expect(validateNewProduct(row({ size: " M " })).sizes[0].size).toBe("M");
+    expect(() => validateNewProduct(row({ size: "x".repeat(21) }))).toThrow(/talla/i);
   });
 
   it("rechaza stock inicial negativo o con decimales", () => {
-    expect(() => validateNewProduct({ ...valid, initialStock: -1 })).toThrow(/stock inicial/);
-    expect(() => validateNewProduct({ ...valid, initialStock: 1.5 })).toThrow(/stock inicial/);
+    expect(() => validateNewProduct(row({ initialStock: -1 }))).toThrow(/stock inicial/);
+    expect(() => validateNewProduct(row({ initialStock: 1.5 }))).toThrow(/stock inicial/);
   });
 
   it("las categorías coinciden con las de /productos", () => {

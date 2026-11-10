@@ -14,6 +14,8 @@ vi.mock("@/lib/actions", () => ({
   lookupCodeAction: (...a: unknown[]) => lookup(...a),
   recordStockMovementAction: (...a: unknown[]) => record(...a),
   createProductAction: (...a: unknown[]) => createProductAction(...a),
+  searchProductsAction: vi.fn().mockResolvedValue([]),
+  addVariantAction: vi.fn(),
   fetchLocationsAction: (...a: unknown[]) => fetchLocations(...a),
   uploadProductImageAction: vi.fn(),
 }));
@@ -22,7 +24,11 @@ vi.mock("@/lib/catalog/actions", () => ({
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
 }));
-vi.mock("@/lib/domain/barcode", () => ({ isValidGtin: () => true }));
+// Parcial: el alta usa canonicalCode del módulo real; solo se fuerza isValidGtin.
+vi.mock("@/lib/domain/barcode", async (orig) => ({
+  ...(await orig<typeof import("@/lib/domain/barcode")>()),
+  isValidGtin: () => true,
+}));
 vi.mock("@/components/inventory/Scanner", () => ({
   Scanner: ({ onScan }: { onScan: (c: string) => void }) => (
     <div data-testid="scanner"><button onClick={() => onScan("750999")}>simular-escaneo</button></div>
@@ -45,8 +51,8 @@ async function fillForm() {
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "50" } });
   fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
-  fireEvent.change(screen.getByLabelText(/stock inicial/i), { target: { value: "4" } });
-  fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+  fireEvent.change(screen.getByLabelText(/piezas/i), { target: { value: "4" } });
+  fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
 }
 
 describe("/escanear: flujo de alta por lote", () => {
@@ -62,6 +68,8 @@ describe("/escanear: flujo de alta por lote", () => {
   it("código desconocido abre el alta con el código en solo lectura y tras guardar reactiva el escáner", async () => {
     render(<EscanearPage />);
     fireEvent.click(screen.getByText("simular-escaneo"));
+    // Código nuevo: primero la pregunta "¿Es otra talla…?" (1.5).
+    fireEvent.click(await screen.findByRole("button", { name: "No, es un producto nuevo" }));
     expect((await screen.findByTestId("codigo-escaneado")).textContent).toBe("750999");
     expect(screen.queryByTestId("scanner")).toBeNull();
 
@@ -69,7 +77,7 @@ describe("/escanear: flujo de alta por lote", () => {
 
     await waitFor(() => expect(screen.getByTestId("scanner")).toBeTruthy());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({
-      barcode: "750999", category: "Accesorios", initialStock: 4, locationId: "loc-1",
+      category: "Accesorios", locationId: "loc-1", sizes: [{ barcode: "750999", initialStock: 4 }],
     });
     expect(screen.getByText(/1 alta en esta sesión/i)).toBeTruthy();
     expect(screen.getByText(/escanea la siguiente/i)).toBeTruthy();
@@ -81,7 +89,7 @@ describe("/escanear: flujo de alta por lote", () => {
     render(<EscanearPage />);
     fireEvent.click(screen.getByText("simular-escaneo"));
     expect(await screen.findByText("Playera X")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /dar de alta/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /guardar producto/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
     await waitFor(() =>
       expect(record).toHaveBeenCalledWith(
@@ -120,7 +128,7 @@ describe("/escanear: flujo de alta por lote", () => {
     expect(await screen.findByText(/se generará un sku interno/i)).toBeTruthy();
     await fillForm();
     expect(await screen.findByRole("link", { name: /imprimir etiqueta/i })).toHaveAttribute("href", "/etiquetas");
-    expect(createProductAction.mock.calls[0][0]).toMatchObject({ noBarcode: true, barcode: null });
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ sizes: [{ barcode: null }] });
     expect(lookup).not.toHaveBeenCalled();
   });
 
@@ -131,6 +139,7 @@ describe("/escanear: flujo de alta por lote", () => {
     await waitFor(() => expect(sel.value).toBe("loc-A"));
     fireEvent.change(sel, { target: { value: "loc-B" } });
     fireEvent.click(screen.getByText("simular-escaneo"));
+    fireEvent.click(await screen.findByRole("button", { name: "No, es un producto nuevo" }));
     await screen.findByTestId("codigo-escaneado");
     await fillForm();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());

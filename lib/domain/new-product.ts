@@ -1,4 +1,6 @@
 import { isProductBlobUrl } from "@/lib/image/blob-url";
+import { canonicalCode, isValidGtin } from "./barcode";
+import { normalizeSize, UNIQUE_SIZE } from "./sizes";
 
 export const PRODUCT_CATEGORIES = [
   "Playeras", "Pantalones", "Hoodies", "Tenis", "Accesorios", "Perfumes", "Raquetas de Padel",
@@ -8,12 +10,26 @@ export const MAX_TITLE_LENGTH = 120;
 export const MAX_SIZE_LENGTH = 20;
 /** Tope de `Variant.price` (Decimal(10,2)). */
 export const MAX_PRICE = 99_999_999.99;
-export const DEFAULT_SIZE = "U";
+export const DEFAULT_SIZE = UNIQUE_SIZE;
+/** Tallas por alta (1 a 12). */
+export const MAX_SIZES = 12;
+export const MAX_BARCODE_LENGTH = 64;
 export const MAX_DESCRIPTION_LENGTH = 500;
 export const CATALOG_PHOTOS_MESSAGE = "Para el catálogo se necesitan las dos fotos: frente y atrás.";
 
 /** "stock": solo inventario/venta, sin fotos. "catalog": exige foto de frente y de atrás. */
 export type EntryMode = "stock" | "catalog";
+
+/** Una talla del alta: código escaneado (null = "Sin código"), precio y piezas contadas. */
+export interface SizeRowInput {
+  size: string;
+  barcode: string | null;
+  price: number;
+  initialStock: number;
+}
+
+/** Talla normalizada; `barcode` canónico (alfanuméricos en mayúsculas) o null. */
+export type NormalizedSizeRow = SizeRowInput;
 
 export interface NewProductInput {
   title: string;
@@ -22,9 +38,8 @@ export interface NewProductInput {
   /** Departamento obligatorio en altas nuevas (ER §2.3, A3). */
   departmentId: string;
   category: string;
-  price: number;
-  initialStock: number;
-  size?: string;
+  /** Una fila por talla (1 a 12); sustituye `price`, `size` e `initialStock` sueltos. */
+  sizes: SizeRowInput[];
   /** Por defecto "stock". */
   mode?: EntryMode;
   description?: string | null;
@@ -37,9 +52,7 @@ export interface NormalizedNewProduct {
   brandId: string;
   departmentId: string;
   category: string;
-  price: number;
-  initialStock: number;
-  size: string;
+  sizes: NormalizedSizeRow[];
   mode: EntryMode;
   description: string | null;
   /** Null en modo stock (las fotos se ignoran). */
@@ -55,8 +68,67 @@ export function roundToCents(value: number): number {
 }
 
 /**
- * Valida el alta y devuelve los datos normalizados (textos recortados, precio
- * a centavos, talla por defecto "U"). Lanza un Error con el mensaje para el
+ * Valida una talla y la devuelve normalizada (talla en mayúsculas o "U", precio
+ * a centavos, código canónico). Lanza un Error con el mensaje para el operador;
+ * `label` antepone la talla cuando hay varias filas.
+ */
+export function validateSizeRow(row: SizeRowInput, label = ""): NormalizedSizeRow {
+  if (!row || typeof row !== "object") throw new Error("Faltan los datos de la talla.");
+  const pre = label ? `${label}: ` : "";
+  const size = normalizeSize(typeof row.size === "string" ? row.size : "");
+  if (size.length > MAX_SIZE_LENGTH) {
+    throw new Error(`${pre}La talla no puede pasar de ${MAX_SIZE_LENGTH} caracteres.`);
+  }
+  if (typeof row.price !== "number" || !Number.isFinite(row.price)) {
+    throw new Error(`${pre}El precio debe ser un número mayor a cero.`);
+  }
+  const price = roundToCents(row.price);
+  if (price <= 0) throw new Error(`${pre}El precio debe ser un número mayor a cero.`);
+  if (price > MAX_PRICE) throw new Error(`${pre}El precio no puede pasar de $99,999,999.99.`);
+  if (!Number.isInteger(row.initialStock) || row.initialStock < 0) {
+    throw new Error(`${pre}El stock inicial (piezas) debe ser un número entero mayor o igual a cero.`);
+  }
+  let barcode: string | null = null;
+  if (row.barcode !== null) {
+    barcode = canonicalCode(typeof row.barcode === "string" ? row.barcode : "");
+    if (!barcode) throw new Error(`${pre}Escanea o escribe el código de la etiqueta, o marca «Sin código».`);
+    if (barcode.length > MAX_BARCODE_LENGTH) throw new Error(`${pre}El código es demasiado largo. Vuelve a escanearlo.`);
+    if (!isValidGtin(barcode)) {
+      throw new Error(`${pre}El código ${barcode} no es válido (falla el dígito verificador). Vuelve a escanearlo.`);
+    }
+  }
+  return { size, barcode, price, initialStock: row.initialStock };
+}
+
+/**
+ * Valida de 1 a 12 tallas: sin códigos repetidos ni tallas repetidas sin código
+ * dentro del mismo envío (dos M con códigos distintos sí: son dos etiquetas).
+ */
+export function validateSizeRows(rows: SizeRowInput[]): NormalizedSizeRow[] {
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error("Agrega al menos una talla.");
+  if (rows.length > MAX_SIZES) throw new Error(`Un producto puede tener hasta ${MAX_SIZES} tallas por alta.`);
+  const out = rows.map((r) =>
+    validateSizeRow(r, rows.length > 1 ? `Talla ${normalizeSize(typeof r?.size === "string" ? r.size : "")}` : ""),
+  );
+  const codes = new Set<string>();
+  const sizesWithoutCode = new Set<string>();
+  for (const r of out) {
+    if (r.barcode !== null) {
+      if (codes.has(r.barcode)) throw new Error(`El código ${r.barcode} está en dos tallas. Cada etiqueta va una sola vez.`);
+      codes.add(r.barcode);
+    } else {
+      if (sizesWithoutCode.has(r.size)) {
+        throw new Error(`La talla ${r.size} está repetida sin código. Deja una sola fila y suma las piezas.`);
+      }
+      sizesWithoutCode.add(r.size);
+    }
+  }
+  return out;
+}
+
+/**
+ * Valida el alta y devuelve los datos normalizados (textos recortados y
+ * tallas con `validateSizeRows`). Lanza un Error con el mensaje para el
  * operador si el alta no es válida.
  */
 export function validateNewProduct(input: NewProductInput): NormalizedNewProduct {
@@ -75,23 +147,7 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
   if (!(PRODUCT_CATEGORIES as readonly string[]).includes(input.category)) {
     throw new Error("Elige una categoría válida.");
   }
-  if (typeof input.price !== "number" || !Number.isFinite(input.price)) {
-    throw new Error("El precio debe ser un número mayor a cero.");
-  }
-  const price = roundToCents(input.price);
-  if (price <= 0) {
-    throw new Error("El precio debe ser un número mayor a cero.");
-  }
-  if (price > MAX_PRICE) {
-    throw new Error("El precio no puede pasar de $99,999,999.99.");
-  }
-  if (!Number.isInteger(input.initialStock) || input.initialStock < 0) {
-    throw new Error("El stock inicial debe ser un número entero mayor o igual a cero.");
-  }
-  const size = (input.size ?? "").trim() || DEFAULT_SIZE;
-  if (size.length > MAX_SIZE_LENGTH) {
-    throw new Error(`La talla no puede pasar de ${MAX_SIZE_LENGTH} caracteres.`);
-  }
+  const sizes = validateSizeRows(input.sizes);
   const description = (typeof input.description === "string" ? input.description : "").trim();
   if (description.length > MAX_DESCRIPTION_LENGTH) {
     throw new Error(`La descripción no puede pasar de ${MAX_DESCRIPTION_LENGTH} caracteres.`);
@@ -108,7 +164,7 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
     backImageUrl = input.backImageUrl;
   }
   return {
-    title, brandId, departmentId, category: input.category, price, initialStock: input.initialStock, size,
+    title, brandId, departmentId, category: input.category, sizes,
     mode, description: description || null, imageUrl, backImageUrl,
   };
 }

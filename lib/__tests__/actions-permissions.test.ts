@@ -38,7 +38,8 @@ import {
 import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
 
 const input: CreateProductInput = {
-  barcode: "4006381333931", title: "Gorra", brandId: "b1", departmentId: "d1", price: 10, category: "Accesorios", initialStock: 2, locationId: "loc-clubalva",
+  title: "Gorra", brandId: "b1", departmentId: "d1", category: "Accesorios", locationId: "loc-clubalva",
+  sizes: [{ size: "", barcode: "4006381333931", price: 10, initialStock: 2 }],
 };
 const user = (role: string, locationId: string | null) => ({ id: "u1", role, locationId });
 const GOOD = "https://abc.public.blob.vercel-storage.com/productos/x.jpg";

@@ -51,11 +51,14 @@ describe("NewProductForm", () => {
 
     await fillRequired();
     fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "Playeras" } });
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
 
     await waitFor(() =>
       expect(createProductAction).toHaveBeenCalledWith(
-        expect.objectContaining({ barcode: "750100", category: "Playeras", initialStock: 0, locationId: "loc-1", brandId: "b1", departmentId: "d1" }),
+        expect.objectContaining({
+          category: "Playeras", locationId: "loc-1", brandId: "b1", departmentId: "d1",
+          sizes: [expect.objectContaining({ barcode: "750100", initialStock: 0 })],
+        }),
       ),
     );
     expect(onSuccess).toHaveBeenCalled();
@@ -65,7 +68,7 @@ describe("NewProductForm", () => {
     render(<NewProductForm scannedCode="750100" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
 
     await fillRequired();
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
 
     expect(await screen.findByText("Elige una categoría válida.")).toBeInTheDocument();
     expect(createProductAction).not.toHaveBeenCalled();
@@ -76,11 +79,13 @@ describe("NewProductForm", () => {
 
     await fillRequired();
     fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "Hoodies" } });
-    fireEvent.change(screen.getByLabelText(/stock inicial/i), { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.change(screen.getByLabelText(/piezas/i), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
 
     await waitFor(() =>
-      expect(createProductAction).toHaveBeenCalledWith(expect.objectContaining({ category: "Hoodies", initialStock: 4 })),
+      expect(createProductAction).toHaveBeenCalledWith(
+        expect.objectContaining({ category: "Hoodies", sizes: [expect.objectContaining({ initialStock: 4 })] }),
+      ),
     );
   });
 
@@ -88,7 +93,7 @@ describe("NewProductForm", () => {
     render(<NewProductForm scannedCode="750100" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
     await fillRequired(false);
     fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "Playeras" } });
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     expect(await screen.findByText("Elige el departamento.")).toBeInTheDocument();
     expect(createProductAction).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/departamento/i)).toHaveAttribute("aria-required", "true");
@@ -131,7 +136,7 @@ describe("NewProductForm", () => {
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "X" } });
     fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lol" } });
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     expect(await screen.findByText("Título y marca son obligatorios.")).toBeInTheDocument();
     expect(createProductAction).not.toHaveBeenCalled();
   });
@@ -149,7 +154,7 @@ describe("NewProductForm", () => {
       fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "299" } });
       fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
       fireEvent.change(screen.getByLabelText(/categoría/i), { target: { value: "Playeras" } });
-      fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+      fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
       await waitFor(() => expect(createProductAction).toHaveBeenCalledWith(expect.objectContaining({ brandId: "b1" })));
       expect(screen.queryByText("Título y marca son obligatorios.")).not.toBeInTheDocument();
     },

@@ -65,7 +65,7 @@ describe("NewProductForm: dos modos de alta", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
     expect(screen.getByText("Foto de frente")).toBeInTheDocument();
     expect(screen.getByText("Foto de atrás")).toBeInTheDocument();
-    const alta = screen.getByRole("button", { name: /dar de alta/i });
+    const alta = screen.getByRole("button", { name: /guardar producto/i });
     expect(alta).toBeDisabled();
     const [front, back] = screen.getAllByText("capturar");
     fireEvent.click(front);
@@ -83,7 +83,7 @@ describe("NewProductForm: dos modos de alta", () => {
     await fillRest();
     fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón" } });
     screen.getAllByText("capturar").forEach((b) => fireEvent.click(b));
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({
       mode: "catalog",
@@ -96,7 +96,7 @@ describe("NewProductForm: dos modos de alta", () => {
   it("en Solo stock da de alta sin fotos", async () => {
     render1();
     await fillRest();
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ mode: "stock", imageUrl: null, backImageUrl: null });
     expect(uploadProductImageAction).not.toHaveBeenCalled();
@@ -113,7 +113,7 @@ describe("NewProductForm: dos modos de alta", () => {
   it("el botón deshabilitado por fotos faltantes enlaza la explicación en una región en vivo", () => {
     render1();
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
-    const submit = screen.getByRole("button", { name: "Dar de alta producto" });
+    const submit = screen.getByRole("button", { name: "Guardar producto" });
     expect(submit).toBeDisabled();
     const help = document.getElementById(submit.getAttribute("aria-describedby") ?? "none");
     expect(help).toHaveTextContent("Para el catálogo se necesitan las dos fotos");

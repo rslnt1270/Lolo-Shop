@@ -6,10 +6,13 @@ import type { Product } from "@/lib/domain/types";
 import type { InventoryDataSource } from "../source";
 
 const base = {
-  barcode: "7501", sku: "LS-000001-1", title: "Playera", brand: "Nike", brandId: "b1", departmentId: "d1",
-  publicCode: "K7Q2M", price: 250, category: "Playeras", initialStock: 7, locationId: "loc-1", userId: "u1",
-  imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg",
+  title: "Playera", brand: "Nike", brandId: "b1", departmentId: "d1",
+  publicCode: "K7Q2M", category: "Playeras", locationId: "loc-1", userId: "u1",
+  imageUrl: "https://a/f.jpg" as string | null, backImageUrl: "https://a/b.jpg" as string | null,
+  variants: [{ barcode: "7501", sku: "LS-000001-1", size: "", price: 250, initialStock: 7 }],
 };
+/** Una talla con otro sku y código (antes `sku` y `barcode` iban sueltos en el alta). */
+const one = (sku: string, barcode: string) => [{ ...base.variants[0], sku, barcode }];
 
 describe("proyección pública (B1)", () => {
   it("no expone sku, barcode, inventory, locationId ni cifras de stock", async () => {
@@ -77,13 +80,13 @@ describe("catálogo público: solo productos con las dos fotos", () => {
   it("un producto de solo stock no aparece; con frente y atrás sí, con backImageUrl", async () => {
     const ds = new FixtureDataSource();
     const store = (await ds.getLocations()).find((l) => l.type === "store")!;
-    await ds.createProduct({ ...base, imageUrl: null, backImageUrl: null, locationId: store.id, publicCode: "AAAA1", sku: "S-1", barcode: "9001" });
+    await ds.createProduct({ ...base, imageUrl: null, backImageUrl: null, locationId: store.id, publicCode: "AAAA1", variants: one("S-1", "9001") });
     await ds.createProduct({
-      ...base, locationId: store.id, publicCode: "BBBB2", sku: "S-2", barcode: "9002",
+      ...base, locationId: store.id, publicCode: "BBBB2", variants: one("S-2", "9002"),
       imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg",
     });
     await ds.createProduct({
-      ...base, locationId: store.id, publicCode: "CCCC3", sku: "S-3", barcode: "9003", imageUrl: "https://a/f.jpg", backImageUrl: null,
+      ...base, locationId: store.id, publicCode: "CCCC3", variants: one("S-3", "9003"), imageUrl: "https://a/f.jpg", backImageUrl: null,
     });
     const codes = (await getPublicCatalog(ds)).map((p) => p.publicCode);
     expect(codes).not.toContain("AAAA1");

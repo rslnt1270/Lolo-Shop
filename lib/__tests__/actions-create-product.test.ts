@@ -29,8 +29,12 @@ import { UnauthenticatedError } from "../auth/errors";
 import { isValidInternalSku } from "../domain/barcode";
 
 const input: CreateProductInput = {
-  barcode: "4006381333931", title: "Gorra", brandId: "brand-1", departmentId: "dep-1", price: 10, category: "Accesorios", initialStock: 2, locationId: "loc-1",
+  title: "Gorra", brandId: "brand-1", departmentId: "dep-1", category: "Accesorios", locationId: "loc-1",
+  sizes: [{ size: "", barcode: "4006381333931", price: 10, initialStock: 2 }],
 };
+/** El alta con la única talla modificada (antes `barcode`, `price`, `size` e `initialStock` iban sueltos). */
+const row = (patch: Record<string, unknown>, extra: Partial<CreateProductInput> = {}): CreateProductInput =>
+  ({ ...input, ...extra, sizes: [{ ...input.sizes[0], ...patch }] }) as CreateProductInput;
 const session = (role: string, locationId: string | null) => ({ id: "u1", role, locationId });
 const product = { id: "p1", title: "Gorra", brand: "Lolo", category: "Accesorios", imageUrl: null, variants: [] };
 const variant = (sku: string) => ({ id: "v1", sku, title: "Gorra", size: "U", color: "General", price: 10, barcode: "4006381333931", inventory: [{ locationId: "loc-1", available: 2 }] });
@@ -41,7 +45,7 @@ describe("createProductAction", () => {
     getCurrentUser.mockReset();
     getProductByBarcode.mockReset().mockResolvedValue(null);
     getLocations.mockReset().mockResolvedValue([{ id: "loc-1", name: "Tienda 1" }, { id: "loc-2", name: "Tienda 2" }]);
-    createProduct.mockReset().mockImplementation(async (d: { sku: string }) => ({ product, variant: variant(d.sku) }));
+    createProduct.mockReset().mockImplementation(async (d: { variants: { sku: string }[] }) => ({ product, variants: [variant(d.variants[0].sku)] }));
     revalidatePath.mockReset();
     brandFindUnique.mockReset().mockResolvedValue({ name: "Lolo", isActive: true });
     departmentFindUnique.mockReset().mockResolvedValue({ isActive: true });
@@ -102,8 +106,8 @@ describe("createProductAction", () => {
   it("valida en el servidor → INVALID con mensaje", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
     expect(await createProductAction({ ...input, category: "" })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/categoría/i) });
-    expect(await createProductAction({ ...input, initialStock: -1 })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/stock/i) });
-    expect(await createProductAction({ ...input, price: 0 })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/precio/i) });
+    expect(await createProductAction(row({ initialStock: -1 }))).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/stock/i) });
+    expect(await createProductAction(row({ price: 0 }))).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/precio/i) });
     expect(createProduct).not.toHaveBeenCalled();
   });
 
@@ -152,27 +156,27 @@ describe("createProductAction", () => {
 
   it("GTIN con dígito verificador incorrecto → INVALID", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    const r = await createProductAction({ ...input, barcode: "4006381333932" });
+    const r = await createProductAction(row({ barcode: "4006381333932" }));
     expect(r).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/verificador/) });
   });
 
   it("sin código y sin marcar 'sin código' → INVALID", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    expect(await createProductAction({ ...input, barcode: "  " })).toMatchObject({ ok: false, code: "INVALID" });
+    expect(await createProductAction(row({ barcode: "  " }))).toMatchObject({ ok: false, code: "INVALID" });
   });
 
-  it("noBarcode → barcode null aunque venga texto", async () => {
+  it("«Sin código» (barcode null) → barcode null y no busca duplicados", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    const r = await createProductAction({ ...input, barcode: "999", noBarcode: true });
+    const r = await createProductAction(row({ barcode: null }));
     expect(r.ok).toBe(true);
-    expect(createProduct.mock.calls[0][0].barcode).toBeNull();
+    expect(createProduct.mock.calls[0][0].variants[0].barcode).toBeNull();
     expect(getProductByBarcode).not.toHaveBeenCalled();
   });
 
   it("normaliza el barcode y genera el SKU en el servidor (ignora sku del cliente)", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    const r = await createProductAction({ ...input, barcode: " 4006381333931\n", sku: "HACK" } as CreateProductInput);
-    const sent = createProduct.mock.calls[0][0];
+    const r = await createProductAction(row({ barcode: " 4006381333931\n", sku: "HACK" }, { sku: "HACK" } as Partial<CreateProductInput>));
+    const sent = createProduct.mock.calls[0][0].variants[0];
     expect(sent.barcode).toBe("4006381333931");
     expect(isValidInternalSku(sent.sku)).toBe(true);
     expect(r).toMatchObject({ ok: true, variantId: "v1", sku: sent.sku });
@@ -180,24 +184,24 @@ describe("createProductAction", () => {
 
   it("talla, precio redondeado y textos recortados llegan al data source", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    await createProductAction({ ...input, title: " Gorra ", price: 10.005, size: "M" });
-    expect(createProduct.mock.calls[0][0]).toMatchObject({ title: "Gorra", price: 10.01, size: "M" });
+    await createProductAction(row({ price: 10.005, size: "M" }, { title: " Gorra " }));
+    expect(createProduct.mock.calls[0][0]).toMatchObject({ title: "Gorra", variants: [{ price: 10.01, size: "M" }] });
   });
 
   it("alfanumérico se guarda en MAYÚSCULAS y busca duplicado con esa forma; EAN no cambia", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    await createProductAction({ ...input, barcode: " abc-1 " });
+    await createProductAction(row({ barcode: " abc-1 " }));
     expect(getProductByBarcode).toHaveBeenCalledWith("ABC-1");
-    expect(createProduct.mock.calls[0][0].barcode).toBe("ABC-1");
+    expect(createProduct.mock.calls[0][0].variants[0].barcode).toBe("ABC-1");
     await createProductAction(input);
-    expect(createProduct.mock.calls[1][0].barcode).toBe("4006381333931");
+    expect(createProduct.mock.calls[1][0].variants[0].barcode).toBe("4006381333931");
   });
 
   it("existe 'abc-1' y se da de alta 'ABC-1' → DUPLICATE", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
     getProductByBarcode.mockImplementation(async (c: string) =>
       c.toLowerCase() === "abc-1" ? { product, variant: { ...variant("LS-X"), id: "v-abc", barcode: "abc-1" } } : null);
-    expect(await createProductAction({ ...input, barcode: "ABC-1" })).toMatchObject({ ok: false, code: "DUPLICATE", existingVariantId: "v-abc" });
+    expect(await createProductAction(row({ barcode: "ABC-1" }))).toMatchObject({ ok: false, code: "DUPLICATE", existingVariantId: "v-abc" });
   });
 
   it("código ya registrado (lookup) → DUPLICATE con existingVariantId", async () => {

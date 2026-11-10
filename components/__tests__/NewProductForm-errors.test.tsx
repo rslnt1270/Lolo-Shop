@@ -36,7 +36,7 @@ async function submitValid(onSuccess = vi.fn(), onDuplicate?: (id: string) => vo
   await pickBrandAndDepartment();
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
   fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
-  fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+  fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
   return onSuccess;
 }
 
@@ -52,8 +52,9 @@ describe("NewProductForm: errores del servidor", () => {
     await submitValid();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(screen.getByTestId("codigo-escaneado").textContent).toBe("750123");
-    expect(createProductAction.mock.calls[0][0]).toMatchObject({ barcode: "750123", noBarcode: false, locationId: "loc-1" });
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ sizes: [{ barcode: "750123" }], locationId: "loc-1" });
     expect(createProductAction.mock.calls[0][0]).not.toHaveProperty("sku");
+    expect(createProductAction.mock.calls[0][0].sizes[0]).not.toHaveProperty("sku");
   });
 
   it("código duplicado muestra el mensaje del servidor y ofrece abrir el producto existente", async () => {
@@ -96,7 +97,7 @@ describe("NewProductForm: errores del servidor", () => {
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0][0].message).toMatch(/Dado de alta SIN fotos: Falta el token del almacén\. Agrégalas desde \/productos/);
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ mode: "stock", imageUrl: null, backImageUrl: null });
@@ -111,7 +112,7 @@ describe("NewProductForm: errores del servidor", () => {
     const btn = screen.getByRole("button", { name: /procesando foto/i });
     expect(btn).toBeDisabled();
     fireEvent.click(screen.getAllByText("foto-lista")[0]);
-    expect(screen.getByRole("button", { name: /dar de alta/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /guardar producto/i })).toBeEnabled();
   });
 
   it("no duplica el punto cuando el mensaje de foto ya termina en punto", async () => {
@@ -125,7 +126,7 @@ describe("NewProductForm: errores del servidor", () => {
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
-    fireEvent.click(screen.getByRole("button", { name: /dar de alta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0][0].message).not.toMatch(/\.\./);
   });

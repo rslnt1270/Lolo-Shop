@@ -55,18 +55,15 @@ describe("FixtureDataSource.updateProductImage", () => {
   it("actualiza el imageUrl del producto indicado", async () => {
     const ds = new FixtureDataSource();
     const { product } = await ds.createProduct({
-      barcode: "TEST-IMG-001",
-      sku: "LS-IMG001-0",
       userId: "u1",
       title: "Producto Test Imagen",
       brand: "TestBrand",
       brandId: "b1",
       departmentId: "d1",
       publicCode: "K7Q2M",
-      price: 100,
       category: "Playeras",
-      initialStock: 1,
       locationId: "loc-1",
+      variants: [{ barcode: "TEST-IMG-001", sku: "LS-IMG001-0", size: "U", price: 100, initialStock: 1 }],
     });
 
     await ds.updateProductImage(product.id, "https://blob.example/x.jpg");
@@ -118,22 +115,19 @@ describe("FixtureDataSource.createLocation", () => {
 describe("FixtureDataSource.createProduct", () => {
   it("guarda la categoría y el stock inicial indicados", async () => {
     const ds = new FixtureDataSource();
-    const { product, variant } = await ds.createProduct({
-      barcode: "TEST-CAT-001",
-      sku: "LS-CAT001-0",
+    const { product, variants } = await ds.createProduct({
       userId: "u1",
       title: "Gorra Snapback",
       brand: "LoloShop",
       brandId: "b1",
       departmentId: "d1",
       publicCode: "ABCDE",
-      price: 420,
       category: "Accesorios",
-      initialStock: 0,
       locationId: "loc-2",
+      variants: [{ barcode: "TEST-CAT-001", sku: "LS-CAT001-0", size: "U", price: 420, initialStock: 0 }],
     });
 
     expect(product.category).toBe("Accesorios");
-    expect(variant.inventory).toEqual([{ locationId: "loc-2", available: 0 }]);
+    expect(variants[0].inventory).toEqual([{ locationId: "loc-2", available: 0 }]);
   });
 });

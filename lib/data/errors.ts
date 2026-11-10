@@ -37,6 +37,17 @@ export class InsufficientStockError extends Error {
   }
 }
 
+/**
+ * Regla de inventario incumplida (producto inactivo o unido, talla ya
+ * existente sin código, …). El mensaje es para el operador.
+ */
+export class InventoryRuleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InventoryRuleError";
+  }
+}
+
 /** La variante o la tienda de un movimiento de stock no existe. */
 export class StockTargetNotFoundError extends Error {
   constructor(message = "La prenda o la tienda no existe.") {

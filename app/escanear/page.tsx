@@ -5,8 +5,13 @@ import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
 import type { EntryMode } from "@/lib/domain/new-product";
-import type { Role } from "@/lib/domain/types";
+import type { Product, Role } from "@/lib/domain/types";
+import type { ProductSearchHit } from "@/lib/data/source";
 import { NewProductForm, type CreatedInfo } from "@/components/products/NewProductForm";
+import { ExistingProductSearch } from "@/components/products/ExistingProductSearch";
+import { AddSizeForm } from "@/components/products/AddSizeForm";
+import { SumToMyStore } from "@/components/inventory/SumToMyStore";
+import { sortSizes } from "@/lib/domain/sizes";
 import {
   lookupCodeAction,
   fetchLocationsAction,
@@ -20,6 +25,31 @@ type LocationOption = { id: string; name: string };
 
 const LOCATION_KEY = "loloshop:escanear:location";
 
+/** Tallas activas del producto (para "Agregar talla" desde la tarjeta). */
+function toSearchHit(product: Product): ProductSearchHit {
+  const sizes = product.variants.filter((v) => v.isActive !== false).map((v) => v.size || v.title);
+  return {
+    productId: product.id,
+    title: product.title,
+    brand: product.brand,
+    publicCode: product.publicCode ?? null,
+    imageUrl: product.imageUrl,
+    sizes: sortSizes([...new Set(sizes)]),
+  };
+}
+
+/** Piezas por talla en la tienda (suma las etiquetas de una misma talla), en orden de exhibición. */
+function stockBySize(product: Product, locationId: string): { size: string; available: number }[] {
+  const by = new Map<string, number>();
+  for (const v of product.variants) {
+    if (v.isActive === false) continue;
+    const size = v.size || v.title;
+    const here = v.inventory.find((l) => l.locationId === locationId)?.available ?? 0;
+    by.set(size, (by.get(size) ?? 0) + here);
+  }
+  return sortSizes([...by.keys()]).map((size) => ({ size, available: by.get(size) ?? 0 }));
+}
+
 export default function EscanearPage() {
   const { data: session, status } = useSession();
   const [found, setFound] = useState<Found | null>(null);
@@ -28,6 +58,10 @@ export default function EscanearPage() {
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   // undefined = sin formulario; null = alta sin código; string = alta con código.
   const [newCode, setNewCode] = useState<string | null | undefined>(undefined);
+  // Código nuevo: primero "¿Es otra talla…?" ("ask"); "new" abre el alta.
+  const [altaStep, setAltaStep] = useState<"ask" | "new">("ask");
+  // Producto elegido para "Agregar talla" y el código de la talla nueva.
+  const [addSize, setAddSize] = useState<{ product: ProductSearchHit; code: string | null } | null>(null);
   const [searching, setSearching] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [message, setMessage] = useState("");
@@ -85,6 +119,8 @@ export default function EscanearPage() {
     setFound(null);
     setNewCode(undefined);
     setLookupError("");
+    setAltaStep("ask");
+    setAddSize(null);
   };
 
   const handleScan = useCallback(async (code: string) => {
@@ -94,6 +130,8 @@ export default function EscanearPage() {
     setLookupError("");
     setFound(null);
     setNewCode(undefined);
+    setAltaStep("ask");
+    setAddSize(null);
     setSearching(true);
     try {
       const result = await lookupCodeAction(code);
@@ -127,6 +165,10 @@ export default function EscanearPage() {
   const variant = found?.product.variants.find((v) => v.id === found.variantId) ?? found?.product.variants[0];
   const stockHere = variant ? (variant.inventory.find((l) => l.locationId === locationId)?.available ?? 0) : null;
   const showScanner = !scannedCode && newCode === undefined;
+  const sizesHere = found && locationId ? stockBySize(found.product, locationId) : [];
+  // La etiqueta escaneada tiene piezas en otras tiendas pero ninguna fila en la tuya.
+  const onlyInOtherStore =
+    !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId) && variant.inventory.length > 0;
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
@@ -202,34 +244,96 @@ export default function EscanearPage() {
         </div>
       )}
 
-      {found && !searching && (
+      {addSize && !searching && (
+        <div className="rounded-xl border bg-white p-4 shadow-sm">
+          {!locationId ? (
+            <p className="text-sm text-gray-600">Elige una tienda arriba para agregar la talla.</p>
+          ) : (
+            <AddSizeForm
+              product={addSize.product}
+              scannedCode={addSize.code}
+              locationId={locationId}
+              onDone={(text) => {
+                setIsError(false);
+                setMessage(`${text} Escanea la siguiente etiqueta.`);
+                reset();
+              }}
+              onCancel={() => {
+                reset();
+                setMessage("");
+              }}
+              onChangeProduct={newCode ? () => setAddSize(null) : undefined}
+            />
+          )}
+        </div>
+      )}
+
+      {found && !searching && !addSize && (
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <p className="mb-2 text-sm text-gray-500">Código escaneado: {scannedCode}</p>
           <div className="space-y-4">
             <div>
               <h2 className="text-lg font-semibold">{found.product.title}</h2>
               <p className="text-sm text-gray-600">
-                {variant?.title} - {found.product.brand}
+                Talla {variant?.size || variant?.title} - {found.product.brand}
               </p>
               {variant && <p className="mt-1 font-mono text-sm">Precio: ${Number(variant.price)}</p>}
             </div>
             {locationId ? (
               <>
+                {sizesHere.length > 0 && (
+                  <ul aria-label="Tallas en tu tienda" className="flex flex-wrap gap-2">
+                    {sizesHere.map((s) => (
+                      <li
+                        key={s.size}
+                        className={`rounded-full border px-3 py-1 text-sm ${
+                          s.size === (variant?.size || variant?.title) ? "border-loloteal font-semibold text-loloteal" : "border-gray-300 text-gray-700"
+                        }`}
+                      >
+                        {`${s.size}: ${s.available} pzas`}
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {stockHere !== null && (
                   <p className="text-sm text-gray-700">
                     En esta tienda: <span className="font-semibold">{stockHere} pzas</span>
                   </p>
                 )}
-                <StockMovementPanel
-                  variantId={found.variantId}
-                  locationId={locationId}
-                  role={role as Role}
-                  onDone={(available) => {
-                    setIsError(false);
-                    setMessage(`Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
-                    reset();
-                  }}
-                />
+                {onlyInOtherStore ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-700">
+                      Esta etiqueta está registrada en otra tienda; aquí todavía no tiene piezas.
+                    </p>
+                    <SumToMyStore
+                      variantId={found.variantId}
+                      locationId={locationId}
+                      onDone={(available) => {
+                        setIsError(false);
+                        setMessage(`Piezas sumadas: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
+                        reset();
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <StockMovementPanel
+                    variantId={found.variantId}
+                    locationId={locationId}
+                    role={role as Role}
+                    onDone={(available) => {
+                      setIsError(false);
+                      setMessage(`Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
+                      reset();
+                    }}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAddSize({ product: toSearchHit(found.product), code: null })}
+                  className="min-h-[44px] w-full rounded-lg border border-loloteal bg-white px-4 font-semibold text-loloteal active:bg-gray-100"
+                >
+                  Agregar talla
+                </button>
               </>
             ) : (
               <p className="text-sm text-gray-600">Elige una tienda arriba para registrar el movimiento.</p>
@@ -247,7 +351,14 @@ export default function EscanearPage() {
         </div>
       )}
 
-      {newCode !== undefined && !searching && !found && (
+      {newCode !== undefined && !searching && !found && !addSize && newCode !== null && altaStep === "ask" && (
+        <ExistingProductSearch
+          onPick={(hit) => setAddSize({ product: hit, code: newCode })}
+          onNew={() => setAltaStep("new")}
+        />
+      )}
+
+      {newCode !== undefined && !searching && !found && !addSize && (newCode === null || altaStep === "new") && (
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           {!locationId ? (
             <p className="text-sm text-gray-600">Elige una tienda arriba para dar de alta el producto.</p>
@@ -266,6 +377,11 @@ export default function EscanearPage() {
               }}
               onDuplicate={() => {
                 if (newCode) void handleScan(newCode);
+              }}
+              onStockAdded={(available) => {
+                setIsError(false);
+                setMessage(`Piezas sumadas en tu tienda. Ahora hay ${available}. Escanea la siguiente etiqueta.`);
+                reset();
               }}
               onCancel={() => {
                 reset();

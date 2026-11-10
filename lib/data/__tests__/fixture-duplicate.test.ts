@@ -1,46 +1,53 @@
 import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
 import { uniqueViolationField } from "../errors";
+import type { CreateProductData } from "../source";
 
-const data = {
-  barcode: "DUP-1", sku: "LS-000000-0", title: "A", brand: "B", brandId: "b1", departmentId: "d1", publicCode: "K7Q2M", price: 1,
-  category: "Accesorios", initialStock: 1, locationId: "loc-1", userId: "u1",
+const product = {
+  title: "A", brand: "B", brandId: "b1", departmentId: "d1", publicCode: "K7Q2M",
+  category: "Accesorios", locationId: "loc-1", userId: "u1",
+};
+const variant = { barcode: "DUP-1" as string | null, sku: "LS-000000-0", size: "", price: 1, initialStock: 1 };
+/** Alta de una talla; `publicCode` va al producto y lo demás a la variante (antes eran campos sueltos). */
+const data = (patch: Partial<typeof variant> & { publicCode?: string } = {}): CreateProductData => {
+  const { publicCode, ...v } = patch;
+  return { ...product, ...(publicCode ? { publicCode } : {}), variants: [{ ...variant, ...v }] };
 };
 
 describe("createProduct: código duplicado", () => {
   it("rechaza un barcode que ya existe (contrato igual al unique de Prisma)", async () => {
     const ds = new FixtureDataSource();
-    await ds.createProduct(data);
-    const err = await ds.createProduct({ ...data, sku: "LS-00000Z-Z" }).catch((e) => e);
+    await ds.createProduct(data());
+    const err = await ds.createProduct(data({ sku: "LS-00000Z-Z" })).catch((e) => e);
     expect(err).toBeInstanceOf(Error);
     expect(uniqueViolationField(err)).toBe("barcode");
   });
 
   it("rechaza un sku que ya existe", async () => {
     const ds = new FixtureDataSource();
-    await ds.createProduct(data);
-    const err = await ds.createProduct({ ...data, barcode: "OTRO" }).catch((e) => e);
+    await ds.createProduct(data());
+    const err = await ds.createProduct(data({ barcode: "OTRO" })).catch((e) => e);
     expect(uniqueViolationField(err)).toBe("sku");
   });
 
   it("rechaza un publicCode que ya existe", async () => {
     const ds = new FixtureDataSource();
-    await ds.createProduct(data);
-    const err = await ds.createProduct({ ...data, barcode: "OTRO", sku: "LS-00000Z-Z" }).catch((e) => e);
+    await ds.createProduct(data());
+    const err = await ds.createProduct(data({ barcode: "OTRO", sku: "LS-00000Z-Z" })).catch((e) => e);
     expect(uniqueViolationField(err)).toBe("publicCode");
   });
 
   it("varios productos sin código (barcode null) no chocan", async () => {
     const ds = new FixtureDataSource();
-    await ds.createProduct({ ...data, barcode: null });
-    await expect(ds.createProduct({ ...data, barcode: null, sku: "LS-00000Z-Z", publicCode: "AAAAA" })).resolves.toBeTruthy();
+    await ds.createProduct(data({ barcode: null }));
+    await expect(ds.createProduct(data({ barcode: null, sku: "LS-00000Z-Z", publicCode: "AAAAA" }))).resolves.toBeTruthy();
   });
 });
 
 describe("FixtureDataSource: estado por instancia", () => {
   it("un alta en una instancia no aparece en otra ni muta los fixtures", async () => {
     const a = new FixtureDataSource();
-    await a.createProduct({ ...data, barcode: "SOLO-A" });
+    await a.createProduct(data({ barcode: "SOLO-A" }));
     const b = new FixtureDataSource();
     expect(await b.getProductByBarcode("SOLO-A")).toBeNull();
     expect(await b.getProducts()).toHaveLength(2);
@@ -70,7 +77,7 @@ describe("FixtureDataSource.getProductByBarcode: barcode o sku con candidatos", 
 
   it("UPC-A escaneado encuentra el EAN-13 guardado con 0 inicial", async () => {
     const ds = new FixtureDataSource();
-    await ds.createProduct({ ...data, barcode: "0036000291452" });
+    await ds.createProduct(data({ barcode: "0036000291452" }));
     const m = await ds.getProductByBarcode("036000291452");
     expect(m?.variant.barcode).toBe("0036000291452");
   });
@@ -85,15 +92,18 @@ describe("FixtureDataSource.getProductByBarcode: barcode o sku con candidatos", 
 describe("FixtureDataSource.createProduct: talla", () => {
   it("guarda la talla o U por defecto", async () => {
     const ds = new FixtureDataSource();
-    expect((await ds.createProduct({ ...data, barcode: "T1", sku: "LS-000001-1" })).variant.size).toBe("U");
-    expect((await ds.createProduct({ ...data, barcode: "T2", sku: "LS-000002-2", publicCode: "BBBBB", size: "M" })).variant.size).toBe("M");
+    expect((await ds.createProduct(data({ barcode: "T1", sku: "LS-000001-1" }))).variants[0].size).toBe("U");
+    expect((await ds.createProduct(data({ barcode: "T2", sku: "LS-000002-2", publicCode: "BBBBB", size: "M" }))).variants[0].size).toBe("M");
   });
 });
 
 describe("FixtureDataSource.getProductByBarcode: mayúsculas en alfanuméricos", () => {
   it("existe 'abc-1' (dato viejo) y se busca 'ABC-1' → lo encuentra", async () => {
     const ds = new FixtureDataSource();
-    await ds.createProduct({ ...data, barcode: "abc-1" });
+    await ds.createProduct(data({ barcode: "abc-1" }));
+    // El alta ya guarda "ABC-1": se simula el dato viejo en minúsculas sobre el estado en memoria.
+    const stored = (await ds.getProducts()).flatMap((p) => p.variants).find((v) => v.barcode === "ABC-1")!;
+    stored.barcode = "abc-1";
     expect((await ds.getProductByBarcode("ABC-1"))?.variant.barcode).toBe("abc-1");
     expect((await ds.getProductByBarcode("Abc-1"))?.variant.barcode).toBe("abc-1");
   });

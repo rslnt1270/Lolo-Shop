@@ -1,11 +1,14 @@
 import type { Location, Product, Variant } from "@/lib/domain/types";
-import type {
-  InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData, RecordStockMovementData,
+import {
+  MAX_SEARCH_RESULTS,
+  type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource,
+  type ProductSearchHit, type RecordStockMovementData, type VariantMatch,
 } from "./source";
 import { fixtureLocations, fixtureProducts } from "./fixtures";
-import { codeCandidates } from "@/lib/domain/barcode";
-import { DEFAULT_SIZE } from "@/lib/domain/new-product";
-import { InsufficientStockError, StockTargetNotFoundError, UniqueConstraintError } from "./errors";
+import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
+import { normalizeSize, sortSizes } from "@/lib/domain/sizes";
+import { normalizePublicCode } from "@/lib/domain/public-code";
+import { InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, UniqueConstraintError } from "./errors";
 
 function cloneProducts(products: Product[]): Product[] {
   return products.map((p) => ({
@@ -92,43 +95,115 @@ export class FixtureDataSource implements InventoryDataSource {
     return { available: current + delta, replayed: false };
   }
 
-  async createProduct(data: CreateProductData): Promise<VariantMatch> {
-    const variants = this.products.flatMap((p) => p.variants);
-    if (data.barcode !== null && variants.some((v) => v.barcode === data.barcode)) {
-      throw new UniqueConstraintError("barcode");
+  /** Mismas reglas de unicidad que Prisma: barcode y sku únicos en toda la base (también dentro del envío). */
+  private assertUnique(rows: { sku: string; barcode: string | null }[]): void {
+    const existing = this.products.flatMap((p) => p.variants);
+    const barcodes = new Set(existing.flatMap((v) => (v.barcode === null ? [] : [v.barcode.toUpperCase()])));
+    const skus = new Set(existing.map((v) => v.sku));
+    for (const r of rows) {
+      if (r.barcode !== null) {
+        if (barcodes.has(r.barcode.toUpperCase())) throw new UniqueConstraintError("barcode");
+        barcodes.add(r.barcode.toUpperCase());
+      }
+      if (skus.has(r.sku)) throw new UniqueConstraintError("sku");
+      skus.add(r.sku);
     }
-    if (variants.some((v) => v.sku === data.sku)) {
-      throw new UniqueConstraintError("sku");
-    }
+  }
+
+  private newVariant(r: { sku: string; barcode: string | null; size: string; price: number; initialStock: number }, locationId: string): Variant {
+    return {
+      id: nextId("var"),
+      title: r.size,
+      sku: r.sku,
+      barcode: r.barcode,
+      size: r.size,
+      color: "General",
+      price: r.price,
+      isActive: true,
+      inventory: [{ locationId, available: r.initialStock }],
+    };
+  }
+
+  private recordAlta(variantId: string, locationId: string, userId: string, delta: number): void {
+    if (delta <= 0) return;
+    this.movements.push({ variantId, locationId, type: "RESTOCK", delta, notes: "alta", requestId: nextId("alta"), userId });
+  }
+
+  async createProduct(data: CreateProductData): Promise<CreatedProduct> {
+    const rows = data.variants.map((v) => ({
+      ...v,
+      barcode: v.barcode === null ? null : canonicalCode(v.barcode),
+      size: normalizeSize(v.size),
+    }));
+    // Todo o nada, como la transacción de Prisma: se valida antes de escribir.
+    this.assertUnique(rows);
     if (this.publicCodes.has(data.publicCode)) {
       throw new UniqueConstraintError("publicCode");
     }
     this.publicCodes.add(data.publicCode);
 
-    const productId = nextId("prod");
-    const variant: Variant = {
-      id: nextId("var"),
-      title: data.title,
-      sku: data.sku,
-      barcode: data.barcode,
-      size: data.size?.trim() || DEFAULT_SIZE,
-      color: "General",
-      price: data.price,
-      inventory: [{ locationId: data.locationId, available: data.initialStock }],
-    };
+    const variants = rows.map((r) => this.newVariant(r, data.locationId));
     const product: Product = {
-      id: productId,
+      id: nextId("prod"),
       title: data.title,
       category: data.category,
       brand: data.brand,
+      brandId: data.brandId,
+      departmentId: data.departmentId,
       imageUrl: data.imageUrl ?? null,
       backImageUrl: data.backImageUrl ?? null,
       description: data.description ?? null,
       publicCode: data.publicCode,
-      variants: [variant],
+      isActive: true,
+      mergedIntoId: null,
+      createdAt: new Date().toISOString(),
+      variants,
     };
     this.products = [...this.products, product];
+    rows.forEach((r, i) => this.recordAlta(variants[i].id, data.locationId, data.userId, r.initialStock));
+    return { product, variants };
+  }
+
+  async addVariant(data: AddVariantData): Promise<VariantMatch> {
+    const product = this.products.find((p) => p.id === data.productId);
+    if (!product) throw new InventoryRuleError("El producto ya no existe. Búscalo de nuevo.");
+    if (product.isActive === false || product.mergedIntoId) {
+      throw new InventoryRuleError("Ese producto ya no está activo o se unió con otro. Búscalo de nuevo.");
+    }
+    const size = normalizeSize(data.size);
+    const barcode = data.barcode === null ? null : canonicalCode(data.barcode);
+    if (barcode === null && product.variants.some((v) => v.isActive !== false && v.size.toUpperCase() === size)) {
+      throw new InventoryRuleError("Esa talla ya existe: suma piezas con Entrada");
+    }
+    this.assertUnique([{ sku: data.sku, barcode }]);
+    const variant = this.newVariant({ ...data, size, barcode }, data.locationId);
+    product.variants.push(variant);
+    this.recordAlta(variant.id, data.locationId, data.userId, data.initialStock);
     return { product, variant };
+  }
+
+  async searchProducts(query: string): Promise<ProductSearchHit[]> {
+    const q = String(query ?? "").trim().slice(0, 80);
+    if (!q) return [];
+    const code = normalizePublicCode(q);
+    const needle = q.toLowerCase();
+    const matches = this.products.filter(
+      (p) =>
+        p.isActive !== false &&
+        !p.mergedIntoId &&
+        ((code !== null && p.publicCode === code) ||
+          p.title.toLowerCase().includes(needle) ||
+          p.brand.toLowerCase().includes(needle)),
+    );
+    const ordered = code ? [...matches.filter((p) => p.publicCode === code), ...matches.filter((p) => p.publicCode !== code)] : matches;
+    return ordered.slice(0, MAX_SEARCH_RESULTS).map((p) => ({
+      productId: p.id,
+      title: p.title,
+      brand: p.brand,
+      publicCode: p.publicCode ?? null,
+      imageUrl: p.imageUrl,
+      sizes: sortSizes([...new Set(p.variants.filter((v) => v.isActive !== false).map((v) => v.size))]),
+    }));
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {

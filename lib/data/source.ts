@@ -5,11 +5,20 @@ export interface VariantMatch {
   variant: Variant;
 }
 
-export interface CreateProductData {
-  /** Código de la etiqueta ya normalizado, o null si el producto no trae código. */
-  barcode: string | null;
+/** Una variante (talla) del alta. */
+export interface CreateVariantData {
   /** SKU interno generado en el servidor (`generateInternalSku`). */
   sku: string;
+  /** Código de la etiqueta; el data source lo guarda canónico (mayúsculas). Null = sin código. */
+  barcode: string | null;
+  /** Talla normalizada; también es el `Variant.title`. */
+  size: string;
+  price: number;
+  /** Piezas contadas en `locationId` (0 si aún no se cuentan). */
+  initialStock: number;
+}
+
+export interface CreateProductData {
   title: string;
   /** Nombre canónico de la marca (se sigue guardando en `Product.brand` durante la transición, ER §2.3). */
   brand: string;
@@ -17,19 +26,49 @@ export interface CreateProductData {
   departmentId: string;
   /** Código público corto (`generatePublicCode`); único, el llamador reintenta ante P2002. */
   publicCode: string;
-  price: number;
   category: string;
-  /** Talla de la variante; por defecto "U". */
-  size?: string;
-  /** Piezas contadas al dar de alta en `locationId` (0 si aún no se cuentan). */
-  initialStock: number;
+  /** Una por talla (1 a 12); sustituye barcode, sku, price, size e initialStock sueltos. */
+  variants: CreateVariantData[];
   locationId: string;
   imageUrl?: string | null;
   backImageUrl?: string | null;
   description?: string | null;
-  /** Usuario que da de alta; queda en el Movement RESTOCK si initialStock > 0. */
+  /** Usuario que da de alta; queda en el Movement RESTOCK de cada talla con piezas. */
   userId: string;
 }
+
+export interface CreatedProduct {
+  /** El producto con sus variantes recién creadas. */
+  product: Product;
+  /** Las variantes en el orden de `CreateProductData.variants`. */
+  variants: Variant[];
+}
+
+export interface AddVariantData {
+  productId: string;
+  sku: string;
+  size: string;
+  barcode: string | null;
+  price: number;
+  initialStock: number;
+  locationId: string;
+  userId: string;
+}
+
+/** Resultado de la búsqueda interna de productos (staff): sin SKU, códigos de barras ni conteos. */
+export interface ProductSearchHit {
+  productId: string;
+  title: string;
+  brand: string;
+  publicCode: string | null;
+  /** Foto de frente. */
+  imageUrl: string | null;
+  /** Tallas activas, sin repetir y en orden de `sortSizes`. */
+  sizes: string[];
+}
+
+/** Máximo de resultados de `searchProducts`. */
+export const MAX_SEARCH_RESULTS = 8;
 
 export interface CreateLocationData {
   name: string;
@@ -68,11 +107,25 @@ export interface InventoryDataSource {
    */
   recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }>;
   /**
-   * Crea producto + variante + inventario inicial (+ Movement RESTOCK si
-   * initialStock > 0) de forma atómica. Si barcode o sku ya existen lanza un
-   * error con `code: "P2002"` y `meta.target` (mismo contrato que Prisma).
+   * Crea producto + N variantes (`title` = talla) + N filas de inventario en
+   * `locationId` + un Movement RESTOCK "alta" por talla con piezas, todo
+   * atómico. Si un barcode, sku o publicCode ya existe lanza un error con
+   * `code: "P2002"` y `meta.target` (mismo contrato que Prisma) y no crea nada.
    */
-  createProduct(data: CreateProductData): Promise<VariantMatch>;
+  createProduct(data: CreateProductData): Promise<CreatedProduct>;
+  /**
+   * Agrega una talla a un producto activo y sin unir (fila de inventario en
+   * `locationId` y RESTOCK si trae piezas). Lanza `InventoryRuleError` si el
+   * producto no existe, está inactivo o unido, o si ya hay una variante activa
+   * de esa talla y `barcode === null`. P2002 como en `createProduct`.
+   */
+  addVariant(data: AddVariantData): Promise<VariantMatch>;
+  /**
+   * Búsqueda interna: código público exacto (`normalizePublicCode`) o título o
+   * marca que contiene `query` sin distinguir mayúsculas. Solo productos
+   * activos y sin unir; máximo `MAX_SEARCH_RESULTS`.
+   */
+  searchProducts(query: string): Promise<ProductSearchHit[]>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
   updateProductBackImage(productId: string, backImageUrl: string): Promise<void>;
 }

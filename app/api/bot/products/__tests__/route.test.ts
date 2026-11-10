@@ -10,7 +10,7 @@ describe("GET /api/bot/products", () => {
     process.env.BOT_API_KEY = "k";
     state.ds = new FixtureDataSource();
     const store = (await state.ds.getLocations()).find((l) => l.type === "store")!;
-    await state.ds.createProduct({ barcode: "7501", sku: "LS-SECRET-1", title: "Playera Nike", brand: "Nike", brandId: "b", departmentId: "d", publicCode: "K7Q2M", price: 1, category: "c", initialStock: 5, locationId: store.id, userId: "u" });
+    await state.ds.createProduct({ title: "Playera Nike", brand: "Nike", brandId: "b", departmentId: "d", publicCode: "K7Q2M", category: "c", variants: [{ barcode: "7501", sku: "LS-SECRET-1", size: "", price: 1, initialStock: 5 }], locationId: store.id, userId: "u" });
   });
 
   it("exige x-bot-key", async () => {
