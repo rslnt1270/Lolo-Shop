@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart } from "lucide-react";
+import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart, History } from "lucide-react";
 
 export function NavBar() {
   const pathname = usePathname();
@@ -19,6 +19,7 @@ export function NavBar() {
     { name: "Etiquetas", href: "/etiquetas", icon: Tags },
     { name: "Productos", href: "/productos", icon: Package },
     { name: "Ventas", href: "/ventas", icon: Receipt },
+    { name: "Movimientos", href: "/movimientos", icon: History },
   ];
 
   return (
@@ -67,7 +68,7 @@ export function NavBar() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      {/* 7 destinos en 375 px: cada uno flex-1 (≈ 49 px) con mínimo de 44 px */}
+      {/* 8 destinos en 375 px: cada uno flex-1 (≈ 43 px) con mínimo de 44 px */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur-xl pb-6 pt-2 px-2 z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
         <div className="flex items-center max-w-md mx-auto">
           {navItems.map((item) => {

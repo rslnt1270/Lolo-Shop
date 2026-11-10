@@ -73,11 +73,21 @@ describe("NavBar", () => {
       "Etiquetas",
       "Productos",
       "Ventas",
+      "Movimientos",
       "Salir",
     ]);
     for (const t of targets) expect(t.className).toMatch(/\bmin-w-11\b.*\bflex-1\b|\bflex-1\b.*\bmin-w-11\b/);
     for (const t of targets) expect(t.className).toMatch(/\bh-12\b/);
     expect(screen.getAllByRole("link", { name: "Ventas" }).every((l) => l.getAttribute("aria-current") === "page")).toBe(true);
+  });
+
+  it("incluye el enlace Movimientos hacia /movimientos", () => {
+    mockSession("authenticated");
+    vi.mocked(usePathname).mockReturnValue("/");
+    render(<NavBar />);
+    const links = screen.getAllByRole("link", { name: "Movimientos" });
+    expect(links).toHaveLength(2);
+    for (const l of links) expect(l).toHaveAttribute("href", "/movimientos");
   });
 
   it("no renderiza nada en /pos (pantalla completa de venta)", () => {

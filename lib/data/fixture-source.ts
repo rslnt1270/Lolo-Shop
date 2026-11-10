@@ -4,7 +4,10 @@ import {
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
   type TransferStockData, type UpdateVariantPriceResult, type VariantMatch,
+  MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery, type MovementRow,
 } from "./source";
+import { MOVEMENT_TYPE_LABEL } from "@/lib/domain/types";
+import { mexicoRangeToUtc } from "@/lib/domain/movement-scope";
 import { fixtureLocations, fixtureProducts } from "./fixtures";
 import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
 import { normalizeSize, sortSizes } from "@/lib/domain/sizes";
@@ -20,7 +23,11 @@ function cloneProducts(products: Product[]): Product[] {
   }));
 }
 
+/** Movimiento del registro en memoria, con id y hora para el historial. */
+export type FixtureMovement = RecordStockMovementData & { id: string; timestamp: Date; saleNumber?: number | null };
+
 let seq = 0;
+let movementSeq = 0;
 const nextId = (prefix: string) => `${prefix}-${Date.now()}-${++seq}`;
 
 /** Doble de prueba en memoria: cada instancia tiene su propia copia del estado. */
@@ -29,9 +36,56 @@ export class FixtureDataSource implements InventoryDataSource {
   private products: Product[] = cloneProducts(fixtureProducts);
   private publicCodes = new Set<string>();
   /** Registro en memoria de los movimientos de stock (lo reutilizan las pruebas de otras tareas). */
-  readonly movements: RecordStockMovementData[] = [];
+  readonly movements: FixtureMovement[] = [];
   /** Historial de precios en memoria; `userName` es el id del usuario (el doble no tiene usuarios). */
   private readonly priceChanges: (PriceChangeEntry & { variantId: string })[] = [];
+
+  /** Agrega al registro con id creciente (el desempate de `listMovements`) y la hora actual. */
+  private log(...entries: RecordStockMovementData[]): void {
+    for (const e of entries) {
+      this.movements.push({ ...e, id: String(++movementSeq).padStart(10, "0"), timestamp: new Date() });
+    }
+  }
+
+  async listMovements(q: MovementQuery): Promise<MovementPage> {
+    const { gte, lt } = mexicoRangeToUtc(q.from, q.to);
+    const sorted = this.movements
+      .filter(
+        (m) =>
+          m.timestamp >= gte &&
+          m.timestamp < lt &&
+          (q.locationIds === "all" || q.locationIds.includes(m.locationId)) &&
+          (!q.type || m.type === q.type) &&
+          (!q.userId || m.userId === q.userId) &&
+          (!q.variantId || m.variantId === q.variantId),
+      )
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime() || (a.id < b.id ? 1 : -1));
+    const start = q.cursor ? sorted.findIndex((m) => m.id === q.cursor) + 1 : 0;
+    const slice = sorted.slice(start, start + MOVEMENT_PAGE_SIZE + 1);
+    const hasMore = slice.length > MOVEMENT_PAGE_SIZE;
+    const page = hasMore ? slice.slice(0, MOVEMENT_PAGE_SIZE) : slice;
+    const rows: MovementRow[] = page.map((m) => {
+      const match = this.products.flatMap((p) => p.variants.map((v) => ({ p, v }))).find((x) => x.v.id === m.variantId);
+      return {
+        id: m.id,
+        timestamp: m.timestamp.toISOString(),
+        productTitle: match?.p.title ?? "",
+        size: match?.v.size ?? "",
+        locationName: this.locations.find((l) => l.id === m.locationId)?.name ?? "",
+        type: m.type,
+        typeLabel: MOVEMENT_TYPE_LABEL[m.type],
+        delta: m.delta,
+        userName: m.userId, // el doble no tiene usuarios
+        notes: m.notes,
+        saleNumber: m.saleNumber ?? null,
+      };
+    });
+    return { rows, nextCursor: hasMore ? page[page.length - 1].id : null };
+  }
+
+  async listMovementActors(): Promise<{ id: string; name: string }[]> {
+    return [...new Set(this.movements.map((m) => m.userId))].map((id) => ({ id, name: id }));
+  }
 
   async getLocations(): Promise<Location[]> {
     return this.locations;
@@ -96,7 +150,7 @@ export class FixtureDataSource implements InventoryDataSource {
     } else {
       match.variant.inventory.push({ locationId, available: delta });
     }
-    this.movements.push({ variantId, locationId, type, delta, notes, requestId, userId });
+    this.log({ variantId, locationId, type, delta, notes, requestId, userId });
     return { available: current + delta, replayed: false };
   }
 
@@ -122,7 +176,7 @@ export class FixtureDataSource implements InventoryDataSource {
     const to = match.variant.inventory.find((l) => l.locationId === toLocationId);
     if (to) to.available += quantity;
     else match.variant.inventory.push({ locationId: toLocationId, available: quantity });
-    this.movements.push(
+    this.log(
       { variantId, locationId: fromLocationId, type: "TRANSFER", delta: -quantity, notes: note, requestId: `${requestId}:out`, userId },
       { variantId, locationId: toLocationId, type: "TRANSFER", delta: quantity, notes: note, requestId: `${requestId}:in`, userId },
     );
@@ -160,7 +214,7 @@ export class FixtureDataSource implements InventoryDataSource {
 
   private recordAlta(variantId: string, locationId: string, userId: string, delta: number): void {
     if (delta <= 0) return;
-    this.movements.push({ variantId, locationId, type: "RESTOCK", delta, notes: "alta", requestId: nextId("alta"), userId });
+    this.log({ variantId, locationId, type: "RESTOCK", delta, notes: "alta", requestId: nextId("alta"), userId });
   }
 
   async createProduct(data: CreateProductData): Promise<CreatedProduct> {

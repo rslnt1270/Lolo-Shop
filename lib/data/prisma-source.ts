@@ -3,7 +3,10 @@ import {
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
   type TransferStockData, type UpdateVariantPriceResult, type VariantMatch,
+  MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery,
 } from "./source";
+import { MOVEMENT_TYPE_LABEL, type MovementType } from "../domain/types";
+import { mexicoRangeToUtc } from "../domain/movement-scope";
 import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError } from "./errors";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
@@ -206,6 +209,57 @@ export class PrismaDataSource implements InventoryDataSource {
         }))
       }
     };
+  }
+
+  async listMovements(q: MovementQuery): Promise<MovementPage> {
+    const { gte, lt } = mexicoRangeToUtc(q.from, q.to);
+    const rows = await this.db.movement.findMany({
+      where: {
+        timestamp: { gte, lt },
+        ...(q.locationIds === "all" ? {} : { locationId: { in: q.locationIds } }),
+        ...(q.type ? { type: q.type } : {}),
+        ...(q.userId ? { userId: q.userId } : {}),
+        ...(q.variantId ? { variantId: q.variantId } : {}),
+      },
+      orderBy: [{ timestamp: "desc" }, { id: "desc" }],
+      take: MOVEMENT_PAGE_SIZE + 1,
+      ...(q.cursor ? { cursor: { id: q.cursor }, skip: 1 } : {}),
+      // Solo lo que se muestra: nunca el alias del cliente ni datos de la venta salvo el folio.
+      select: {
+        id: true, timestamp: true, delta: true, type: true, notes: true,
+        variant: { select: { size: true, product: { select: { title: true } } } },
+        location: { select: { name: true } },
+        user: { select: { name: true, username: true } },
+        sale: { select: { number: true } },
+      },
+    });
+    const hasMore = rows.length > MOVEMENT_PAGE_SIZE;
+    const page = hasMore ? rows.slice(0, MOVEMENT_PAGE_SIZE) : rows;
+    return {
+      rows: page.map((m) => ({
+        id: m.id,
+        timestamp: m.timestamp.toISOString(),
+        productTitle: m.variant.product.title,
+        size: m.variant.size,
+        locationName: m.location.name,
+        type: m.type as MovementType,
+        typeLabel: MOVEMENT_TYPE_LABEL[m.type as MovementType],
+        delta: m.delta,
+        userName: m.user.name || m.user.username,
+        notes: m.notes,
+        saleNumber: m.sale?.number ?? null,
+      })),
+      nextCursor: hasMore ? page[page.length - 1].id : null,
+    };
+  }
+
+  async listMovementActors(): Promise<{ id: string; name: string }[]> {
+    const users = await this.db.user.findMany({
+      where: { movements: { some: {} } },
+      select: { id: true, name: true, username: true },
+      orderBy: { name: "asc" },
+    });
+    return users.map((u) => ({ id: u.id, name: u.name || u.username }));
   }
 
   async recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }> {

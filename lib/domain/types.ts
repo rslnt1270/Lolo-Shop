@@ -2,6 +2,20 @@ export type Role = "owner" | "manager" | "collaborator";
 
 export type LocationType = "store" | "warehouse";
 
+/** Igual que el enum `MovementType` de Prisma (el dominio no importa el cliente generado). */
+export type MovementType = "SALE" | "RESTOCK" | "ADJUSTMENT" | "TRANSFER" | "DAMAGE" | "RETURN";
+
+export const MOVEMENT_TYPES: readonly MovementType[] = ["SALE", "RESTOCK", "ADJUSTMENT", "TRANSFER", "DAMAGE", "RETURN"];
+
+export const MOVEMENT_TYPE_LABEL: Record<MovementType, string> = {
+  SALE: "Venta",
+  RESTOCK: "Entrada",
+  DAMAGE: "Merma",
+  ADJUSTMENT: "Corrección",
+  TRANSFER: "Traspaso",
+  RETURN: "Devolución",
+};
+
 export interface Location {
   id: string;
   name: string;

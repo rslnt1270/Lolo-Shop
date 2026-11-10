@@ -1,4 +1,4 @@
-import type { Location, LocationType, Product, Variant } from "@/lib/domain/types";
+import type { Location, LocationType, MovementType, Product, Variant } from "@/lib/domain/types";
 
 export interface VariantMatch {
   product: Product;
@@ -131,7 +131,52 @@ export interface MergeProductsResult {
   alreadyMerged: number;
 }
 
+/** Filtro ya recortado por rol (`scopeMovementQuery`); fechas `YYYY-MM-DD` de México, inclusivas. */
+export interface MovementQuery {
+  locationIds: string[] | "all";
+  type?: MovementType;
+  userId?: string;
+  variantId?: string;
+  from: string;
+  to: string;
+  /** `id` del último renglón de la página anterior. */
+  cursor?: string;
+}
+
+/** Un renglón del historial. Nunca lleva datos del cliente (`customerAlias`). */
+export interface MovementRow {
+  id: string;
+  /** ISO (UTC). */
+  timestamp: string;
+  productTitle: string;
+  size: string;
+  locationName: string;
+  type: MovementType;
+  typeLabel: string;
+  delta: number;
+  userName: string;
+  notes: string | null;
+  /** Número de folio de la venta (`Sale.number`) en los `SALE`. */
+  saleNumber: number | null;
+}
+
+export interface MovementPage {
+  rows: MovementRow[];
+  nextCursor: string | null;
+}
+
+/** Renglones por página; el data source pide uno más para saber si hay otra. */
+export const MOVEMENT_PAGE_SIZE = 50;
+
 export interface InventoryDataSource {
+  /**
+   * Historial de movimientos, el más nuevo primero (`timestamp` desc, `id` desc),
+   * `MOVEMENT_PAGE_SIZE` por página con cursor. Las fechas de `q` son días de
+   * México (UTC−6 fijo) y se convierten a un rango UTC.
+   */
+  listMovements(q: MovementQuery): Promise<MovementPage>;
+  /** Personas que aparecen en el filtro "Persona": usuarios con al menos un movimiento. */
+  listMovementActors(): Promise<{ id: string; name: string }[]>;
   getLocations(): Promise<Location[]>;
   createLocation(data: CreateLocationData): Promise<Location>;
   getProducts(): Promise<Product[]>;
