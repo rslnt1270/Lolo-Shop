@@ -2,26 +2,24 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import {
   Compass,
   Grid,
   Rotate3d,
   ShoppingBag,
-  MapPin,
   Search,
   Sparkles,
-  Layers,
-  ArrowRight,
-  Eye,
 } from "lucide-react";
 import type { PublicProduct } from "@/lib/data/public-projection";
 import type { StoreHotspot, StoreZone } from "@/lib/virtual-store/types";
 import { STORE_ZONES, bindProductsToHotspots } from "@/lib/virtual-store/zones";
+import { EMPTY_CATALOG_TEXT } from "@/lib/public/whatsapp";
+import { isTourEnabled } from "@/lib/public/tour-flag";
 import { VirtualStoreCanvas } from "./VirtualStoreCanvas";
 import { StoreMinimap } from "./StoreMinimap";
 import { ProductHotspotModal } from "./ProductHotspotModal";
 import { CatalogDrawer } from "./CatalogDrawer";
+import { CatalogGrid } from "./CatalogGrid";
 
 interface Props {
   initialProducts: PublicProduct[];
@@ -29,15 +27,20 @@ interface Props {
 }
 
 export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
-  const [viewMode, setViewMode] = useState<"tour" | "grid">("tour");
+  const [viewMode, setViewMode] = useState<"tour" | "grid">("grid");
   const [currentZoneId, setCurrentZoneId] = useState<string>("entrada");
   const [cameraYaw, setCameraYaw] = useState<number>(0);
   const [cameraPitch, setCameraPitch] = useState<number>(-2);
-  const [selectedHotspot, setSelectedHotspot] = useState<StoreHotspot | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<PublicProduct | null>(null);
+  const [selectedShelf, setSelectedShelf] = useState<string | undefined>(undefined);
   const [isCatalogDrawerOpen, setIsCatalogDrawerOpen] = useState(false);
+
+  const tourEnabled = isTourEnabled(STORE_ZONES);
+  const showTour = tourEnabled && viewMode === "tour";
 
   // Mapear productos reales a los puntos espaciales de la tienda física
   const hotspots = bindProductsToHotspots(initialProducts);
+  const products = initialProducts;
   const currentZone = STORE_ZONES.find((z) => z.id === currentZoneId) || STORE_ZONES[0];
 
   // Cambiar de zona en la tienda con orientación inicial
@@ -54,7 +57,19 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
     handleSelectZone(hotspot.zoneId);
     setCameraYaw(hotspot.yaw);
     setCameraPitch(hotspot.pitch);
-    setSelectedHotspot(hotspot);
+    openHotspot(hotspot);
+  };
+
+  // En el recorrido, el modal lleva la etiqueta de repisa; en el catálogo público, no.
+  const openHotspot = (hotspot: StoreHotspot) => {
+    if (!hotspot.product) return;
+    setSelectedProduct(hotspot.product);
+    setSelectedShelf(hotspot.shelfLabel);
+  };
+
+  const openProduct = (p: PublicProduct) => {
+    setSelectedProduct(p);
+    setSelectedShelf(undefined);
   };
 
   return (
@@ -79,14 +94,17 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
               <span className="font-extrabold text-base tracking-tight text-gray-900 block leading-tight">
                 LoloShop
               </span>
-              <span className="font-mono text-[10px] text-loloteal font-bold uppercase tracking-wider block">
-                Tienda Virtual 3D
-              </span>
+              {tourEnabled && (
+                <span className="font-mono text-[10px] text-loloteal font-bold uppercase tracking-wider block">
+                  Tienda Virtual 3D
+                </span>
+              )}
             </div>
           </Link>
         </div>
 
-        {/* Switcher de Vista: Recorrido 3D vs Cuadrícula */}
+        {/* Switcher de Vista: solo con el recorrido de prueba habilitado */}
+        {tourEnabled && (
         <div className="flex items-center rounded-xl bg-gray-100/80 p-1 border border-gray-200/60 shadow-inner">
           <button
             onClick={() => setViewMode("tour")}
@@ -111,9 +129,11 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
             <span className="hidden sm:inline">Catálogo</span>
           </button>
         </div>
+        )}
 
         {/* Acciones derecha */}
         <div className="flex items-center gap-2">
+          {tourEnabled && (
           <button
             onClick={() => setIsCatalogDrawerOpen(true)}
             className="flex items-center gap-1.5 rounded-full bg-black px-3.5 py-1.5 text-xs font-semibold text-white shadow-md hover:bg-gray-800 transition-all active:scale-95"
@@ -124,6 +144,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
               {hotspots.length}
             </span>
           </button>
+          )}
 
           {isLoggedIn && (
             <Link
@@ -139,7 +160,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
 
       {/* Contenido Principal */}
       <main className="relative z-10 mx-auto w-[calc(100%-32px)] max-w-6xl py-6 flex-1 flex flex-col">
-        {viewMode === "tour" ? (
+        {showTour ? (
           /* MODO RECORRIDO VIRTUAL 3D DE LA TIENDA FÍSICA */
           <div className="space-y-4">
             {/* Selector Rápido de Zonas de la Tienda (Pills) */}
@@ -180,7 +201,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
                   setCameraYaw(yaw);
                   setCameraPitch(pitch);
                 }}
-                onSelectHotspot={(hs) => setSelectedHotspot(hs)}
+                onSelectHotspot={openHotspot}
                 onNavigateToZone={handleSelectZone}
               />
 
@@ -205,7 +226,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
                       {currentZone.name}
                     </h3>
                     <p className="text-xs text-gray-500">
-                      Haz clic en los pines sobre las repisas para inspeccionar en 3D o apartar por WhatsApp.
+                      Haz clic en los pines sobre las repisas para inspeccionar cada prenda.
                     </p>
                   </div>
                 </div>
@@ -235,98 +256,44 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
                 </p>
               </div>
 
-              <button
-                onClick={() => setViewMode("tour")}
-                className="inline-flex items-center gap-2 rounded-full bg-loloteal px-4 py-2 text-xs font-bold text-white shadow-lg shadow-loloteal/30 hover:bg-[#147E7E] transition-all"
-              >
-                <Rotate3d size={16} />
-                Ver en Recorrido 3D
-              </button>
-            </div>
-
-            {/* Cuadrícula de Productos */}
-            {hotspots.length === 0 && (
-              <p className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center text-sm text-gray-600">
-                Pronto verás aquí las prendas de la tienda.
-              </p>
-            )}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-              {hotspots.map((hs) => (
-                <motion.div
-                  key={hs.id}
-                  whileHover={{ y: -4 }}
-                  className="group flex flex-col rounded-3xl border border-white/60 bg-white/90 p-4 shadow-xl backdrop-blur-xl transition-all"
+              {tourEnabled && (
+                <button
+                  onClick={() => setViewMode("tour")}
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-loloteal px-4 py-2 text-xs font-bold text-white shadow-lg shadow-loloteal/30 transition-all active:bg-loloteal-dark"
                 >
-                  <div className="relative mb-3 flex h-48 w-full items-center justify-center overflow-hidden rounded-2xl bg-gray-50">
-                    {hs.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={hs.imageUrl}
-                        alt={hs.title}
-                        className="h-full w-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
-                      />
-                    ) : (
-                      <span className="text-5xl">🛍️</span>
-                    )}
-
-                    {/* Badge de ubicación física */}
-                    <span className="absolute bottom-2 left-2 rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-medium text-white backdrop-blur-md">
-                      {hs.shelfLabel}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-1 flex-col justify-between">
-                    <div>
-                      <p className="text-[11px] font-mono uppercase tracking-wider text-loloteal font-bold">
-                        {hs.brand}
-                      </p>
-                      <h3 className="font-bold text-gray-900 text-sm leading-snug mt-0.5">
-                        {hs.title}
-                      </h3>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-lg font-black text-gray-900">
-                        ${hs.price}
-                      </span>
-
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleSelectProduct(hs)}
-                          className="rounded-xl border border-gray-200 bg-gray-50 p-2 text-gray-600 hover:border-loloteal hover:bg-loloteal/10 hover:text-loloteal transition-all"
-                          title="Ubicar en la tienda 3D"
-                        >
-                          <MapPin size={15} />
-                        </button>
-                        <button
-                          onClick={() => setSelectedHotspot(hs)}
-                          className="rounded-xl bg-black px-3 py-2 text-xs font-semibold text-white hover:bg-gray-800 transition-all"
-                        >
-                          Ver en 3D
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
+                  <Rotate3d size={16} />
+                  Ver en Recorrido 3D
+                </button>
+              )}
             </div>
+
+            {products.length === 0 ? (
+              <p className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center text-sm text-gray-600">
+                {EMPTY_CATALOG_TEXT}
+              </p>
+            ) : (
+              <CatalogGrid products={products} onSelect={openProduct} />
+            )}
           </div>
         )}
       </main>
 
       {/* Modal / Ficha Técnica 3D del Producto Seleccionado */}
       <ProductHotspotModal
-        hotspot={selectedHotspot}
-        onClose={() => setSelectedHotspot(null)}
+        product={selectedProduct}
+        shelfLabel={selectedShelf}
+        onClose={() => setSelectedProduct(null)}
       />
 
       {/* Cajón Lateral del Catálogo Completo */}
-      <CatalogDrawer
-        isOpen={isCatalogDrawerOpen}
-        onClose={() => setIsCatalogDrawerOpen(false)}
-        hotspots={hotspots}
-        onSelectProduct={handleSelectProduct}
-      />
+      {tourEnabled && (
+        <CatalogDrawer
+          isOpen={isCatalogDrawerOpen}
+          onClose={() => setIsCatalogDrawerOpen(false)}
+          hotspots={hotspots}
+          onSelectProduct={handleSelectProduct}
+        />
+      )}
     </div>
   );
 }

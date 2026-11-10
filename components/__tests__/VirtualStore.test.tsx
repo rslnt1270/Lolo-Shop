@@ -1,17 +1,22 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { StoreMinimap } from "../virtual-store/StoreMinimap";
 import { VirtualStoreCatalog } from "../virtual-store/VirtualStoreCatalog";
 import { STORE_ZONES } from "@/lib/virtual-store/zones";
 import type { PublicProduct } from "@/lib/data/public-projection";
 import { ProductHotspotModal } from "../virtual-store/ProductHotspotModal";
-import { bindProductsToHotspots } from "@/lib/virtual-store/zones";
 
 // Mock de next/navigation y framer-motion si fuera necesario
 vi.mock("next/navigation", () => ({
   usePathname: () => "/catalogo",
+  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("Virtual Store Components", () => {
   const sampleProducts: PublicProduct[] = [
@@ -54,6 +59,7 @@ describe("Virtual Store Components", () => {
   });
 
   it("renderiza VirtualStoreCatalog en modo recorrido 3D con zonas accesibles", () => {
+    vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "1");
     render(
       <VirtualStoreCatalog
         initialProducts={sampleProducts}
@@ -62,7 +68,8 @@ describe("Virtual Store Components", () => {
     );
 
     expect(screen.getByText("Tienda Virtual 3D")).toBeInTheDocument();
-    expect(screen.getByText("Recorrido 3D")).toBeInTheDocument();
+    // La cuadrícula es la vista inicial; el recorrido se elige a propósito.
+    fireEvent.click(screen.getByText("Recorrido 3D"));
     expect(screen.getByText("Catálogo")).toBeInTheDocument();
 
     // Verificar botones de zonas
@@ -77,8 +84,8 @@ describe("Virtual Store Components", () => {
   });
 
   it("el detalle del producto muestra el código público y disponibilidad sí/no, nunca SKU ni conteos", () => {
-    const [hotspot] = bindProductsToHotspots(sampleProducts);
-    render(<ProductHotspotModal hotspot={hotspot} onClose={() => {}} />);
+    vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", "52" + "0".repeat(10));
+    render(<ProductHotspotModal product={sampleProducts[0]} onClose={() => {}} />);
 
     expect(screen.getByText("Código K7Q2M")).toBeInTheDocument();
     expect(screen.getByText("Disponible")).toBeInTheDocument();
@@ -88,13 +95,12 @@ describe("Virtual Store Components", () => {
     fireEvent.click(screen.getByRole("button", { name: "L" }));
     expect(screen.getByText("Agotado en tienda")).toBeInTheDocument();
 
-    const wa = screen.getByRole("link", { name: /Preguntar/i });
-    expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain("(código K7Q2M), talla L");
+    const wa = screen.getByRole("link", { name: /Consultar por WhatsApp/i });
+    expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain("en talla L. ¿Sigue disponible? Código K7Q2M");
   });
 
   it("sin productos públicos el catálogo muestra un aviso en lugar de prendas de ejemplo", () => {
     render(<VirtualStoreCatalog initialProducts={[]} isLoggedIn={false} />);
-    fireEvent.click(screen.getByText("Catálogo"));
     expect(screen.getByText("Pronto verás aquí las prendas de la tienda.")).toBeInTheDocument();
   });
 });

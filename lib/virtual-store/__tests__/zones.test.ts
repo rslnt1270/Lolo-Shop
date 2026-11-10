@@ -24,7 +24,7 @@ describe("Virtual Store Zones & Hotspots", () => {
     id: "prod-real-1",
     publicCode: "K7Q2M",
     title: "Chamarra Streetwear Especial",
-    brand: "LoloTech",
+    brand: "Marca de prueba",
     category: "Outerwear",
     imageUrl: "https://example.com/chamarra.jpg",
     backImageUrl: "https://example.com/chamarra-atras.jpg",

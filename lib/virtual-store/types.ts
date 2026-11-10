@@ -30,6 +30,8 @@ export interface StoreZone {
   shortName: string;
   description: string;
   iconName: "store" | "shirt" | "footprints" | "credit-card";
+  /** "real" = sala con fotos reales; hoy ninguna zona lo es. */
+  kind?: "virtual" | "real";
   initialYaw: number;
   initialPitch: number;
   // Coordenadas relativas en el plano arquitectónico (0% - 100%)

@@ -214,7 +214,7 @@ export function VirtualStoreCanvas({
                   <Sparkles className="text-teal-300" size={32} />
                 </div>
                 <span className="text-[11px] font-medium text-gray-300 text-center">
-                  Ghost Puffer v1 & Novedades
+                  Novedades
                 </span>
               </div>
             </div>
@@ -291,7 +291,7 @@ export function VirtualStoreCanvas({
                   </div>
                 </div>
                 <span className="text-[10px] text-center text-cyan-400/80">
-                  Aparta aquí o recoge tu pedido web
+                  Mostrador de la tienda
                 </span>
               </div>
             </div>
