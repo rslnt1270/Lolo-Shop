@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=375, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>LoloShop - Ficha del producto</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#007272',
+              pressed: '#005F5F',
+              light: '#3CBFBF',
+              surface: '#F3F7F7',
+              border: '#E1E9E9',
+              ink: '#16302F',
+              secondary: '#5C6E6D',
+              control: '#7F9392',
+              danger: '#9A3B2E',
+              'danger-bg': '#FDF2F0',
+              success: '#1F7A4A'
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            headline: ["Plus Jakarta Sans", "sans-serif"],
+            display: ["Plus Jakarta Sans", "sans-serif"],
+            body: ["Plus Jakarta Sans", "sans-serif"],
+            label: ["Public Sans", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    /* Touch optimization */
+    input, select, button {
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-white text-brand-ink font-body antialiased flex justify-center min-h-screen">
+<!-- Mobile Container strictly 375px bounded preview -->
+<div class="w-full max-w-[375px] min-h-screen bg-white flex flex-col relative pb-12 shadow-sm border-x border-[#E1E9E9]">
+<!-- TopAppBar (Based on Shared Components spec) -->
+<header class="sticky top-0 z-40 flex items-center justify-between w-full h-14 px-4 bg-white border-b border-[#E1E9E9]">
+<div class="flex items-center gap-2">
+<button aria-label="Regresar" class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-brand-ink hover:bg-[#F3F7F7] active:scale-[0.98] transition-transform" type="button">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<h1 class="font-headline font-bold text-base text-[#16302F] tracking-tight">Ficha del producto</h1>
+</div>
+<!-- Role Badge -->
+<div class="flex items-center">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#F3F7F7] text-[#007272] border border-[#007272]/20">
+          Owner
+        </span>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 px-4 py-4 space-y-6">
+<!-- Section: Encabezado de producto & fotos -->
+<section class="space-y-3">
+<div class="flex items-center justify-between">
+<span class="font-mono text-xs font-semibold px-2.5 py-1 bg-[#F3F7F7] border border-[#E1E9E9] rounded text-brand-ink tracking-tight">
+            Código público: EJ-0000
+          </span>
+<span class="inline-flex items-center text-xs font-medium text-brand-success bg-[#F0FDF4] px-2 py-0.5 rounded border border-[#BBF7D0]">
+<span class="w-1.5 h-1.5 rounded-full bg-brand-success mr-1.5"></span> Activo
+          </span>
+</div>
+<!-- Photos: Square Containers -->
+<div class="grid grid-cols-2 gap-3">
+<!-- Photo Frente -->
+<div class="aspect-square bg-[#F3F7F7] border border-dashed border-brand-control rounded-xl p-2 flex flex-col items-center justify-center text-center relative group cursor-pointer active:scale-[0.98] transition-all">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-brand-secondary shadow-sm mb-1.5">
+<span class="material-symbols-outlined text-[20px]">add_a_photo</span>
+</div>
+<span class="text-xs font-medium text-brand-ink">Frente</span>
+<span class="text-[11px] text-brand-secondary">Subir foto</span>
+</div>
+<!-- Photo Atrás -->
+<div class="aspect-square bg-[#F3F7F7] border border-dashed border-brand-control rounded-xl p-2 flex flex-col items-center justify-center text-center relative group cursor-pointer active:scale-[0.98] transition-all">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-brand-secondary shadow-sm mb-1.5">
+<span class="material-symbols-outlined text-[20px]">photo_camera</span>
+</div>
+<span class="text-xs font-medium text-brand-ink">Atrás</span>
+<span class="text-[11px] text-brand-secondary">Subir foto</span>
+</div>
+</div>
+</section>
+<!-- Section: Datos Editables -->
+<section class="bg-white rounded-xl border border-brand-border p-3.5 space-y-3.5">
+<div class="flex items-center justify-between pb-1 border-b border-brand-border">
+<h2 class="font-headline font-bold text-sm text-brand-ink">Datos del producto</h2>
+<span class="text-xs text-brand-secondary">Info general</span>
+</div>
+<div class="space-y-3">
+<!-- Título -->
+<div>
+<label class="block text-xs font-medium text-brand-secondary mb-1" for="titulo">Título</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-base text-brand-ink focus:outline-none focus:ring-1 focus:ring-[#007272] focus:border-[#007272]" id="titulo" type="text" value="Playera ejemplo"/>
+</div>
+<!-- Marca -->
+<div>
+<label class="block text-xs font-medium text-brand-secondary mb-1" for="marca">Marca</label>
+<div class="relative">
+<select class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-base text-brand-ink appearance-none focus:outline-none focus:ring-1 focus:ring-[#007272] focus:border-[#007272] pr-10" id="marca">
+<option selected="">Marca ejemplo</option>
+<option>Marca ejemplo 2</option>
+<option>Marca ejemplo 3</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-brand-secondary">
+<span class="material-symbols-outlined text-[20px]">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Departamento y Categoría -->
+<div class="grid grid-cols-2 gap-2">
+<div>
+<label class="block text-xs font-medium text-brand-secondary mb-1" for="depto">Departamento</label>
+<div class="relative">
+<select class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-base text-brand-ink appearance-none focus:outline-none focus:ring-1 focus:ring-[#007272] focus:border-[#007272] pr-8" id="depto">
+<option selected="">Dama</option>
+<option>Caballero</option>
+<option>Niños</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-brand-secondary">
+<span class="material-symbols-outlined text-[18px]">expand_more</span>
+</div>
+</div>
+</div>
+<div>
+<label class="block text-xs font-medium text-brand-secondary mb-1" for="categoria">Categoría</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-base text-brand-ink focus:outline-none focus:ring-1 focus:ring-[#007272] focus:border-[#007272]" id="categoria" type="text" value="Playeras"/>
+</div>
+</div>
+</div>
+<button class="w-full h-11 mt-1 border border-[#007272] text-[#007272] font-semibold text-sm rounded-xl hover:bg-[#F3F7F7] active:scale-[0.98] transition-transform flex items-center justify-center gap-1.5" type="button">
+<span class="material-symbols-outlined text-[18px]">check</span>
+          Guardar cambios
+        </button>
+</section>
+<!-- Section: Precio por talla -->
+<section class="space-y-3">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-sm text-brand-ink">Precio por talla</h2>
+<span class="text-xs text-brand-secondary">Precios individuales</span>
+</div>
+<div class="space-y-3">
+<!-- Talla S -->
+<div class="bg-[#F3F7F7] rounded-xl p-3 border border-brand-border space-y-2.5">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-brand-border font-mono font-bold text-sm text-brand-ink shadow-sm">
+                S
+              </span>
+<button class="text-xs text-brand-secondary underline hover:text-brand-danger" type="button">
+                Desactivar talla
+              </button>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div>
+<label class="block text-[11px] text-brand-secondary mb-0.5">Precio (MXN)</label>
+<div class="relative">
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl font-mono text-base font-semibold text-brand-ink focus:ring-1 focus:ring-[#007272] focus:border-[#007272]" type="text" value="$000"/>
+</div>
+</div>
+<div>
+<label class="block text-[11px] text-brand-secondary mb-0.5">Motivo (opcional)</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-xs text-brand-ink focus:ring-1 focus:ring-[#007272] focus:border-[#007272]" placeholder="Ej. Ajuste mercado" type="text"/>
+</div>
+</div>
+<button class="w-full h-11 bg-[#007272] active:bg-[#005F5F] text-white font-semibold text-sm rounded-xl active:scale-[0.98] transition-all flex items-center justify-center shadow-sm" type="button">
+              Guardar precio
+            </button>
+</div>
+<!-- Talla M (Con Conflicto de Concurrencia) -->
+<div class="bg-[#F3F7F7] rounded-xl p-3 border-2 border-brand-danger/40 space-y-2.5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-brand-danger/30 font-mono font-bold text-sm text-brand-ink shadow-sm">
+                  M
+                </span>
+<span class="text-[11px] font-semibold text-brand-danger bg-brand-danger-bg px-2 py-0.5 rounded border border-brand-danger/20">Conflicto</span>
+</div>
+<button class="text-xs text-brand-secondary underline hover:text-brand-danger" type="button">
+                Desactivar talla
+              </button>
+</div>
+<!-- Warning Banner -->
+<div class="bg-brand-danger-bg border border-brand-danger/30 rounded-lg p-2.5 text-xs text-brand-danger flex items-start gap-2">
+<span class="material-symbols-outlined text-[18px] text-brand-danger flex-shrink-0 mt-0.5">warning</span>
+<p class="leading-tight font-medium">
+                Alguien cambió este precio. Precio vigente: <strong class="font-mono text-brand-ink">$000</strong>. Revisa y guarda de nuevo.
+              </p>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div>
+<label class="block text-[11px] text-brand-secondary mb-0.5">Precio (MXN)</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-danger rounded-xl font-mono text-base font-semibold text-brand-ink focus:ring-1 focus:ring-brand-danger" type="text" value="$000"/>
+</div>
+<div>
+<label class="block text-[11px] text-brand-secondary mb-0.5">Motivo (opcional)</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-xs text-brand-ink focus:ring-1 focus:ring-[#007272]" type="text" value="Ajuste semanal"/>
+</div>
+</div>
+<button class="w-full h-11 bg-[#007272] active:bg-[#005F5F] text-white font-semibold text-sm rounded-xl active:scale-[0.98] transition-all flex items-center justify-center shadow-sm" type="button">
+              Guardar precio
+            </button>
+</div>
+<!-- Talla L -->
+<div class="bg-[#F3F7F7] rounded-xl p-3 border border-brand-border space-y-2.5">
+<div class="flex items-center justify-between">
+<span class="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white border border-brand-border font-mono font-bold text-sm text-brand-ink shadow-sm">
+                L
+              </span>
+<button class="text-xs text-brand-secondary underline hover:text-brand-danger" type="button">
+                Desactivar talla
+              </button>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<div>
+<label class="block text-[11px] text-brand-secondary mb-0.5">Precio (MXN)</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl font-mono text-base font-semibold text-brand-ink focus:ring-1 focus:ring-[#007272] focus:border-[#007272]" type="text" value="$000"/>
+</div>
+<div>
+<label class="block text-[11px] text-brand-secondary mb-0.5">Motivo (opcional)</label>
+<input class="w-full h-11 px-3 bg-white border border-brand-control rounded-xl text-xs text-brand-ink focus:ring-1 focus:ring-[#007272]" placeholder="Ej. Promoción" type="text"/>
+</div>
+</div>
+<button class="w-full h-11 bg-[#007272] active:bg-[#005F5F] text-white font-semibold text-sm rounded-xl active:scale-[0.98] transition-all flex items-center justify-center shadow-sm" type="button">
+              Guardar precio
+            </button>
+</div>
+</div>
+</section>
+<!-- Section: Historial de precios -->
+<section class="bg-white rounded-xl border border-brand-border p-3.5 space-y-2.5">
+<div class="flex items-center justify-between pb-1 border-b border-brand-border">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">history</span>
+<h2 class="font-headline font-bold text-sm text-brand-ink">Historial de precios</h2>
+</div>
+<span class="text-[11px] font-mono text-brand-secondary">Últimos 5</span>
+</div>
+<ul class="divide-y divide-brand-border/60">
+<li class="py-2 flex items-center justify-between">
+<div class="font-mono text-xs font-semibold text-brand-ink">
+              $000 → $000
+            </div>
+<div class="font-mono text-[11px] text-brand-secondary text-right">
+              Lolo · 10 nov 18:20
+            </div>
+</li>
+<li class="py-2 flex items-center justify-between">
+<div class="font-mono text-xs font-semibold text-brand-ink">
+              $000 → $000
+            </div>
+<div class="font-mono text-[11px] text-brand-secondary text-right">
+              Ana · 08 nov 12:15
+            </div>
+</li>
+<li class="py-2 flex items-center justify-between">
+<div class="font-mono text-xs font-semibold text-brand-ink">
+              $000 → $000
+            </div>
+<div class="font-mono text-[11px] text-brand-secondary text-right">
+              Lolo · 04 nov 16:40
+            </div>
+</li>
+<li class="py-2 flex items-center justify-between">
+<div class="font-mono text-xs font-semibold text-brand-ink">
+              $000 → $000
+            </div>
+<div class="font-mono text-[11px] text-brand-secondary text-right">
+              Carlos · 02 nov 10:05
+            </div>
+</li>
+<li class="py-2 flex items-center justify-between">
+<div class="font-mono text-xs font-semibold text-brand-ink">
+              $000 → $000
+            </div>
+<div class="font-mono text-[11px] text-brand-secondary text-right">
+              Ana · 01 nov 09:30
+            </div>
+</li>
+</ul>
+</section>
+<!-- Section: Stock por tienda (Solo Lectura) -->
+<section class="bg-white rounded-xl border border-brand-border p-3.5 space-y-2.5">
+<div class="flex items-center justify-between pb-1 border-b border-brand-border">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">storefront</span>
+<h2 class="font-headline font-bold text-sm text-brand-ink">Stock por tienda</h2>
+</div>
+<span class="text-[11px] px-2 py-0.5 bg-[#F3F7F7] rounded text-brand-secondary font-medium">Solo lectura</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-brand-border text-[11px] font-medium text-brand-secondary">
+<th class="py-2 font-normal">Sucursal</th>
+<th class="py-2 text-center font-mono font-semibold">S</th>
+<th class="py-2 text-center font-mono font-semibold">M</th>
+<th class="py-2 text-center font-mono font-semibold">L</th>
+<th class="py-2 text-right font-mono font-semibold">Total</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-brand-border/40 text-xs">
+<tr>
+<td class="py-2.5 font-medium text-brand-ink">Lomas</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-right font-mono font-bold text-[#007272]">0</td>
+</tr>
+<tr>
+<td class="py-2.5 font-medium text-brand-ink">ClubAlva</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-center font-mono">—</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-right font-mono font-bold text-[#007272]">0</td>
+</tr>
+<tr>
+<td class="py-2.5 font-medium text-brand-ink">Almacén</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-center font-mono">0</td>
+<td class="py-2.5 text-right font-mono font-bold text-[#007272]">0</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="text-[11px] text-brand-secondary leading-snug pt-1 flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[14px]">info</span>
+          Solo lectura. Para mover piezas usa Entrada o Traspasar.
+        </p>
+</section>
+<!-- Section: Acciones Críticas / Destructivas -->
+<section class="pt-2">
+<button class="w-full h-11 border-2 border-brand-danger text-brand-danger font-semibold text-sm rounded-xl hover:bg-brand-danger-bg active:scale-[0.98] transition-all flex items-center justify-center gap-2" onclick="document.getElementById('modal-desactivar').classList.remove('hidden')" type="button">
+<span class="material-symbols-outlined text-[20px]">block</span>
+          Desactivar producto
+        </button>
+</section>
+</main>
+<!-- Modal / Bottom Sheet: Confirmación de desactivación -->
+<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[1px] p-3 transition-opacity" id="modal-desactivar">
+<div class="w-full max-w-[351px] bg-white rounded-2xl p-5 border border-brand-border shadow-xl space-y-4 animate-in fade-in slide-in-from-bottom duration-200">
+<div class="flex items-start gap-3">
+<div class="w-10 h-10 rounded-full bg-brand-danger-bg flex items-center justify-center text-brand-danger flex-shrink-0">
+<span class="material-symbols-outlined text-[22px]">warning</span>
+</div>
+<div>
+<h3 class="font-headline font-bold text-base text-brand-ink leading-tight">
+              ¿Desactivar Playera ejemplo?
+            </h3>
+<p class="text-xs text-brand-secondary mt-1.5 leading-relaxed">
+              Deja de verse en el catálogo y no se puede vender. El historial se conserva y puedes reactivarlo.
+            </p>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2.5 pt-2">
+<!-- Botón Cancelar (Outlined) -->
+<button class="h-11 min-h-[44px] px-3 border border-brand-control text-brand-ink font-semibold text-xs rounded-xl hover:bg-[#F3F7F7] active:scale-[0.98] transition-all flex items-center justify-center" onclick="document.getElementById('modal-desactivar').classList.add('hidden')" type="button">
+            Cancelar
+          </button>
+<!-- Botón Confirmar (Sólido Destructivo #9A3B2E) -->
+<button class="h-11 min-h-[44px] px-3 bg-[#9A3B2E] active:bg-[#7D2F24] text-white font-semibold text-xs rounded-xl active:scale-[0.98] transition-all flex items-center justify-center shadow-sm" onclick="document.getElementById('modal-desactivar').classList.add('hidden')" type="button">
+            Sí, desactivar
+          </button>
+</div>
+</div>
+</div>
+</div>
+</body></html>
