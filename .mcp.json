@@ -31,15 +31,10 @@
       "env": {}
     },
     "stitch": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@_davideast/stitch-mcp",
-        "proxy"
-      ],
-      "env": {
-        "STITCH_API_KEY": "${STITCH_API_KEY}"
+      "type": "http",
+      "url": "https://stitch.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "${STITCH_API_KEY}"
       }
     }
   }
