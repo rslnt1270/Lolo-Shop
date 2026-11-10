@@ -13,7 +13,7 @@ import prisma from "../prisma";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { canonicalCode, codeCandidates } from "../domain/barcode";
 import { UNIQUE_SIZE, normalizeSize, sortSizes } from "../domain/sizes";
-import { trailingSize } from "../domain/size-duplicates";
+import { stripTrailingSize, trailingSize } from "../domain/size-duplicates";
 import { INVENTORY_TX_OPTIONS } from "./tx-options";
 import { normalizePublicCode } from "../domain/public-code";
 
@@ -711,6 +711,9 @@ export class PrismaDataSource implements InventoryDataSource {
         where: { id: { in: toMove } },
         data: { isActive: false, mergedIntoId: targetId, mergedAt: new Date(), mergedById: userId },
       });
+      // La talla ya vive en las variantes: el título del destino queda sin ella ("Polo - M" → "Polo").
+      const cleanTitle = stripTrailingSize(target.title);
+      if (cleanTitle !== target.title) photoData.title = cleanTitle;
       if (Object.keys(photoData).length > 0) await tx.product.update({ where: { id: targetId }, data: photoData });
 
       return { movedVariants: variants.count, movedSaleLines: lines.count, alreadyMerged };

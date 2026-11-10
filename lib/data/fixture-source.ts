@@ -11,7 +11,7 @@ import { mexicoRangeToUtc } from "@/lib/domain/movement-scope";
 import { FIXTURE_DEPARTMENTS, fixtureLocations, fixtureProducts } from "./fixtures";
 import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
 import { UNIQUE_SIZE, normalizeSize, sortSizes } from "@/lib/domain/sizes";
-import { trailingSize } from "@/lib/domain/size-duplicates";
+import { stripTrailingSize, trailingSize } from "@/lib/domain/size-duplicates";
 import { normalizePublicCode } from "@/lib/domain/public-code";
 import {
   InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, UniqueConstraintError,
@@ -431,6 +431,7 @@ export class FixtureDataSource implements InventoryDataSource {
         }
       }
     }
+    if (toMove.length > 0) target.title = stripTrailingSize(target.title);
     for (const src of toMove) {
       movedVariants += src.variants.length;
       target.variants.push(...src.variants);

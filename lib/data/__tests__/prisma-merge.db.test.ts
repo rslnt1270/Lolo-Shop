@@ -76,6 +76,18 @@ describe.skipIf(!hasTestDb)("unir productos duplicados por talla", () => {
     await testPrisma.$disconnect();
   });
 
+  it("residual 5: el título del destino pierde la talla final al unir", async () => {
+    await ds.mergeProducts(A, [B], owner);
+    const a = await testPrisma.product.findUniqueOrThrow({ where: { id: A } });
+    expect(a.title).toBe("Polo Nautica");
+  });
+
+  it("residual 5: un título con modelo numérico no se recorta", async () => {
+    await testPrisma.product.update({ where: { id: A }, data: { title: "Nike Air Max 90" } });
+    await ds.mergeProducts(A, [B], owner);
+    expect((await testPrisma.product.findUniqueOrThrow({ where: { id: A } })).title).toBe("Nike Air Max 90");
+  });
+
   it("une B en A conservando ventas, movimientos, existencias y dashboard", async () => {
     await sell(VA, 1);
     await sell(VB, 2);
