@@ -179,6 +179,27 @@ psql "$DIRECT_URL" -c 'SELECT u.username, u.role, l.name AS tienda FROM "User" u
 
 Salida esperada: cada `collaborator` con una `tienda` no vacía; `owner` y `manager` pueden aparecer sin tienda (el manager sin tienda ve todas). Si hay contraseñas de desarrollo en producción, usar `reset-users.ts` (ver Fase F, paso 2).
 
+## Pooler de Neon (1.11)
+
+La app en Vercel (funciones serverless) se conecta **siempre** por el *pooler* de Neon (PgBouncer en modo transacción). Con Prisma 5.22 (motor con parámetros en la URL), la `DATABASE_URL` con *pooler* lleva estos parámetros de consulta. Aquí solo van los **nombres**; los valores reales viven en Vercel y en tu terminal.
+
+| Parámetro | Para qué | Fuente |
+|---|---|---|
+| `pgbouncer=true` | Prisma deja de usar sentencias preparadas con nombre, que PgBouncer no comparte entre clientes. La guía lo pide para PgBouncer anterior a 1.21.0; con versiones nuevas y `max_prepared_statements` > 0 es opcional, pero no estorba. | Prisma, "Configure Prisma Client with PgBouncer" (v6) |
+| `connection_limit` | Tamaño del pool **por instancia** de `PrismaClient`. En serverless la guía recomienda empezar con `1` y subir solo si hace falta. | Prisma, "Connection pool" (v6), sección serverless |
+| `pool_timeout` | Segundos que una consulta espera una conexión libre del pool (por omisión 10). Si se agota, Prisma lanza P2024; la app lo muestra como "La base tardó en responder; reintenta." Dejar el valor por omisión salvo que el ensayo muestre P2024. | Prisma, "Connection pool" (v6) |
+| `connect_timeout` (opcional) | Segundos para abrir la conexión. Neon apaga el cómputo sin uso y tarda unos segundos en despertar; subirlo evita fallos en frío. | Neon, "Connect from Prisma to Neon" |
+
+Notas:
+
+- **Verificado el 2026-11-10** en la documentación vigente de Prisma ORM **v6** (la de v7 se publica para el adaptador nuevo, donde `connection_limit` y `pool_timeout` ya no tienen efecto). Prisma 5.22 usa el mismo motor de consultas con parámetros en la URL que v6; **por confirmar** contra una página específica de 5.x, que ya no se publica aparte. Si se migra a Prisma 7 (con adaptador), estos parámetros dejan de aplicarse y el pool se configura en el adaptador.
+- Las transacciones interactivas de stock, alta, precio, unión y ventas usan `maxWait` 5 s y `timeout` 10 s (`lib/data/tx-options.ts`). Con `connection_limit=1`, una transacción ocupa la única conexión de la función mientras dura.
+- **`DIRECT_URL` solo en local y en migraciones.** Es la conexión sin *pooler*; la usan `prisma validate` y `prisma migrate …` desde tu terminal (`directUrl` de `prisma/schema.prisma`). Nunca va en Vercel (ni Production ni Preview): la app, `next build` y `prisma generate` no la necesitan.
+- Comprobación rápida, sin imprimir valores: el *host* de `DATABASE_URL` debe tener `-pooler` (Fase 0) y la consulta debe traer los parámetros:
+  ```bash
+  node -e 'const u=new URL(process.env.DATABASE_URL); console.log(["pgbouncer","connection_limit","pool_timeout","connect_timeout"].map(k=>k+"="+(u.searchParams.has(k)?"sí":"no")).join(" "))'
+  ```
+
 ## Fase D. Preview de Vercel contra la rama (paso 6 del ER)
 
 1. En Vercel, configurar para el entorno **Preview** `DATABASE_URL` con la conexión de la **rama** con *pooler* (`<NEON_BRANCH_DATABASE_URL>`, nunca la de producción), además de `NEXTAUTH_SECRET`, `NEXTAUTH_URL` del preview, `BOT_API_KEY`, `BLOB_READ_WRITE_TOKEN` y `WHATSAPP_APP_SECRET`. `DIRECT_URL` no hace falta. Anotar los valores que tenía Preview para devolverlos al terminar.
@@ -243,6 +264,12 @@ Orden obligatorio: **primero la base, después el código**. En una terminal nue
 - [ ] Una venta SPAY aparece como pendiente y owner/manager puede confirmarla.
 - [ ] `npx prisma migrate status` contra producción dice `Database schema is up to date!`.
 - [ ] Sin errores en Vercel (Runtime Logs) durante 10 minutos tras las pruebas.
+
+### Guion de la demo: orden de los pasos con datos de `ventas-prueba`
+
+1. **Primero asignar departamentos** en `/productos` (seleccionar y "Asignar departamento") a los productos viejos que no lo tienen.
+2. **Después unir duplicados** en `/productos/unir`. La pantalla agrupa por marca, título sin talla y departamento: si se une antes de asignar, los productos sin departamento quedan en su propio grupo y luego no coinciden con los que sí lo tienen. Al unir, las tallas "U" toman la talla escrita al final del título ("Polo - M" → M); revisar el aviso "Quedarán dos tallas…" antes de confirmar.
+3. Comprobar en `/ventas` que las cifras son iguales antes y después de unir.
 
 Si alguna casilla falla, evaluar: si es un fallo de código sin datos corruptos, retroceder el deploy (opción 1 abajo); si hay datos dañados, restaurar (opción 2).
 
