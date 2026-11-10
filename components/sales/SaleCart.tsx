@@ -1,15 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { saleTotal } from "@/lib/domain/sale";
+import { formatPrice } from "@/lib/public/format";
 import type { DraftLine } from "@/lib/sales/use-sale-draft";
-
-const moneyFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-export function formatMoney(n: number): string {
-  return `$${moneyFormat.format(n)}`;
-}
 
 type Props = {
   lines: DraftLine[];
@@ -27,11 +22,19 @@ const stepBtn =
 /** Campo de precio con texto local para poder borrar y reescribir sin saltos. */
 function PriceField({ line, onCommit }: { line: DraftLine; onCommit: (price: number) => void }) {
   const [text, setText] = useState(String(line.unitPrice));
+  const [focused, setFocused] = useState(false);
+  // Si el precio cambia en el servidor (PRICE_CHANGED), el campo muestra el vigente salvo que se esté escribiendo.
+  useEffect(() => {
+    if (!focused) setText(String(line.unitPrice));
+  }, [line.unitPrice, focused]);
+  const trimmed = text.trim();
+  const parsed = Number(text);
+  const invalid = trimmed === "" || !Number.isFinite(parsed) || parsed < 0;
   return (
     <label className="block text-sm text-on-surface-variant">
       <span className="sr-only">{`Precio unitario de ${line.productTitle}`}</span>
       <span aria-hidden="true">Precio</span>
-      <div className="mt-1 flex min-h-[44px] items-center rounded-lg border border-outline bg-white px-3 focus-within:ring-2 focus-within:ring-primary">
+      <div className={`mt-1 flex min-h-[44px] items-center rounded-lg border bg-white px-3 focus-within:ring-2 focus-within:ring-primary ${invalid ? "border-error" : "border-outline"}`}>
         <span aria-hidden="true" className="text-on-surface-variant">
           $
         </span>
@@ -46,10 +49,16 @@ function PriceField({ line, onCommit }: { line: DraftLine; onCommit: (price: num
             const n = Number(value);
             if (value.trim() !== "" && Number.isFinite(n) && n >= 0) onCommit(n);
           }}
-          onBlur={() => setText(String(line.unitPrice))}
+          onFocus={() => setFocused(true)}
+          onBlur={() => {
+            setFocused(false);
+            setText(String(line.unitPrice));
+          }}
+          aria-invalid={invalid ? "true" : undefined}
           className="w-full min-w-0 bg-transparent py-2 pl-1 font-data-mono text-base text-on-surface focus:outline-none"
         />
       </div>
+      {invalid && <span className="mt-1 block text-sm text-error">Escribe un precio de 0 en adelante.</span>}
     </label>
   );
 }
@@ -107,7 +116,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <div role="group" aria-label={`Cantidad de ${line.productTitle}`} className="flex items-center gap-1">
                   <button
                     type="button"
@@ -131,23 +140,25 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                   </button>
                 </div>
 
-                {canEditPrice ? (
-                  <div className="w-32">
-                    <PriceField line={line} onCommit={(p) => onSetPrice(line.variantId, p)} />
-                  </div>
-                ) : (
+                {!canEditPrice && (
                   <p className="text-sm text-on-surface-variant">
-                    Precio <span className="font-data-mono text-on-surface">{formatMoney(line.unitPrice)}</span>
+                    Precio <span className="font-data-mono text-on-surface">{formatPrice(line.unitPrice)}</span>
                   </p>
                 )}
 
                 <p className="min-w-[5.5rem] text-right font-data-mono text-base font-semibold">
-                  {formatMoney(line.quantity * line.unitPrice)}
+                  {formatPrice(line.quantity * line.unitPrice)}
                 </p>
               </div>
 
+              {canEditPrice && (
+                <div className="w-full">
+                  <PriceField line={line} onCommit={(p) => onSetPrice(line.variantId, p)} />
+                </div>
+              )}
+
               {canEditPrice && changed && (
-                <p className="text-xs text-on-surface-variant">Precio de lista {formatMoney(line.listPrice)}</p>
+                <p className="text-xs text-on-surface-variant">Precio de lista {formatPrice(line.listPrice)}</p>
               )}
 
               {error && (
@@ -162,7 +173,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
       <div className="flex items-baseline justify-between border-t border-outline-variant px-4 py-3">
         <span className="text-sm font-semibold text-on-surface-variant">Total</span>
         <span data-testid="sale-total" className="font-data-mono text-2xl font-bold text-on-surface">
-          {formatMoney(total)}
+          {formatPrice(total)}
         </span>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, renderHook, act } from "@testing-library/react";
-import { SaleCart, formatMoney } from "../sales/SaleCart";
+import { SaleCart } from "../sales/SaleCart";
+import { formatPrice } from "@/lib/public/format";
 import { useSaleDraft, type DraftLine } from "@/lib/sales/use-sale-draft";
 import type { VariantMatch } from "@/lib/data/source";
 
@@ -78,7 +79,8 @@ describe("SaleCart", () => {
   it("muestra el total como $399.90", () => {
     render(<SaleCart lines={[line()]} canEditPrice {...handlers} />);
     expect(screen.getByTestId("sale-total")).toHaveTextContent("$399.90");
-    expect(formatMoney(1234.5)).toBe("$1,234.50");
+    expect(formatPrice(1234.5)).toBe("$1,234.50");
+    expect(formatPrice(350)).toBe("$350");
   });
 
   it("owner y manager editan el precio unitario", () => {
@@ -114,5 +116,22 @@ describe("SaleCart", () => {
   it("sin líneas invita a escanear", () => {
     render(<SaleCart lines={[]} canEditPrice {...handlers} />);
     expect(screen.getByText(/escanea una prenda/i)).toBeInTheDocument();
+  });
+
+  it("el campo de precio se sincroniza cuando el precio cambia desde fuera", () => {
+    const { rerender } = render(<SaleCart lines={[line()]} canEditPrice {...handlers} />);
+    const input = screen.getByLabelText(/precio unitario de playera/i);
+    expect(input).toHaveValue("199.95");
+    rerender(<SaleCart lines={[line({ unitPrice: 250 })]} canEditPrice {...handlers} />);
+    expect(screen.getByLabelText(/precio unitario de playera/i)).toHaveValue("250");
+  });
+
+  it("precio vacío o inválido muestra el error en vez de ignorarse", () => {
+    render(<SaleCart lines={[line()]} canEditPrice {...handlers} />);
+    const input = screen.getByLabelText(/precio unitario de playera/i);
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Escribe un precio de 0 en adelante.")).toBeInTheDocument();
   });
 });

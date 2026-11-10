@@ -92,7 +92,7 @@ export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onA
             className="mt-1 min-h-[44px] w-full rounded-lg border border-outline bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           />
           <p id={aliasHelp} className="mt-1 text-sm text-on-surface-variant">
-            Sin teléfono ni nombre completo
+            Máximo 40 caracteres. Sin teléfono ni nombre completo.
           </p>
         </div>
       )}
