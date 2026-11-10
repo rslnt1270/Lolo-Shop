@@ -5,14 +5,15 @@ import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
 import type { EntryMode } from "@/lib/domain/new-product";
+import type { Role } from "@/lib/domain/types";
 import { NewProductForm, type CreatedInfo } from "@/components/products/NewProductForm";
 import {
   lookupCodeAction,
-  adjustInventoryAction,
   fetchLocationsAction,
   type LookupCodeResult,
 } from "@/lib/actions";
 import { isValidGtin } from "@/lib/domain/barcode";
+import { StockMovementPanel } from "@/components/inventory/StockMovementPanel";
 
 type Found = Extract<LookupCodeResult, { found: true }>;
 type LocationOption = { id: string; name: string };
@@ -29,7 +30,6 @@ export default function EscanearPage() {
   const [newCode, setNewCode] = useState<string | null | undefined>(undefined);
   const [searching, setSearching] = useState(false);
   const [lookupError, setLookupError] = useState("");
-  const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [createdCount, setCreatedCount] = useState(0);
@@ -39,11 +39,12 @@ export default function EscanearPage() {
   const [chosenLocation, setChosenLocation] = useState("");
 
   const role = session?.user?.role;
-  const isCollaborator = role === "collaborator";
-  const locationId = isCollaborator ? (session?.user?.locationId ?? "") : chosenLocation;
+  // Misma regla que el servidor (`isStoreBound`): colaborador, o manager con tienda.
+  const storeBound = role === "collaborator" || (role === "manager" && !!session?.user?.locationId);
+  const locationId = storeBound ? (session?.user?.locationId ?? "") : chosenLocation;
 
   useEffect(() => {
-    if (status !== "authenticated" || isCollaborator) return;
+    if (status !== "authenticated" || storeBound) return;
     let cancelled = false;
     fetchLocationsAction()
       .then((res) => {
@@ -68,7 +69,7 @@ export default function EscanearPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, isCollaborator]);
+  }, [status, storeBound]);
 
   const chooseLocation = (id: string) => {
     setChosenLocation(id);
@@ -84,7 +85,6 @@ export default function EscanearPage() {
     setFound(null);
     setNewCode(undefined);
     setLookupError("");
-    setQuantity(1);
   };
 
   const handleScan = useCallback(async (code: string) => {
@@ -112,30 +112,6 @@ export default function EscanearPage() {
     }
   }, []);
 
-  const handleMovement = async (type: "in" | "out") => {
-    if (!found || !locationId) {
-      setIsError(true);
-      setMessage("Error: elige una tienda para registrar el movimiento.");
-      return;
-    }
-    const qty = Math.floor(quantity);
-    if (!Number.isFinite(qty) || qty < 1) {
-      setIsError(true);
-      setMessage("Error: La cantidad debe ser un número entero mayor o igual a 1.");
-      return;
-    }
-    const delta = type === "in" ? qty : -qty;
-    try {
-      await adjustInventoryAction(found.variantId, locationId, delta);
-      setIsError(false);
-      setMessage(`Movimiento exitoso: ${delta > 0 ? "+" : ""}${delta} ${found.product.title}`);
-      reset();
-    } catch {
-      setIsError(true);
-      setMessage("Error al actualizar inventario.");
-    }
-  };
-
   if (status === "loading") {
     return <main className="p-4 text-center">Cargando...</main>;
   }
@@ -144,11 +120,12 @@ export default function EscanearPage() {
     return <main className="p-4 text-center">Inicia sesión para escanear productos.</main>;
   }
 
-  if (isCollaborator && !session.user.locationId) {
+  if (role === "collaborator" && !session.user.locationId) {
     return <main className="p-4 text-center">Tu usuario no tiene una tienda asignada. Pide al dueño que te la asigne.</main>;
   }
 
   const variant = found?.product.variants.find((v) => v.id === found.variantId) ?? found?.product.variants[0];
+  const stockHere = variant ? (variant.inventory.find((l) => l.locationId === locationId)?.available ?? 0) : null;
   const showScanner = !scannedCode && newCode === undefined;
 
   return (
@@ -162,7 +139,7 @@ export default function EscanearPage() {
         )}
       </div>
 
-      {!isCollaborator && (
+      {!storeBound && (
         <div>
           <label htmlFor="tienda" className="block text-sm font-medium text-gray-700">
             Tienda
@@ -236,33 +213,27 @@ export default function EscanearPage() {
               </p>
               {variant && <p className="mt-1 font-mono text-sm">Precio: ${Number(variant.price)}</p>}
             </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="cantidad" className="text-sm font-medium">
-                Cantidad:
-              </label>
-              <input
-                id="cantidad"
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
-                className="min-h-[44px] w-24 rounded border p-1"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleMovement("out")}
-                className="min-h-[44px] flex-1 rounded bg-loloteal px-4 py-2 font-semibold text-white hover:bg-opacity-90"
-              >
-                Registrar Salida
-              </button>
-              <button
-                onClick={() => handleMovement("in")}
-                className="min-h-[44px] flex-1 rounded border border-loloteal px-4 py-2 font-semibold text-loloteal hover:bg-loloteal/10"
-              >
-                Registrar Entrada
-              </button>
-            </div>
+            {locationId ? (
+              <>
+                {stockHere !== null && (
+                  <p className="text-sm text-gray-700">
+                    En esta tienda: <span className="font-semibold">{stockHere} pzas</span>
+                  </p>
+                )}
+                <StockMovementPanel
+                  variantId={found.variantId}
+                  locationId={locationId}
+                  role={role as Role}
+                  onDone={(available) => {
+                    setIsError(false);
+                    setMessage(`Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
+                    reset();
+                  }}
+                />
+              </>
+            ) : (
+              <p className="text-sm text-gray-600">Elige una tienda arriba para registrar el movimiento.</p>
+            )}
             <button
               onClick={() => {
                 reset();

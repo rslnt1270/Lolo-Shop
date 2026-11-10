@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 const lookup = vi.fn();
-const adjust = vi.fn();
+const record = vi.fn();
 const createProductAction = vi.fn();
 const fetchLocations = vi.fn();
 let sessionUser: Record<string, unknown> = { id: "u1", role: "collaborator", locationId: "loc-1" };
@@ -12,7 +12,7 @@ vi.mock("next-auth/react", () => ({
 }));
 vi.mock("@/lib/actions", () => ({
   lookupCodeAction: (...a: unknown[]) => lookup(...a),
-  adjustInventoryAction: (...a: unknown[]) => adjust(...a),
+  recordStockMovementAction: (...a: unknown[]) => record(...a),
   createProductAction: (...a: unknown[]) => createProductAction(...a),
   fetchLocationsAction: (...a: unknown[]) => fetchLocations(...a),
   uploadProductImageAction: vi.fn(),
@@ -51,9 +51,10 @@ async function fillForm() {
 
 describe("/escanear: flujo de alta por lote", () => {
   beforeEach(() => {
-    [lookup, adjust, createProductAction, fetchLocations].forEach((m) => m.mockReset());
+    [lookup, record, createProductAction, fetchLocations].forEach((m) => m.mockReset());
     sessionUser = { id: "u1", role: "collaborator", locationId: "loc-1" };
     lookup.mockResolvedValue({ found: false, code: "750999" });
+    record.mockResolvedValue({ ok: true, available: 1, replayed: false });
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null, variants: [] }, variantId: "v9", sku: "750999" });
     fetchLocations.mockResolvedValue([{ id: "loc-A", name: "Tienda A", type: "store" }, { id: "loc-B", name: "Bodega", type: "warehouse" }]);
   });
@@ -81,8 +82,12 @@ describe("/escanear: flujo de alta por lote", () => {
     fireEvent.click(screen.getByText("simular-escaneo"));
     expect(await screen.findByText("Playera X")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /dar de alta/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /registrar entrada/i }));
-    await waitFor(() => expect(adjust).toHaveBeenCalledWith("v1", "loc-1", 1));
+    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    await waitFor(() =>
+      expect(record).toHaveBeenCalledWith(
+        expect.objectContaining({ variantId: "v1", locationId: "loc-1", kind: "restock", quantity: 1 }),
+      ),
+    );
   });
 
   it("si la búsqueda del código falla, no deja la pantalla colgada sin aviso", async () => {
@@ -131,5 +136,126 @@ describe("/escanear: flujo de alta por lote", () => {
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ locationId: "loc-B" });
     expect(sessionStorage.getItem("loloshop:escanear:location")).toBe("loc-B");
+  });
+
+  describe("producto existente: panel de movimientos", () => {
+    async function openExisting() {
+      lookup.mockResolvedValue({ found: true, product: existingProduct, variantId: "v1" });
+      record.mockResolvedValue({ ok: true, available: 5, replayed: false });
+      render(<EscanearPage />);
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText("Playera X");
+      return screen.getByTestId("stock-panel");
+    }
+
+    it("no hay ningún botón Salida y Entrada es el primero del panel", async () => {
+      const panel = await openExisting();
+      expect(screen.queryByRole("button", { name: /salida/i })).toBeNull();
+      expect(within(panel).getAllByRole("button")[0]).toHaveAccessibleName("Entrada");
+    });
+
+    it("el aviso '¿Vendiste la prenda? Regístrala en Vender.' enlaza a /pos", async () => {
+      await openExisting();
+      expect(screen.getByRole("link", { name: /regístrala en vender/i })).toHaveAttribute("href", "/pos");
+      expect(screen.getByText(/¿vendiste la prenda\?/i)).toBeTruthy();
+    });
+
+    it("colaborador no ve 'Merma o corrección'", async () => {
+      await openExisting();
+      expect(screen.queryByRole("button", { name: /merma o corrección/i })).toBeNull();
+    });
+
+    it("manager con tienda sí lo ve; sin motivo muestra el error sin llamar a la acción", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
+      fireEvent.click(screen.getByRole("button", { name: /registrar merma/i }));
+      expect(await screen.findByText("Escribe el motivo.")).toBeTruthy();
+      expect(record).not.toHaveBeenCalled();
+    });
+
+    it("merma con motivo llama a la acción con kind damage", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Manchada" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar merma/i }));
+      await waitFor(() =>
+        expect(record).toHaveBeenCalledWith(
+          expect.objectContaining({ variantId: "v1", locationId: "loc-1", kind: "damage", quantity: 1, reason: "Manchada" }),
+        ),
+      );
+    });
+
+    it("corrección pide dirección y el botón cambia a 'Registrar corrección'", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
+      fireEvent.click(screen.getByRole("radio", { name: "Corrección" }));
+      fireEvent.click(screen.getByRole("radio", { name: "Resta" }));
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Conteo" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar corrección/i }));
+      await waitFor(() =>
+        expect(record).toHaveBeenCalledWith(
+          expect.objectContaining({ kind: "adjustment", direction: "out", reason: "Conteo" }),
+        ),
+      );
+    });
+
+    it("INSUFFICIENT muestra el mensaje del servidor", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      await openExisting();
+      record.mockResolvedValue({ ok: false, code: "INSUFFICIENT", available: 1, message: "Solo hay 1 en esta tienda." });
+      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Manchada" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar merma/i }));
+      expect(await screen.findByText("Solo hay 1 en esta tienda.")).toBeTruthy();
+    });
+
+    it("un reintento tras un error de red lleva el mismo requestId", async () => {
+      await openExisting();
+      record.mockResolvedValueOnce({ ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." });
+      const entrada = screen.getByRole("button", { name: "Entrada" });
+      fireEvent.click(entrada);
+      await screen.findByText(/no se pudo registrar/i);
+      fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+      await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
+      const [a, b] = record.mock.calls.map((c) => (c[0] as { requestId: string }).requestId);
+      expect(a).toBe(b);
+      expect(a).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it("doble toque mientras espera no duplica la llamada", async () => {
+      await openExisting();
+      let release!: (v: unknown) => void;
+      record.mockReturnValue(new Promise((r) => (release = r)));
+      const entrada = screen.getByRole("button", { name: "Entrada" });
+      fireEvent.click(entrada);
+      fireEvent.click(entrada);
+      expect(record).toHaveBeenCalledTimes(1);
+      release({ ok: true, available: 2, replayed: false });
+      await waitFor(() => expect(screen.getByText(/ahora hay 2/i)).toBeTruthy());
+    });
+  });
+
+  describe("tienda fija según la regla del servidor", () => {
+    it("manager con tienda: no ve el selector de tiendas y usa su locationId", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      lookup.mockResolvedValue({ found: true, product: existingProduct, variantId: "v1" });
+      record.mockResolvedValue({ ok: true, available: 1, replayed: false });
+      render(<EscanearPage />);
+      expect(screen.queryByLabelText(/^tienda$/i)).toBeNull();
+      expect(fetchLocations).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText("Playera X");
+      fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+      await waitFor(() => expect(record).toHaveBeenCalledWith(expect.objectContaining({ locationId: "loc-1" })));
+    });
+
+    it("manager sin tienda sí elige tienda", async () => {
+      sessionUser = { id: "m2", role: "manager", locationId: null };
+      render(<EscanearPage />);
+      expect(await screen.findByLabelText(/^tienda$/i)).toBeTruthy();
+    });
   });
 });

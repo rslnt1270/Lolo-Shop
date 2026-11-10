@@ -48,7 +48,9 @@ describe("FixtureDataSource: estado por instancia", () => {
 
   it("ajustar inventario en una instancia no afecta a otra", async () => {
     const a = new FixtureDataSource();
-    await a.adjustInventory("var-1", "loc-1", 5);
+    await a.recordStockMovement({
+      variantId: "var-1", locationId: "loc-1", type: "RESTOCK", delta: 5, notes: null, requestId: "11111111-1111-4111-8111-111111111111", userId: "u1",
+    });
     const b = new FixtureDataSource();
     const match = await b.getProductByVariantId("var-1");
     expect(match?.variant.inventory.find((l) => l.locationId === "loc-1")?.available).toBe(3);

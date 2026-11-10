@@ -36,6 +36,20 @@ export interface CreateLocationData {
   type?: LocationType;
 }
 
+export type StockMovementType = "RESTOCK" | "DAMAGE" | "ADJUSTMENT";
+
+export interface RecordStockMovementData {
+  variantId: string;
+  locationId: string;
+  type: StockMovementType;
+  /** Con signo: positivo suma, negativo resta. Nunca 0. */
+  delta: number;
+  notes: string | null;
+  /** UUID de idempotencia: repetirlo no duplica el movimiento. */
+  requestId: string;
+  userId: string;
+}
+
 export interface InventoryDataSource {
   getLocations(): Promise<Location[]>;
   createLocation(data: CreateLocationData): Promise<Location>;
@@ -46,7 +60,13 @@ export interface InventoryDataSource {
    * candidatos de `codeCandidates(code)` (UPC-A ↔ EAN-13, mayúsculas).
    */
   getProductByBarcode(code: string): Promise<VariantMatch | null>;
-  adjustInventory(variantId: string, locationId: string, delta: number, userId?: string): Promise<void>;
+  /**
+   * Movimiento de stock atómico con `Movement` tipado. Una salida que deja el
+   * stock en negativo (o sin fila de inventario) lanza `InsufficientStockError`
+   * y no escribe nada. Un `requestId` ya registrado devuelve `replayed: true`
+   * con el stock actual, sin aplicar el cambio otra vez.
+   */
+  recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }>;
   /**
    * Crea producto + variante + inventario inicial (+ Movement RESTOCK si
    * initialStock > 0) de forma atómica. Si barcode o sku ya existen lanza un

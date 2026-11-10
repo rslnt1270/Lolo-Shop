@@ -1,9 +1,11 @@
 import type { Location, Product, Variant } from "@/lib/domain/types";
-import type { InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData } from "./source";
+import type {
+  InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData, RecordStockMovementData,
+} from "./source";
 import { fixtureLocations, fixtureProducts } from "./fixtures";
 import { codeCandidates } from "@/lib/domain/barcode";
 import { DEFAULT_SIZE } from "@/lib/domain/new-product";
-import { UniqueConstraintError } from "./errors";
+import { InsufficientStockError, StockTargetNotFoundError, UniqueConstraintError } from "./errors";
 
 function cloneProducts(products: Product[]): Product[] {
   return products.map((p) => ({
@@ -20,6 +22,8 @@ export class FixtureDataSource implements InventoryDataSource {
   private locations: Location[] = fixtureLocations.map((l) => ({ ...l }));
   private products: Product[] = cloneProducts(fixtureProducts);
   private publicCodes = new Set<string>();
+  /** Registro en memoria de los movimientos de stock (lo reutilizan las pruebas de otras tareas). */
+  readonly movements: RecordStockMovementData[] = [];
 
   async getLocations(): Promise<Location[]> {
     return this.locations;
@@ -60,16 +64,32 @@ export class FixtureDataSource implements InventoryDataSource {
     return null;
   }
 
-  async adjustInventory(variantId: string, locationId: string, delta: number): Promise<void> {
-    const match = await this.getProductByVariantId(variantId);
-    if (!match) throw new Error("Variante no encontrada");
-
-    let level = match.variant.inventory.find((l) => l.locationId === locationId);
-    if (!level) {
-      level = { locationId, available: 0 };
-      match.variant.inventory.push(level);
+  async recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }> {
+    const { variantId, locationId, type, delta, notes, requestId, userId } = data;
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new Error("El movimiento de stock debe ser un entero distinto de cero.");
     }
-    level.available = Math.max(0, level.available + delta);
+    const match = await this.getProductByVariantId(variantId);
+    if (!match) throw new StockTargetNotFoundError();
+    if (!this.locations.some((l) => l.id === locationId)) throw new StockTargetNotFoundError();
+
+    const level = match.variant.inventory.find((l) => l.locationId === locationId);
+    if (this.movements.some((m) => m.requestId === requestId)) {
+      return { available: level?.available ?? 0, replayed: true };
+    }
+
+    const current = level?.available ?? 0;
+    if (delta < 0 && current < -delta) {
+      // Sin fila o sin piezas suficientes: no se crea fila ni Movement.
+      throw new InsufficientStockError(variantId, current, -delta);
+    }
+    if (level) {
+      level.available += delta;
+    } else {
+      match.variant.inventory.push({ locationId, available: delta });
+    }
+    this.movements.push({ variantId, locationId, type, delta, notes, requestId, userId });
+    return { available: current + delta, replayed: false };
   }
 
   async createProduct(data: CreateProductData): Promise<VariantMatch> {

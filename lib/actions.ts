@@ -3,7 +3,7 @@ import { isProductBlobUrl } from "./image/blob-url";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "./auth/current-user";
 import { ForbiddenError } from "./auth/errors";
-import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
+import { assertCanOperate, currentUserOrNull, requireRole } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
@@ -12,7 +12,8 @@ import { generatePublicCode } from "./domain/public-code";
 import prisma from "./prisma";
 import { normalizeCode, canonicalCode, isValidGtin, generateInternalSku } from "./domain/barcode";
 import type { VariantMatch } from "./data/source";
-import { uniqueViolationField } from "./data/errors";
+import { InsufficientStockError, StockTargetNotFoundError, uniqueViolationField } from "./data/errors";
+import { validateStockMovement, type StockMovementKind } from "./domain/stock-movement";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
 
@@ -48,17 +49,69 @@ export async function getProductByVariantIdAction(id: string): Promise<VariantMa
   return await getDataSource().getProductByVariantId(id);
 }
 
-export async function adjustInventoryAction(variantId: string, locationId: string, delta: number): Promise<void> {
-  const user = await getCurrentUser();
+export type StockMovementResult =
+  | { ok: true; available: number; replayed: boolean }
+  | {
+      ok: false;
+      code: "SESSION" | "FORBIDDEN" | "INVALID" | "INSUFFICIENT" | "NOT_FOUND" | "ERROR";
+      message: string;
+      available?: number;
+    };
 
-  if (!Number.isInteger(delta) || delta === 0) {
-    throw new Error("El ajuste de inventario debe ser un entero distinto de cero.");
+const STOCK_TYPE = { restock: "RESTOCK", damage: "DAMAGE", adjustment: "ADJUSTMENT" } as const;
+
+/**
+ * Entrada, merma o corrección de stock. Rol y tienda se releen de la base; no
+ * hay "salida" (las ventas se registran en /pos). Nunca lanza: devuelve el código.
+ */
+export async function recordStockMovementAction(input: {
+  variantId: string;
+  locationId: string;
+  kind: StockMovementKind;
+  quantity: number;
+  direction?: "in" | "out";
+  reason?: string;
+  requestId: string;
+}): Promise<StockMovementResult> {
+  const user = await currentUserOrNull();
+  if (!user) return { ok: false, code: "SESSION", message: "Tu sesión venció. Vuelve a iniciar sesión." };
+
+  const parsed = validateStockMovement(input);
+  if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
+  const v = parsed.value;
+
+  try {
+    if (v.kind !== "restock") requireRole(user, ["owner", "manager"]);
+    assertCanOperate(user, v.locationId);
+
+    const res = await getDataSource().recordStockMovement({
+      variantId: v.variantId,
+      locationId: v.locationId,
+      type: STOCK_TYPE[v.kind],
+      delta: v.delta,
+      notes: v.reason,
+      requestId: v.requestId,
+      userId: user.id,
+    });
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return { ok: true, available: res.available, replayed: res.replayed };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { ok: false, code: "FORBIDDEN", message: err.message };
+    if (err instanceof InsufficientStockError) {
+      return {
+        ok: false,
+        code: "INSUFFICIENT",
+        available: err.available,
+        message: `Solo hay ${err.available} en esta tienda.`,
+      };
+    }
+    if (err instanceof StockTargetNotFoundError) {
+      return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
+    }
+    console.error("recordStockMovementAction", err);
+    return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
   }
-  // Un colaborador solo puede mover inventario de su propia tienda.
-  assertCanOperate(user, locationId);
-
-  await getDataSource().adjustInventory(variantId, locationId, delta, user.id);
-  revalidatePath("/catalogo");
 }
 
 export type LookupCodeResult =

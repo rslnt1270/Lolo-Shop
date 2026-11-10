@@ -37,6 +37,14 @@ export class InsufficientStockError extends Error {
   }
 }
 
+/** La variante o la tienda de un movimiento de stock no existe. */
+export class StockTargetNotFoundError extends Error {
+  constructor(message = "La prenda o la tienda no existe.") {
+    super(message);
+    this.name = "StockTargetNotFoundError";
+  }
+}
+
 /**
  * Regla de negocio de ventas incumplida (venta inexistente, estado que no
  * permite la operación, motivo vacío, dato inválido). El mensaje es para el operador.

@@ -1,7 +1,8 @@
-import { InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData } from "./source";
+import { InventoryDataSource, VariantMatch, CreateProductData, CreateLocationData, RecordStockMovementData } from "./source";
+import { InsufficientStockError, StockTargetNotFoundError } from "./errors";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
-import type { Prisma } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { codeCandidates } from "../domain/barcode";
 import { DEFAULT_SIZE } from "../domain/new-product";
 
@@ -26,8 +27,10 @@ function codeWhere(candidates: string[]) {
 }
 
 export class PrismaDataSource implements InventoryDataSource {
+  constructor(private readonly db: PrismaClient = prisma) {}
+
   async getLocations(): Promise<Location[]> {
-    const locs = await prisma.location.findMany({ orderBy: { createdAt: "asc" } });
+    const locs = await this.db.location.findMany({ orderBy: { createdAt: "asc" } });
     return locs.map(l => ({
       id: l.id,
       name: l.name,
@@ -38,14 +41,14 @@ export class PrismaDataSource implements InventoryDataSource {
   async createLocation(data: CreateLocationData): Promise<Location> {
     const name = data.name.trim();
     if (!name) throw new Error("El nombre de la tienda es obligatorio.");
-    const loc = await prisma.location.create({
+    const loc = await this.db.location.create({
       data: { name, type: (data.type ?? "store") as any },
     });
     return { id: loc.id, name: loc.name, type: loc.type as any };
   }
 
   async getProducts(): Promise<Product[]> {
-    const prods = await prisma.product.findMany({
+    const prods = await this.db.product.findMany({
       include: { 
         variants: {
           include: { inventory: true }
@@ -86,7 +89,7 @@ export class PrismaDataSource implements InventoryDataSource {
   async getProductByBarcode(code: string): Promise<VariantMatch | null> {
     const candidates = codeCandidates(code);
     if (candidates.length === 0) return null;
-    const v = await prisma.variant.findFirst({
+    const v = await this.db.variant.findFirst({
       where: { OR: codeWhere(candidates) },
       include: {
         product: true,
@@ -120,7 +123,7 @@ export class PrismaDataSource implements InventoryDataSource {
   }
 
   async getProductByVariantId(variantId: string): Promise<VariantMatch | null> {
-    const v = await prisma.variant.findUnique({
+    const v = await this.db.variant.findUnique({
       where: { id: variantId },
       include: { 
         product: true,
@@ -153,40 +156,62 @@ export class PrismaDataSource implements InventoryDataSource {
     };
   }
 
-  async adjustInventory(variantId: string, locationId: string, delta: number, userId?: string): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      // 1. Operación Atómica (Previene Race Conditions si 2 personas escanean al mismo tiempo)
-      await tx.inventoryLevel.upsert({
-        where: {
-          variantId_locationId: { variantId, locationId }
-        },
-        update: {
-          available: { increment: delta }
-        },
-        create: {
-          variantId,
-          locationId,
-          available: delta
-        }
-      });
+  async recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }> {
+    const { variantId, locationId, type, delta, notes, requestId, userId } = data;
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new Error("El movimiento de stock debe ser un entero distinto de cero.");
+    }
+    const currentAvailable = async (client: Pick<PrismaClient, "inventoryLevel">) =>
+      (await client.inventoryLevel.findUnique({ where: { variantId_locationId: { variantId, locationId } } }))
+        ?.available ?? 0;
 
-      // 2. Registro Histórico en la misma Transacción
-      if (userId) {
-        await tx.movement.create({
-          data: {
-            variantId,
-            locationId,
-            userId,
-            delta
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const existing = await tx.movement.findUnique({ where: { requestId }, select: { id: true } });
+        if (existing) return { available: await currentAvailable(tx), replayed: true };
+
+        let available: number;
+        if (delta > 0) {
+          const level = await tx.inventoryLevel.upsert({
+            where: { variantId_locationId: { variantId, locationId } },
+            update: { available: { increment: delta } },
+            create: { variantId, locationId, available: delta },
+          });
+          available = level.available;
+        } else {
+          const n = -delta;
+          // Atómico: solo resta si alcanza; sin fila no hay salida y no se crea una.
+          const res = await tx.inventoryLevel.updateMany({
+            where: { variantId, locationId, available: { gte: n } },
+            data: { available: { decrement: n } },
+          });
+          if (res.count === 0) {
+            throw new InsufficientStockError(variantId, await currentAvailable(tx), n);
           }
+          available = await currentAvailable(tx);
+        }
+
+        await tx.movement.create({
+          data: { variantId, locationId, userId, delta, type, notes, requestId },
         });
+        return { available, replayed: false };
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
+          // Carrera: otro intento con el mismo requestId ganó; la transacción se revirtió.
+          return { available: await currentAvailable(this.db), replayed: true };
+        }
+        if (err.code === "P2003") throw new StockTargetNotFoundError();
       }
-    });
+      throw err;
+    }
   }
+
   async createProduct(data: CreateProductData): Promise<VariantMatch> {
     // Producto + variante + inventario + Movement en una sola transacción:
     // si algo falla (p. ej. P2002 por barcode/sku) no queda nada a medias.
-    const product = await prisma.$transaction(async (tx) => {
+    const product = await this.db.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
           title: data.title,
@@ -262,14 +287,14 @@ export class PrismaDataSource implements InventoryDataSource {
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {
-    await prisma.product.update({
+    await this.db.product.update({
       where: { id: productId },
       data: { imageUrl },
     });
   }
 
   async updateProductBackImage(productId: string, backImageUrl: string): Promise<void> {
-    await prisma.product.update({
+    await this.db.product.update({
       where: { id: productId },
       data: { backImageUrl },
     });
