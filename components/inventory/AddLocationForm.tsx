@@ -71,14 +71,14 @@ export function AddLocationForm({ onCreate, onCreated }: Props) {
           placeholder="Nombre (ej. Tienda Centro)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="min-w-0 flex-1 rounded-xl border border-[rgba(226,232,240,0.8)] bg-[#F9FAFB] px-3 py-2 text-sm focus:border-[#2DD4BF] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#2DD4BF]"
+          className="min-w-0 flex-1 rounded-xl border border-[rgba(226,232,240,0.8)] bg-[#F9FAFB] px-3 py-2 text-sm focus:border-loloteal focus:bg-white focus:outline-none focus:ring-1 focus:ring-loloteal"
         />
         <label className="sr-only" htmlFor="loc-type">Tipo</label>
         <select
           id="loc-type"
           value={type}
           onChange={(e) => setType(e.target.value as LocationType)}
-          className="rounded-xl border border-[rgba(226,232,240,0.8)] bg-[#F9FAFB] px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#2DD4BF]"
+          className="rounded-xl border border-[rgba(226,232,240,0.8)] bg-[#F9FAFB] px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-loloteal"
         >
           <option value="store">Tienda</option>
           <option value="warehouse">Bodega</option>
@@ -88,7 +88,7 @@ export function AddLocationForm({ onCreate, onCreated }: Props) {
       <button
         type="submit"
         disabled={saving}
-        className="w-full rounded-xl bg-[#2DD4BF] py-2 text-sm font-semibold text-white transition-all hover:bg-[#25B5A3] active:scale-[0.98] disabled:opacity-70"
+        className="w-full rounded-xl bg-loloteal py-2 text-sm font-semibold text-white transition-all hover:bg-loloteal-dark active:scale-[0.98] disabled:opacity-70"
       >
         {saving ? "Guardando…" : "Guardar tienda"}
       </button>
