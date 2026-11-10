@@ -81,7 +81,7 @@ describe("validateReason", () => {
   it("lanza con menos de 3, más de 120 y con 7+ dígitos", () => {
     expect(() => validateReason("ab", true)).toThrow();
     expect(() => validateReason("a".repeat(121), true)).toThrow();
-    expect(() => validateReason("llamar 5512345678", true)).toThrow();
+    expect(() => validateReason(`llamar ${"0".repeat(10)}`, true)).toThrow();
   });
   it("opcional con valor inválido también lanza", () => {
     expect(() => validateReason("ab", false)).toThrow();

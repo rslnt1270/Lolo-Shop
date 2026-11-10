@@ -62,7 +62,7 @@ describe("transferStockAction", () => {
   });
 
   it("nota con 7 dígitos -> INVALID", async () => {
-    expect(await transferStockAction(input(lomas, club, { note: "llamar 5512345678" }))).toMatchObject({
+    expect(await transferStockAction(input(lomas, club, { note: `llamar ${"0".repeat(10)}` }))).toMatchObject({
       ok: false,
       code: "INVALID",
     });
@@ -87,7 +87,7 @@ describe("transferStockAction", () => {
 
   it("sesión vencida -> SESSION", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
-    expect(await transferStockAction(input(lomas, club))).toMatchObject({ ok: false, code: "SESSION" });
+    expect(await transferStockAction(input(lomas, club))).toMatchObject({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
 
   it("sin piezas suficientes -> INSUFFICIENT con el stock del origen", async () => {

@@ -10,6 +10,7 @@ import type { Location, LocationType, Product } from "./domain/types";
 import { validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput } from "./domain/new-product";
 import { generatePublicCode } from "./domain/public-code";
 import prisma from "./prisma";
+import { SESSION_EXPIRED_TEXT } from "./session-text";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
 import type { InventoryDataSource, ProductSearchHit, VariantMatch } from "./data/source";
 import {
@@ -79,7 +80,7 @@ export async function recordStockMovementAction(input: {
 }): Promise<StockMovementResult> {
   try {
     const user = await currentUserOrNull();
-    if (!user) return { ok: false, code: "SESSION", message: "Tu sesión venció. Vuelve a iniciar sesión." };
+    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
 
     const parsed = validateStockMovement(input);
     if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
@@ -135,7 +136,7 @@ export async function transferStockAction(input: {
 }): Promise<StockMovementResult> {
   try {
     const user = await currentUserOrNull();
-    if (!user) return { ok: false, code: "SESSION", message: "Tu sesión venció. Vuelve a iniciar sesión." };
+    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
 
     const invalid = (message: string): StockMovementResult => ({ ok: false, code: "INVALID", message });
     const { variantId, fromLocationId, toLocationId, quantity, requestId } = input ?? ({} as typeof input);
@@ -208,7 +209,7 @@ export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
   if (!code) return { found: false, code, error: "El código está vacío. Vuelve a escanear." };
   try {
     if (!(await currentUserOrNull())) {
-      return { found: false, code, error: "Tu sesión expiró: inicia sesión de nuevo." };
+      return { found: false, code, error: SESSION_EXPIRED_TEXT };
     }
     const match = await getDataSource().getProductByBarcode(code);
     if (!match) return { found: false, code };
@@ -243,7 +244,7 @@ export type CreateProductResult =
   | { ok: true; product: Product; variantId: string; sku: string }
   | {
       ok: false;
-      code: "FORBIDDEN" | "INVALID" | "DUPLICATE" | "LOCATION" | "ERROR";
+      code: "SESSION" | "FORBIDDEN" | "INVALID" | "DUPLICATE" | "LOCATION" | "ERROR";
       message: string;
       existingVariantId?: string;
       /** En DUPLICATE: el código (canónico) que ya está registrado. */
@@ -254,7 +255,6 @@ export type CreateProductResult =
 const SKU_ATTEMPTS = 4;
 /** Hasta 5 intentos si el código público generado choca (P2002 en publicCode). */
 const PUBLIC_CODE_ATTEMPTS = 5;
-const SESSION_EXPIRED_TEXT = "Tu sesión expiró: inicia sesión de nuevo.";
 
 function withVariant(match: VariantMatch): Product {
   return {
@@ -340,7 +340,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
   try {
     const user = await currentUserOrNull();
     if (!user) {
-      return { ok: false, code: "FORBIDDEN", message: SESSION_EXPIRED_TEXT };
+      return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
     }
     if (!input || typeof input !== "object") {
       return { ok: false, code: "INVALID", message: "Faltan los datos del producto." };
@@ -444,7 +444,7 @@ export type AddVariantInput = {
 export async function addVariantAction(input: AddVariantInput): Promise<CreateProductResult> {
   try {
     const user = await currentUserOrNull();
-    if (!user) return { ok: false, code: "FORBIDDEN", message: SESSION_EXPIRED_TEXT };
+    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
     if (!input || typeof input !== "object" || typeof input.productId !== "string" || !input.productId) {
       return { ok: false, code: "INVALID", message: "Elige el producto al que se agrega la talla." };
     }
@@ -511,7 +511,7 @@ export type UploadImageResult = { ok: true; url: string } | { ok: false; message
 export async function uploadProductImageAction(formData: FormData): Promise<UploadImageResult> {
   try {
     if (!(await currentUserOrNull())) {
-      return { ok: false, message: "Tu sesión expiró: inicia sesión de nuevo." };
+      return { ok: false, message: SESSION_EXPIRED_TEXT };
     }
     const file = formData?.get("image");
     if (!(file instanceof File) || file.size === 0) {
@@ -601,6 +601,6 @@ export async function changePasswordAction(
   newPassword: string,
 ): Promise<ChangePasswordResult> {
   const user = await currentUserOrNull();
-  if (!user) return { ok: false, error: "Tu sesión expiró: inicia sesión de nuevo." };
+  if (!user) return { ok: false, error: SESSION_EXPIRED_TEXT };
   return await changePassword(user.id, currentPassword, newPassword);
 }

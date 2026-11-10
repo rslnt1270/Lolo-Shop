@@ -100,6 +100,12 @@ describe("Virtual Store Components", () => {
     expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain("en talla L. ¿Sigue disponible? Código K7Q2M");
   });
 
+  it("con error de carga muestra 'No pudimos cargar el catálogo…' y no el texto de vacío", () => {
+    render(<VirtualStoreCatalog initialProducts={[]} isLoggedIn={false} loadError />);
+    expect(screen.getByRole("alert")).toHaveTextContent("No pudimos cargar el catálogo. Intenta de nuevo en un momento.");
+    expect(screen.queryByText("Pronto verás aquí las prendas de la tienda.")).toBeNull();
+  });
+
   it("sin productos públicos el catálogo muestra un aviso en lugar de prendas de ejemplo", () => {
     render(<VirtualStoreCatalog initialProducts={[]} isLoggedIn={false} />);
     expect(screen.getByText("Pronto verás aquí las prendas de la tienda.")).toBeInTheDocument();

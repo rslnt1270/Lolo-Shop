@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 const lookup = vi.fn();
 const record = vi.fn();
@@ -266,6 +266,26 @@ describe("/escanear: flujo de alta por lote", () => {
       fireEvent.click(screen.getByText("simular-escaneo"));
       await screen.findByText(/registrada en otra tienda/);
       expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();
+    });
+
+    it("el precio usa el formato de pesos: $350.50 y $1,250", async () => {
+      lookup.mockResolvedValue({
+        found: true,
+        product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], price: 350.5 }] },
+        variantId: "v1",
+      });
+      render(<EscanearPage />);
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      expect(await screen.findByText("Precio: $350.50")).toBeTruthy();
+      cleanup();
+      lookup.mockResolvedValue({
+        found: true,
+        product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], price: 1250 }] },
+        variantId: "v1",
+      });
+      render(<EscanearPage />);
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      expect(await screen.findByText("Precio: $1,250")).toBeTruthy();
     });
 
     it("colaborador no ve 'Traspasar'", async () => {

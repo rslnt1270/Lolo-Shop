@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { FixtureDataSource } from "@/lib/data/fixture-source";
 
+/** Remitente ficticio (sin forma de teléfono real). */
+const FAKE_WA_ID = "521" + "0".repeat(10);
+
 const state = vi.hoisted(() => ({ ds: null as unknown as FixtureDataSource, spy: null as unknown as ReturnType<typeof vi.fn> }));
 vi.mock("@/lib/data/get-source", () => ({ getDataSource: () => state.ds }));
 
 async function send(text: string) {
   const { POST } = await import("../route");
-  const body = { object: "whatsapp_business_account", entry: [{ changes: [{ value: { metadata: { phone_number_id: "1" }, messages: [{ from: "5215512345678", text: { body: text } }] } }] }] };
+  const body = { object: "whatsapp_business_account", entry: [{ changes: [{ value: { metadata: { phone_number_id: "1" }, messages: [{ from: FAKE_WA_ID, text: { body: text } }] } }] }] };
   const logs: string[] = [];
   const log = vi.spyOn(console, "log").mockImplementation((...a) => { logs.push(a.join(" ")); });
   await POST(new Request("http://x/api/whatsapp/webhook", { method: "POST", body: JSON.stringify(body) }));
@@ -28,7 +31,7 @@ describe("webhook WhatsApp", () => {
     expect(out).toContain("Playera Nike");
     expect(out.toLowerCase()).not.toMatch(/aparté|apartado|24 horas|te lo aparto/);
     expect(out).toContain("confirmará");
-    expect(out).not.toContain("5215512345678");
+    expect(out).not.toContain(FAKE_WA_ID);
   });
 
   it.each(["¿me la puedes apartar?", "apártame una", "la quiero apartada", "¿puedes apartarla?"])(

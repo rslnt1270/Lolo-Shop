@@ -9,6 +9,7 @@ import { MAX_PRICE, MAX_TITLE_LENGTH, PRODUCT_CATEGORIES, roundToCents } from "@
 import { validateReason } from "@/lib/domain/stock-movement";
 import type { Role } from "@/lib/domain/types";
 import prisma from "@/lib/prisma";
+import { SESSION_EXPIRED_TEXT } from "@/lib/session-text";
 
 export type UpdateVariantPriceResult =
   | { ok: true; price: number }
@@ -32,7 +33,6 @@ export type MergeResult =
 
 const MAX_BATCH = 100;
 const HISTORY_LIMIT = 5;
-const SESSION_MESSAGE = "Tu sesión venció. Vuelve a iniciar sesión.";
 const ROLES = ["owner", "manager"] as const;
 const OWNER_ONLY = ["owner"] as const;
 
@@ -41,7 +41,7 @@ type Gate = { ok: true; userId: string } | { ok: false; code: "SESSION" | "FORBI
 /** Sesión vigente de la base y rol owner o manager (o el que se indique). */
 async function gate(roles: readonly Role[] = ROLES): Promise<Gate> {
   const user = await currentUserOrNull();
-  if (!user) return { ok: false, code: "SESSION", message: SESSION_MESSAGE };
+  if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
   try {
     requireRole(user, roles);
   } catch (err) {

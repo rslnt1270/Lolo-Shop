@@ -78,10 +78,9 @@ describe("usuario borrado / sesión vencida", () => {
     expect(await fetchProductsAction()).toBeNull();
     expect(await fetchLocationsAction()).toBeNull();
   });
-  it("createProductAction → FORBIDDEN con «inicia sesión»", async () => {
+  it("createProductAction → SESSION con el texto único de sesión vencida", async () => {
     const r = await createProductAction(input);
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(!r.ok && r.message).toMatch(/inicia sesión/);
+    expect(r).toEqual({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
 });
 

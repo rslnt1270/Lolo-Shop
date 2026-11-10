@@ -62,7 +62,7 @@ describe("recordStockMovementAction", () => {
   it("sesión vencida -> SESSION", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "restock", quantity: 1, requestId: rid() });
-    expect(r).toMatchObject({ ok: false, code: "SESSION" });
+    expect(r).toMatchObject({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
 
   it.each([0, 201, 1.5, 2 ** 31])("cantidad %s -> INVALID", async (quantity) => {
@@ -71,7 +71,7 @@ describe("recordStockMovementAction", () => {
   });
 
   it("motivo con un teléfono -> INVALID", async () => {
-    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 1, reason: "llamó 5500000000", requestId: rid() });
+    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 1, reason: `llamó ${"0".repeat(10)}`, requestId: rid() });
     expect(r).toMatchObject({ ok: false, code: "INVALID" });
   });
 

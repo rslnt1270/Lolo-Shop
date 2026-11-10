@@ -149,11 +149,10 @@ describe("addVariantAction", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("sesión vencida → FORBIDDEN con «inicia sesión»", async () => {
+  it("sesión vencida → SESSION con el texto único", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     const r = await add("p1");
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(!r.ok && r.message).toMatch(/inicia sesión/);
+    expect(r).toEqual({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
 });
 

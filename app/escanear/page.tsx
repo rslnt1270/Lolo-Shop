@@ -1,4 +1,5 @@
 "use client";
+import { formatPrice } from "@/lib/public/format";
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -282,7 +283,7 @@ export default function EscanearPage() {
               <p className="text-sm text-gray-600">
                 Talla {variant?.size || variant?.title} - {found.product.brand}
               </p>
-              {variant && <p className="mt-1 font-mono text-sm">Precio: ${Number(variant.price)}</p>}
+              {variant && <p className="mt-1 font-mono text-sm">Precio: {formatPrice(Number(variant.price))}</p>}
             </div>
             {locationId ? (
               <>

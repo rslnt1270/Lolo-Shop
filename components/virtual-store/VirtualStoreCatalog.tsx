@@ -14,7 +14,7 @@ import {
 import type { PublicProduct } from "@/lib/data/public-projection";
 import type { StoreHotspot, StoreZone } from "@/lib/virtual-store/types";
 import { STORE_ZONES, bindProductsToHotspots } from "@/lib/virtual-store/zones";
-import { EMPTY_CATALOG_TEXT } from "@/lib/public/whatsapp";
+import { CATALOG_ERROR_TEXT, EMPTY_CATALOG_TEXT } from "@/lib/public/whatsapp";
 import { isTourEnabled } from "@/lib/public/tour-flag";
 import { VirtualStoreCanvas } from "./VirtualStoreCanvas";
 import { StoreMinimap } from "./StoreMinimap";
@@ -29,9 +29,11 @@ const PAGE_SIZE = 24;
 interface Props {
   initialProducts: PublicProduct[];
   isLoggedIn: boolean;
+  /** La carga del servidor falló: aviso de error en lugar del texto de catálogo vacío. */
+  loadError?: boolean;
 }
 
-export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
+export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = false }: Props) {
   const [viewMode, setViewMode] = useState<"tour" | "grid">("grid");
   const [currentZoneId, setCurrentZoneId] = useState<string>("entrada");
   const [cameraYaw, setCameraYaw] = useState<number>(0);
@@ -302,7 +304,11 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
               <DepartmentChips departments={departments} selected={deptoSlug} onSelect={handleSelectDepto} />
             )}
 
-            {products.length === 0 ? (
+            {loadError && products.length === 0 ? (
+              <p role="alert" className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center text-sm text-gray-700">
+                {CATALOG_ERROR_TEXT}
+              </p>
+            ) : products.length === 0 ? (
               <p className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center text-sm text-gray-600">
                 {EMPTY_CATALOG_TEXT}
               </p>

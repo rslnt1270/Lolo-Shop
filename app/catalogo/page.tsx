@@ -8,8 +8,10 @@ export const dynamic = "force-dynamic";
 export default async function CatalogPage() {
   const session = await getServerSession(authOptions);
 
+  let loadError = false;
   const products = await fetchPublicProductsAction().catch((err: unknown) => {
     console.error("[catalogo] No se pudieron cargar productos:", err);
+    loadError = true;
     return [];
   });
 
@@ -17,6 +19,7 @@ export default async function CatalogPage() {
     <CatalogClient
       isLoggedIn={Boolean(session?.user)}
       products={products}
+      loadError={loadError}
     />
   );
 }

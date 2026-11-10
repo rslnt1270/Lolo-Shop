@@ -50,7 +50,7 @@ describe("mergeProductsAction", () => {
 
   it("sin sesión: SESSION", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError("x"));
-    await expect(mergeProductsAction({ targetId: a, sourceIds: [b] })).resolves.toMatchObject({ ok: false, code: "SESSION" });
+    await expect(mergeProductsAction({ targetId: a, sourceIds: [b] })).resolves.toMatchObject({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
 
   it("sourceIds vacío o con el destino: INVALID", async () => {

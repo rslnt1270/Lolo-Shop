@@ -69,7 +69,7 @@ describe("permisos y sesión", () => {
 
   it.each(calls)("%s: sin sesión devuelve SESSION", async (_n, call) => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
-    await expect(call()).resolves.toMatchObject({ ok: false, code: "SESSION" });
+    await expect(call()).resolves.toMatchObject({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
 
   it("listPriceChangesAction: sin sesión devuelve null", async () => {
@@ -100,7 +100,7 @@ describe("updateVariantPriceAction", () => {
     ["NaN", { newPrice: Number.NaN }],
     ["sobre el tope", { newPrice: MAX_PRICE + 0.01 }],
     ["igual al vigente", { newPrice: 450 }],
-    ["motivo con teléfono", { reason: "llamar 5512345678" }],
+    ["motivo con teléfono", { reason: `llamar ${"0".repeat(10)}` }],
     ["motivo de 2 letras", { reason: "ab" }],
   ])("INVALID: %s", async (_n, over) => {
     const r = await updateVariantPriceAction(price(over));

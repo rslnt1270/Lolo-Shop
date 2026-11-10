@@ -52,11 +52,10 @@ describe("createProductAction", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  it("sin sesión → FORBIDDEN, sin lanzar", async () => {
+  it("sin sesión → SESSION con el texto único, sin lanzar", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     const r = await createProductAction(input);
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(!r.ok && r.message).toMatch(/inicia sesión/i);
+    expect(r).toEqual({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
     expect(createProduct).not.toHaveBeenCalled();
   });
 

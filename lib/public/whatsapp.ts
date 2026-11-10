@@ -2,6 +2,7 @@ import type { PublicProduct } from "@/lib/data/public-projection";
 
 export const NO_WHATSAPP_TEXT = "Consulta disponibilidad en tienda.";
 export const EMPTY_CATALOG_TEXT = "Pronto verás aquí las prendas de la tienda.";
+export const CATALOG_ERROR_TEXT = "No pudimos cargar el catálogo. Intenta de nuevo en un momento.";
 
 const MAX_NAME = 80;
 const MAX_MESSAGE = 300;

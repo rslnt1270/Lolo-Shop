@@ -68,7 +68,7 @@ export function NavBar() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      {/* 8 destinos en 375 px: cada uno flex-1 (≈ 43 px) con mínimo de 44 px */}
+      {/* 8 destinos: cada uno flex-1 (≈ 44.9 px a 375 px; ≈ 43 px a 360 px) con mínimo de 44 px */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur-xl pb-6 pt-2 px-2 z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
         <div className="flex items-center max-w-md mx-auto">
           {navItems.map((item) => {

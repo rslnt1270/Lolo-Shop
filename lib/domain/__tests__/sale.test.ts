@@ -65,7 +65,7 @@ describe("validateNewSale", () => {
     expect(withPatch({ customerAlias: "a".repeat(40) }).ok).toBe(true);
   });
   it("rechaza alias con 7 o más dígitos seguidos", () => {
-    expect(withPatch({ customerAlias: "Ana 5512345678" }).ok).toBe(false);
+    expect(withPatch({ customerAlias: `Ana ${"0".repeat(10)}` }).ok).toBe(false);
   });
   it.each(["Ana 55 1234 5678", "Ana 55-1234-5678", "(55) 1234.5678"])("rechaza alias con teléfono separado: %s", (customerAlias) => {
     expect(withPatch({ customerAlias }).ok).toBe(false);
