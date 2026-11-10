@@ -379,22 +379,28 @@ export class PrismaDataSource implements InventoryDataSource {
   async searchProducts(query: string): Promise<ProductSearchHit[]> {
     const q = String(query ?? "").trim().slice(0, MAX_QUERY_LENGTH);
     if (!q) return [];
+    const select = {
+      id: true, title: true, brand: true, publicCode: true, imageUrl: true,
+      variants: { where: { isActive: true }, select: { size: true } },
+    } as const;
+    const live = { isActive: true, mergedIntoId: null };
+    // El código público exacto va en una consulta aparte para que el corte a 8 no lo deje fuera.
     const code = normalizePublicCode(q);
-    const or: Prisma.ProductWhereInput[] = [
-      { title: { contains: q, mode: "insensitive" } },
-      { brand: { contains: q, mode: "insensitive" } },
-    ];
-    if (code) or.unshift({ publicCode: code });
-    const rows = await this.db.product.findMany({
-      where: { isActive: true, mergedIntoId: null, OR: or },
-      orderBy: { createdAt: "desc" },
-      take: MAX_SEARCH_RESULTS,
-      select: {
-        id: true, title: true, brand: true, publicCode: true, imageUrl: true,
-        variants: { where: { isActive: true }, select: { size: true } },
+    const exact = code ? await this.db.product.findFirst({ where: { ...live, publicCode: code }, select }) : null;
+    const rest = await this.db.product.findMany({
+      where: {
+        ...live,
+        ...(exact ? { id: { not: exact.id } } : {}),
+        OR: [
+          { title: { contains: q, mode: "insensitive" } },
+          { brand: { contains: q, mode: "insensitive" } },
+        ],
       },
+      orderBy: { createdAt: "desc" },
+      take: MAX_SEARCH_RESULTS - (exact ? 1 : 0),
+      select,
     });
-    const hits = rows.map((p) => ({
+    return [...(exact ? [exact] : []), ...rest].map((p) => ({
       productId: p.id,
       title: p.title,
       brand: p.brand,
@@ -402,8 +408,6 @@ export class PrismaDataSource implements InventoryDataSource {
       imageUrl: p.imageUrl,
       sizes: sortSizes([...new Set(p.variants.map((v) => v.size))]),
     }));
-    // El código público exacto va primero.
-    return code ? [...hits.filter((h) => h.publicCode === code), ...hits.filter((h) => h.publicCode !== code)] : hits;
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {

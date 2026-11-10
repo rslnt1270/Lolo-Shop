@@ -8,7 +8,6 @@ import {
 } from "@/lib/domain/new-product";
 import { canonicalCode, isValidGtin } from "@/lib/domain/barcode";
 import { Scanner } from "@/components/inventory/Scanner";
-import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
 import { SizeRows, type SizeRowDraft } from "./SizeRows";
 import { createBrandAction, listBrandsAction, listDepartmentsAction } from "@/lib/catalog/actions";
@@ -54,6 +53,60 @@ async function uploadPhoto(file: File): Promise<{ url: string | null; warning: s
   } catch {
     return { url: null, warning: "No se pudo subir la foto." };
   }
+}
+
+/**
+ * Código de la talla nueva tecleado a mano o "Prenda sin código". Va dentro del
+ * <form> del alta, así que no usa otro <form> (ManualCodeEntry): un form
+ * anidado propagaría su submit y guardaría el alta completo. Enter usa el código.
+ */
+function RowCodeEntry({ onCode, onNoBarcode }: { onCode(code: string): void; onNoBarcode(): void }) {
+  const [code, setCode] = useState("");
+  const inputId = useId();
+  const trimmed = code.trim();
+  const use = () => {
+    if (!trimmed) return;
+    onCode(trimmed);
+    setCode("");
+  };
+  return (
+    <div className="space-y-2">
+      <label htmlFor={inputId} className="block text-sm font-medium text-gray-700">Código de la nueva talla</label>
+      <input
+        id={inputId}
+        type="text"
+        autoComplete="off"
+        autoCapitalize="characters"
+        autoCorrect="off"
+        spellCheck={false}
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            use();
+          }
+        }}
+        placeholder="Escribe el código"
+        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+      />
+      <button
+        type="button"
+        onClick={use}
+        disabled={!trimmed}
+        className="min-h-[44px] w-full rounded-lg bg-loloteal px-4 text-sm font-medium text-white active:bg-loloteal-dark disabled:opacity-50"
+      >
+        Usar este código
+      </button>
+      <button
+        type="button"
+        onClick={onNoBarcode}
+        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium"
+      >
+        Prenda sin código
+      </button>
+    </div>
+  );
 }
 
 let rowSeq = 0;
@@ -244,8 +297,35 @@ export function NewProductForm({
     }
   };
 
-  const duplicateRow = rows.find((r) => r.key === duplicateRowKey);
-  const duplicateQty = Math.max(1, Number(duplicateRow?.initialStock ?? rows[0]?.initialStock) || 1);
+  // Fila del código repetido; si el servidor no dijo cuál y solo hay una, es esa.
+  const duplicateRow = rows.find((r) => r.key === duplicateRowKey) ?? (rows.length === 1 ? rows[0] : undefined);
+  const rowPieces = Number(duplicateRow?.initialStock);
+  // Con 0 piezas (o sin número válido) no se inventa una cantidad: el operador la escribe.
+  const duplicateQty = Number.isInteger(rowPieces) && rowPieces >= 1 ? rowPieces : undefined;
+
+  /**
+   * Tras "Sumar piezas" del código repetido: se quita solo esa fila. Si quedan
+   * otras tallas el formulario sigue abierto con un aviso (aún no se guardan);
+   * si no queda ninguna, el alta termina.
+   */
+  const afterStockAdded = (available: number, added: string) => {
+    const remaining = duplicateRow ? rows.filter((r) => r.key !== duplicateRow.key) : rows;
+    setError("");
+    setDuplicateId(null);
+    setDuplicateRowKey(null);
+    setRowErrors({});
+    if (remaining.length === 0) {
+      if (onStockAdded) onStockAdded(available);
+      else setStockAdded(`Listo: ahora hay ${available} en tu tienda.`);
+      setRows([newRow(null)]);
+      return;
+    }
+    setRows(remaining);
+    const n = remaining.length;
+    setStockAdded(
+      `${added} Ahora hay ${available} en tu tienda. ${n === 1 ? "La otra talla aún no se guarda" : `Las otras ${n} tallas aún no se guardan`}: revisa y toca «Guardar producto».`,
+    );
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -402,7 +482,7 @@ export function NewProductForm({
           <div className="space-y-3 rounded-xl border border-loloteal/40 bg-gray-50 p-3">
             <p className="text-sm font-medium text-gray-800">Escanea la etiqueta de la nueva talla</p>
             <Scanner onScan={addRowWithCode} validate={isValidGtin} autoStart />
-            <ManualCodeEntry onSubmit={addRowWithCode} onNoBarcode={() => addRowWithCode(null)} />
+            <RowCodeEntry onCode={addRowWithCode} onNoBarcode={() => addRowWithCode(null)} />
             {scanError && (
               <p role="alert" className="text-sm font-medium text-[#9A3B2E]">{scanError}</p>
             )}
@@ -454,15 +534,17 @@ export function NewProductForm({
           <p>{error}</p>
           {duplicateId && (
             <SumToMyStore
+              key={`${duplicateId}-${duplicateRowKey ?? ""}`}
               variantId={duplicateId}
               locationId={locationId}
               quantity={duplicateQty}
-              onDone={(available) => {
-                if (onStockAdded) onStockAdded(available);
-                else setStockAdded(`Listo: ahora hay ${available} en tu tienda.`);
-                setError("");
-                setDuplicateId(null);
-              }}
+              defaultQuantity=""
+              onDone={(available) =>
+                afterStockAdded(
+                  available,
+                  duplicateRow?.barcode ? `Se sumaron piezas al código ${duplicateRow.barcode}.` : "Se sumaron las piezas.",
+                )
+              }
             />
           )}
           {duplicateId && onDuplicate && (

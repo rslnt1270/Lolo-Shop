@@ -7,8 +7,10 @@ export interface SumToMyStoreProps {
   variantId: string;
   /** Tienda del usuario: una entrada ahí crea la fila de inventario si no existe. */
   locationId: string;
-  /** Piezas fijas (p. ej. las de la fila duplicada); sin ella se muestra un campo editable que empieza en 1. */
+  /** Piezas fijas (p. ej. las de la fila duplicada); sin ella se muestra un campo editable. */
   quantity?: number;
+  /** Valor inicial del campo editable ("" obliga a escribirlo). Por defecto "1". */
+  defaultQuantity?: string;
   onDone(available: number): void;
 }
 
@@ -17,17 +19,25 @@ export interface SumToMyStoreProps {
  * usuario para una prenda cuyo código ya está registrado. El `requestId` se
  * conserva en los reintentos para que un doble toque no duplique la entrada.
  */
-export function SumToMyStore({ variantId, locationId, quantity, onDone }: SumToMyStoreProps) {
-  const [qty, setQty] = useState("1");
+/** "Sumar 3 piezas en tu tienda" / "Sumar 1 pieza en tu tienda"; sin número válido, genérico. */
+export function sumLabel(n: number | null): string {
+  if (n === null) return "Sumar piezas en tu tienda";
+  return `Sumar ${n} ${n === 1 ? "pieza" : "piezas"} en tu tienda`;
+}
+
+export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity = "1", onDone }: SumToMyStoreProps) {
+  const [qty, setQty] = useState(defaultQuantity);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const requestIdRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   const qtyId = useId();
+  const typed = qty.trim() === "" ? Number.NaN : Number(qty);
+  const shown = quantity ?? (Number.isInteger(typed) && typed >= 1 && typed <= MAX_STOCK_QUANTITY ? typed : null);
 
   const submit = async () => {
     if (busyRef.current) return;
-    const n = quantity ?? Number(qty);
+    const n = quantity ?? typed;
     if (!Number.isInteger(n) || n < 1 || n > MAX_STOCK_QUANTITY) {
       setError(`Escribe un número de piezas entre 1 y ${MAX_STOCK_QUANTITY}.`);
       return;
@@ -80,7 +90,7 @@ export function SumToMyStore({ variantId, locationId, quantity, onDone }: SumToM
         disabled={pending}
         className="min-h-[44px] w-full rounded-lg bg-loloteal px-4 font-semibold text-white transition active:bg-loloteal-dark disabled:opacity-60 motion-reduce:transition-none"
       >
-        {pending ? "Sumando…" : "Sumar piezas en tu tienda"}
+        {pending ? "Sumando…" : sumLabel(shown)}
       </button>
       {error && (
         <p role="alert" className="text-sm font-medium text-[#9A3B2E]">{error}</p>

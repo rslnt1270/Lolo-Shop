@@ -185,18 +185,16 @@ export class FixtureDataSource implements InventoryDataSource {
   async searchProducts(query: string): Promise<ProductSearchHit[]> {
     const q = String(query ?? "").trim().slice(0, 80);
     if (!q) return [];
+    const live = this.products.filter((p) => p.isActive !== false && !p.mergedIntoId);
+    // Igual que Prisma: primero el código público exacto, luego título o marca (más recientes primero) hasta 8.
     const code = normalizePublicCode(q);
+    const exact = code ? live.find((p) => p.publicCode === code) : undefined;
     const needle = q.toLowerCase();
-    const matches = this.products.filter(
-      (p) =>
-        p.isActive !== false &&
-        !p.mergedIntoId &&
-        ((code !== null && p.publicCode === code) ||
-          p.title.toLowerCase().includes(needle) ||
-          p.brand.toLowerCase().includes(needle)),
-    );
-    const ordered = code ? [...matches.filter((p) => p.publicCode === code), ...matches.filter((p) => p.publicCode !== code)] : matches;
-    return ordered.slice(0, MAX_SEARCH_RESULTS).map((p) => ({
+    const rest = live
+      .filter((p) => p !== exact && (p.title.toLowerCase().includes(needle) || p.brand.toLowerCase().includes(needle)))
+      .reverse()
+      .slice(0, MAX_SEARCH_RESULTS - (exact ? 1 : 0));
+    return [...(exact ? [exact] : []), ...rest].map((p) => ({
       productId: p.id,
       title: p.title,
       brand: p.brand,

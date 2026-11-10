@@ -193,6 +193,15 @@ describe("searchProductsAction", () => {
     expect(await searchProductsAction("   ")).toEqual([]);
   });
 
+  it("el código público exacto va primero aunque haya más de 8 coincidencias por título", async () => {
+    const exact = await create("Sudadera", "HHHHH", "LS-H");
+    for (let i = 0; i < 9; i++) await create(`Playera HHHHH ${i}`, `J000${i}`, `LS-J${i}`);
+    const hits = (await searchProductsAction("hhhhh"))!;
+    expect(hits).toHaveLength(8);
+    expect(hits[0].productId).toBe(exact.product.id);
+    expect(new Set(hits.map((h) => h.productId)).size).toBe(8);
+  });
+
   it("sesión vencida → null", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     expect(await searchProductsAction("k7q2m")).toBeNull();

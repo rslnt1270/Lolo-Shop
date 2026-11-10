@@ -219,6 +219,23 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.searchProducts", () => {
     expect(await ds.searchProducts("  ")).toEqual([]);
   });
 
+  it("el código público exacto va primero aunque haya 9 coincidencias más recientes por título", async () => {
+    const exact = await ds.createProduct(data(w, {
+      title: "Sudadera", publicCode: "HHHHH",
+      variants: [{ sku: "LS-H00000-0", barcode: null, size: "U", price: 1, initialStock: 0 }],
+    }));
+    for (let i = 0; i < 9; i++) {
+      await ds.createProduct(data(w, {
+        title: `Playera HHHHH ${i}`, publicCode: `J000${i}`,
+        variants: [{ sku: `LS-J0000${i}-0`, barcode: null, size: "U", price: 1, initialStock: 0 }],
+      }));
+    }
+    const hits = await ds.searchProducts("hhhhh");
+    expect(hits).toHaveLength(8);
+    expect(hits[0].productId).toBe(exact.product.id);
+    expect(new Set(hits.map((h) => h.productId)).size).toBe(8);
+  });
+
   it("máximo 8 resultados", async () => {
     for (let i = 0; i < 10; i++) {
       await ds.createProduct(data(w, {

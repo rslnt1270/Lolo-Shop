@@ -29,8 +29,9 @@ vi.mock("@/lib/catalog/actions", () => ({
 vi.mock("@/components/inventory/Scanner", () => ({
   Scanner: ({ onScan }: { onScan: (c: string) => void }) => (
     <div data-testid="scanner">
-      <button onClick={() => onScan("750999")}>simular-escaneo</button>
-      <button onClick={() => onScan("ETQ-L")}>simular-escaneo-otra</button>
+      {/* type="button" como el Scanner real (sus botones no envían formularios). */}
+      <button type="button" onClick={() => onScan("750999")}>simular-escaneo</button>
+      <button type="button" onClick={() => onScan("ETQ-L")}>simular-escaneo-otra</button>
     </div>
   ),
 }));
@@ -174,12 +175,95 @@ describe("NewProductForm: sección Tallas", () => {
     fireEvent.change(screen.getByLabelText(/piezas/i), { target: { value: "3" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     expect(await screen.findByText("Este código ya está registrado en Gorra.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Sumar piezas en tu tienda" }));
+    // La cantidad que se va a sumar siempre está a la vista.
+    fireEvent.click(screen.getByRole("button", { name: "Sumar 3 piezas en tu tienda" }));
     await waitFor(() =>
       expect(record).toHaveBeenCalledWith(
         expect.objectContaining({ variantId: "v7", locationId: "loc-1", kind: "restock", quantity: 3 }),
       ),
     );
+  });
+
+  it("fila duplicada con 0 piezas: pide el número y no suma sin él", async () => {
+    createProductAction.mockResolvedValue({
+      ok: false, code: "DUPLICATE", existingVariantId: "v7", duplicateBarcode: "750100",
+      message: "Este código ya está registrado en Gorra.",
+    });
+    const onStockAdded = vi.fn();
+    renderForm({ onStockAdded });
+    await fillProduct();
+    fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+    const qty = await screen.findByLabelText(/piezas a sumar/i);
+    expect(qty).toHaveValue(null);
+    fireEvent.click(screen.getByRole("button", { name: "Sumar piezas en tu tienda" }));
+    expect(await screen.findByText(/escribe un número de piezas/i)).toBeInTheDocument();
+    expect(record).not.toHaveBeenCalled();
+    fireEvent.change(qty, { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sumar 2 piezas en tu tienda" }));
+    await waitFor(() => expect(record).toHaveBeenCalledWith(expect.objectContaining({ variantId: "v7", quantity: 2 })));
+    // Era la única fila: el alta termina.
+    await waitFor(() => expect(onStockAdded).toHaveBeenCalledWith(3));
+  });
+
+  it("3 tallas y 1 duplicada: sumar quita solo esa fila, avisa y deja guardar las otras 2", async () => {
+    createProductAction.mockResolvedValueOnce({
+      ok: false, code: "DUPLICATE", existingVariantId: "v7", duplicateBarcode: "ETQ-L",
+      message: "Este código ya está registrado en Gorra.",
+    });
+    const onStockAdded = vi.fn();
+    const onSuccess = vi.fn();
+    renderForm({ onStockAdded, onSuccess });
+    await fillProduct();
+    fireEvent.change(screen.getByLabelText(/^talla$/i), { target: { value: "S" } });
+    fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
+    fireEvent.click(screen.getByRole("button", { name: /agregar otra talla/i }));
+    fireEvent.click(await screen.findByText("simular-escaneo-otra"));
+    fireEvent.click(screen.getByRole("button", { name: /agregar otra talla/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /prenda sin código/i }));
+    const sizes = await screen.findAllByLabelText(/^talla$/i);
+    fireEvent.change(sizes[1], { target: { value: "M" } });
+    fireEvent.change(sizes[2], { target: { value: "L" } });
+    fireEvent.change(screen.getAllByLabelText(/^piezas$/i)[1], { target: { value: "2" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sumar 2 piezas en tu tienda" }));
+    await waitFor(() => expect(record).toHaveBeenCalledWith(expect.objectContaining({ variantId: "v7", quantity: 2 })));
+
+    await waitFor(() => expect(screen.getAllByLabelText(/precio/i)).toHaveLength(2));
+    expect(screen.getAllByTestId("codigo-escaneado").map((c) => c.textContent)).toEqual(["750100"]);
+    expect(screen.getByRole("status")).toHaveTextContent(/las otras 2 tallas aún no se guardan/i);
+    expect(onStockAdded).not.toHaveBeenCalled();
+    expect(createProductAction).toHaveBeenCalledTimes(1);
+
+    createProductAction.mockResolvedValueOnce({ ok: true, product: { imageUrl: null, variants: [] }, variantId: "v9", sku: "LS-1" });
+    fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(createProductAction).toHaveBeenCalledTimes(2);
+    expect(createProductAction.mock.calls[1][0].sizes).toEqual([
+      { size: "S", barcode: "750100", price: 99, initialStock: 0 },
+      { size: "L", barcode: null, price: 99, initialStock: 0 },
+    ]);
+  });
+
+  it("teclear el código de la talla nueva agrega la fila y NO guarda el alta", async () => {
+    renderForm();
+    await fillProduct();
+    fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
+    fireEvent.click(screen.getByRole("button", { name: /agregar otra talla/i }));
+    const input = await screen.findByPlaceholderText("Escribe el código");
+    fireEvent.change(input, { target: { value: "etq-x" } });
+    fireEvent.click(screen.getByRole("button", { name: "Usar este código" }));
+    // Un <form> anidado propagaba su submit y guardaba el alta completo.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(createProductAction).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId("codigo-escaneado").map((c) => c.textContent)).toEqual(["750100", "ETQ-X"]);
+    fireEvent.click(screen.getByRole("button", { name: /agregar otra talla/i }));
+    const again = await screen.findByPlaceholderText("Escribe el código");
+    fireEvent.change(again, { target: { value: "etq-y" } });
+    fireEvent.keyDown(again, { key: "Enter" });
+    expect(screen.getAllByTestId("codigo-escaneado")).toHaveLength(3);
+    expect(createProductAction).not.toHaveBeenCalled();
   });
 
   it("al llegar a 12 tallas «Agregar otra talla» se deshabilita", async () => {
@@ -219,7 +303,7 @@ describe("/escanear: código existente", () => {
     render(<EscanearPage />);
     fireEvent.click(screen.getByText("simular-escaneo"));
     expect(await screen.findByText(/registrada en otra tienda/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Sumar piezas en tu tienda" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sumar 1 pieza en tu tienda" }));
     await waitFor(() =>
       expect(record).toHaveBeenCalledWith(expect.objectContaining({ variantId: "v2", locationId: "loc-1", kind: "restock", quantity: 1 })),
     );
