@@ -166,7 +166,10 @@ export default function POSPage() {
           const title = lines.find((x) => x.variantId === l.variantId)?.productTitle ?? "la prenda";
           notes.push(`El precio de ${title} cambió a ${formatPriceShort(l.price)}.`);
         }
-        draft.renewRequestId();
+        // Si el intento anterior quedó incierto (red o timeout), quizá ya se registró: se conserva el id.
+        // El reintento con el mismo id termina en replay en cuanto ese cobro confirma. Solo una
+        // respuesta definitiva permite renovarlo.
+        if (!draft.isUncertain()) draft.renewRequestId();
         setNotice({ kind: "error", text: `${notes.join(" ")} Revisa el total y cobra de nuevo.` });
       } else if (result.reason === "request_conflict") {
         // Ese identificador ya es otra venta: el siguiente Cobrar registra una nueva con este carrito.

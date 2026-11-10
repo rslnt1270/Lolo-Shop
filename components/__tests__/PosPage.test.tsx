@@ -211,7 +211,7 @@ describe("POSPage", () => {
     expect(actions.createSaleAction.mock.calls[1][0].lines).toEqual([{ variantId: "v1", quantity: 1, unitPrice: 120 }]);
   });
 
-  it("error de red y luego PRICE_CHANGED: el reintento usa el mismo id; tras el aviso, otro id y una sola venta", async () => {
+  it("error de red y luego PRICE_CHANGED: el id no se renueva (el primer cobro pudo registrarse) y el siguiente cobro lo reutiliza", async () => {
     session.value = {
       data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
       status: "authenticated",
@@ -236,7 +236,7 @@ describe("POSPage", () => {
     await screen.findByText("Venta #12 registrada");
     const [first, second, third] = sentIds();
     expect(second).toBe(first);
-    expect(third).not.toBe(first);
+    expect(third).toBe(first);
     expect(actions.createSaleAction).toHaveBeenCalledTimes(3);
   });
 

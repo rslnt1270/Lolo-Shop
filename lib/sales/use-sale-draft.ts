@@ -63,6 +63,9 @@ export function useSaleDraft() {
     uncertainRef.current = true;
   }, []);
 
+  /** ¿El último envío con el id vigente quedó sin respuesta confiable? Si sí, no se debe renovar el id. */
+  const isUncertain = useCallback(() => uncertainRef.current, []);
+
   /** El servidor rechazó la petición con esta firma (no registró la venta, salvo que el id sea incierto). */
   const markRejected = useCallback((signature: string) => {
     rejectedRef.current = signature;
@@ -124,5 +127,5 @@ export function useSaleDraft() {
     renewRequestId();
   }, [renewRequestId]);
 
-  return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, requestIdFor };
+  return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, isUncertain, requestIdFor };
 }
