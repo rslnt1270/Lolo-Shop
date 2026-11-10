@@ -484,6 +484,15 @@ export class PrismaDataSource implements InventoryDataSource {
   }
 
   async setVariantActive(variantId: string, active: boolean): Promise<void> {
+    if (active) {
+      const v = await this.db.variant.findUnique({ where: { id: variantId }, select: { productId: true, size: true } });
+      if (!v) throw new ProductNotFoundError("La talla ya no existe.");
+      const same = await this.db.variant.findFirst({
+        where: { productId: v.productId, isActive: true, id: { not: variantId }, size: { equals: v.size, mode: "insensitive" } },
+        select: { id: true },
+      });
+      if (same) throw new InventoryRuleError("Ya hay otra talla activa con esa talla. Desactívala primero.");
+    }
     const res = await this.db.variant.updateMany({ where: { id: variantId }, data: { isActive: active } });
     if (res.count === 0) throw new ProductNotFoundError("La talla ya no existe.");
   }

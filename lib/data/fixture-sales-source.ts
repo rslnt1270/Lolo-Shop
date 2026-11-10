@@ -62,6 +62,10 @@ export class FixtureSalesDataSource implements SalesDataSource {
     return this.stock.get(stockKey(variantId, locationId)) ?? null;
   }
 
+  async hasClientRequest(clientRequestId: string): Promise<boolean> {
+    return this.byRequestId.has(clientRequestId);
+  }
+
   async createSale(input: NewSaleInput, userId: string): Promise<SaleRecord> {
     const checked = validateNewSale(input);
     if (!checked.ok) throw new SalesRuleError(checked.message);

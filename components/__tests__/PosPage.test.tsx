@@ -211,6 +211,35 @@ describe("POSPage", () => {
     expect(actions.createSaleAction.mock.calls[1][0].lines).toEqual([{ variantId: "v1", quantity: 1, unitPrice: 120 }]);
   });
 
+  it("error de red y luego PRICE_CHANGED: el reintento usa el mismo id; tras el aviso, otro id y una sola venta", async () => {
+    session.value = {
+      data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
+      status: "authenticated",
+    };
+    actions.createSaleAction
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        ok: false,
+        code: "PRICE_CHANGED",
+        message: "Cambió el precio de una prenda. Revisa el total y cobra de nuevo.",
+        lines: [{ variantId: "v1", price: 120 }],
+      })
+      .mockResolvedValueOnce({ ok: true, sale: { number: 12 } });
+    render(<POSPage />);
+    await scan("111");
+    await screen.findByText("Playera");
+    cobrar();
+    await screen.findByText(/no se pudo registrar/i);
+    cobrar(); // reintento con el mismo id: el servidor solo responde PRICE_CHANGED si ese id no existe
+    expect(await screen.findByRole("alert")).toHaveTextContent("El precio de Playera cambió a $120.");
+    cobrar();
+    await screen.findByText("Venta #12 registrada");
+    const [first, second, third] = sentIds();
+    expect(second).toBe(first);
+    expect(third).not.toBe(first);
+    expect(actions.createSaleAction).toHaveBeenCalledTimes(3);
+  });
+
   it("conflicto de identificador: conserva el carrito y el siguiente Cobrar usa un id nuevo", async () => {
     actions.createSaleAction
       .mockResolvedValueOnce({

@@ -260,6 +260,14 @@ export class FixtureDataSource implements InventoryDataSource {
   async setVariantActive(variantId: string, active: boolean): Promise<void> {
     const match = await this.getProductByVariantId(variantId);
     if (!match) throw new ProductNotFoundError("La talla ya no existe.");
+    if (
+      active &&
+      match.product.variants.some(
+        (v) => v.id !== variantId && v.isActive !== false && v.size.toUpperCase() === match.variant.size.toUpperCase(),
+      )
+    ) {
+      throw new InventoryRuleError("Ya hay otra talla activa con esa talla. Desactívala primero.");
+    }
     match.variant.isActive = active;
   }
 

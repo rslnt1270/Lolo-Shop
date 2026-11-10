@@ -100,7 +100,8 @@ export async function createSaleAction(input: unknown): Promise<SaleActionResult
   }
 
   try {
-    if (user.role === "collaborator") {
+    // Un reintento (id ya registrado) lo resuelve createSale: replay o request_conflict, sin evaluar el precio.
+    if (user.role === "collaborator" && !(await getSalesSource().hasClientRequest(sale.clientRequestId))) {
       const variants = await prisma.variant.findMany({
         where: { id: { in: sale.lines.map((l) => l.variantId) } },
         select: { id: true, price: true },

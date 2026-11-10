@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getCurrentUser = vi.fn();
-const source = { createSale: vi.fn(), confirmPayment: vi.fn(), cancelSale: vi.fn() };
+const source = { hasClientRequest: vi.fn(), createSale: vi.fn(), confirmPayment: vi.fn(), cancelSale: vi.fn() };
 const variantFindMany = vi.fn();
 const saleFindUnique = vi.fn();
 
@@ -36,6 +36,7 @@ const as = (role: string, locationId: string | null = null) =>
 beforeEach(() => {
   vi.clearAllMocks();
   variantFindMany.mockResolvedValue([{ id: "v1", price: "100.00" }]);
+  source.hasClientRequest.mockResolvedValue(false);
   source.createSale.mockResolvedValue(sale());
   source.confirmPayment.mockResolvedValue(sale());
   source.cancelSale.mockResolvedValue(sale());
@@ -171,6 +172,17 @@ describe("createSaleAction", () => {
       input({ lines: [{ variantId: "v1", quantity: 1, unitPrice: 100 }, { variantId: "v2", quantity: 2, unitPrice: 50 }] }),
     );
     expect(r).toMatchObject({ ok: false, code: "PRICE_CHANGED", lines: [{ variantId: "v2", price: 55.5 }] });
+  });
+  it("collaborator con id ya registrado y precio cambiado: devuelve la venta existente, sin PRICE_CHANGED", async () => {
+    as("collaborator", "B");
+    variantFindMany.mockResolvedValue([{ id: "v1", price: "120.00" }]);
+    source.hasClientRequest.mockResolvedValue(true);
+    const existing = sale({ id: "s-prev" });
+    source.createSale.mockResolvedValue(existing);
+    const r = await createSaleAction(input({ lines: [{ variantId: "v1", quantity: 1, unitPrice: 100 }] }));
+    expect(r).toEqual({ ok: true, sale: existing });
+    expect(source.hasClientRequest).toHaveBeenCalledWith(RID);
+    expect(source.createSale).toHaveBeenCalledTimes(1);
   });
   it("collaborator con precio vigente: ok", async () => {
     as("collaborator", "B");

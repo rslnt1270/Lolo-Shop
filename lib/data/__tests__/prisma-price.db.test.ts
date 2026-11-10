@@ -7,7 +7,7 @@ import { resetDb } from "../../../test/db/reset";
 import { PrismaDataSource } from "../prisma-source";
 import { PrismaSalesDataSource } from "../prisma-sales-source";
 import { getPublicCatalog } from "../public-projection";
-import { SalesRuleError } from "../errors";
+import { InventoryRuleError, SalesRuleError } from "../errors";
 import { businessDateMx } from "@/lib/domain/sale";
 
 // Dos clientes con su propio pool: dos personas guardando el precio al mismo tiempo.
@@ -150,6 +150,25 @@ describe.skipIf(!hasTestDb)("precio por talla, desactivar y departamento en lote
     ).rejects.toBeInstanceOf(SalesRuleError);
     const catalog = await getPublicCatalog(new PrismaDataSource(testPrisma));
     expect(JSON.stringify(catalog)).not.toContain('"M"');
+  });
+
+  it("reactivar una talla con otra igual activa lanza InventoryRuleError; sin duplicado sí reactiva", async () => {
+    await ds.setVariantActive(V1, false);
+    await testPrisma.variant.create({ data: { productId, title: "m", sku: "SKU-M2", size: "m", price: 1 } });
+    await expect(ds.setVariantActive(V1, true)).rejects.toBeInstanceOf(InventoryRuleError);
+    expect((await testPrisma.variant.findUniqueOrThrow({ where: { id: V1 } })).isActive).toBe(false);
+    await testPrisma.variant.updateMany({ where: { sku: "SKU-M2" }, data: { isActive: false } });
+    await ds.setVariantActive(V1, true);
+    expect((await testPrisma.variant.findUniqueOrThrow({ where: { id: V1 } })).isActive).toBe(true);
+  });
+
+  it("poco stock: no lista tallas de productos desactivados", async () => {
+    const today = businessDateMx(new Date());
+    const q = { from: today, to: today, locationIds: "all" as const, pendingScope: "all_dates" as const };
+    await testPrisma.inventoryLevel.updateMany({ where: { variantId: V1 }, data: { available: 0 } });
+    expect((await sales.getDashboard(q)).lowStock.map((l) => l.variantId)).toContain(V1);
+    await ds.setProductActive(productId, false);
+    expect((await sales.getDashboard(q)).lowStock.map((l) => l.variantId)).not.toContain(V1);
   });
 
   it("updateProduct cambia título, marca, departamento y categoría sin tocar el código público", async () => {

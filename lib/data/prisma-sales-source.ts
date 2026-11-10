@@ -92,6 +92,10 @@ export class PrismaSalesDataSource implements SalesDataSource {
     return s ? toRecord(s) : null;
   }
 
+  async hasClientRequest(clientRequestId: string): Promise<boolean> {
+    return (await this.db.sale.count({ where: { clientRequestId } })) > 0;
+  }
+
   async createSale(input: NewSaleInput, userId: string): Promise<SaleRecord> {
     // Paso 1 (ER §3.1): validación fuera de la transacción.
     const checked = validateNewSale(input);
@@ -310,7 +314,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
           where: {
             ...locFilter,
             location: { type: "store" },
-            variant: { isActive: true },
+            variant: { isActive: true, product: { isActive: true, mergedIntoId: null } },
             OR: [
               { minStock: null, available: { lte: threshold } },
               { minStock: { not: null }, available: { lte: this.db.inventoryLevel.fields.minStock } },

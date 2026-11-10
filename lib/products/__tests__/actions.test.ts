@@ -185,6 +185,18 @@ describe("desactivar y reactivar", () => {
     await expect(setVariantActiveAction("var-1", false)).resolves.toEqual({ ok: true });
     expect((await ds.getProductByVariantId("var-1"))!.variant.isActive).toBe(false);
   });
+  it("reactivar una talla con otra igual activa: INVALID", async () => {
+    const { product, variants } = await ds.createProduct({
+      title: "Dup", brand: "X", brandId: "b1", departmentId: "d1", publicCode: "DUP01", category: "Playeras",
+      variants: [{ sku: "DUP-M1", barcode: null, size: "M", price: 100, initialStock: 0 }],
+      locationId: "loc-1", userId: "u1",
+    });
+    await setVariantActiveAction(variants[0].id, false);
+    await ds.addVariant({ productId: product.id, sku: "DUP-M2", size: "m", barcode: null, price: 100, initialStock: 0, locationId: "loc-1", userId: "u1" });
+    const r = await setVariantActiveAction(variants[0].id, true);
+    expect(r).toMatchObject({ ok: false, code: "INVALID" });
+    expect((await ds.getProductByVariantId(variants[0].id))!.variant.isActive).toBe(false);
+  });
   it("inexistentes: NOT_FOUND", async () => {
     await expect(setProductActiveAction("nope", false)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
     await expect(setVariantActiveAction("nope", false)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });

@@ -99,6 +99,11 @@ export interface SalesDataSource {
    * `InsufficientStockError` y no deja nada.
    */
   createSale(input: NewSaleInput, userId: string): Promise<SaleRecord>;
+  /**
+   * ¿Ya hay una venta con este `clientRequestId`? Sirve para no evaluar reglas
+   * previas (p. ej. el cambio de precio) en un reintento: lo resuelve `createSale`.
+   */
+  hasClientRequest(clientRequestId: string): Promise<boolean>;
   /** `pending_payment` → `paid`. Cualquier otro estado lanza `SalesRuleError`. */
   confirmPayment(saleId: string, userId: string, reference?: string): Promise<SaleRecord>;
   /**

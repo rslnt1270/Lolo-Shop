@@ -186,6 +186,7 @@ export async function setVariantActiveAction(variantId: string, active: boolean)
     return { ok: true };
   } catch (err) {
     if (err instanceof ProductNotFoundError) return notFound(err.message);
+    if (err instanceof InventoryRuleError) return invalid(err.message);
     throw err;
   }
 }
