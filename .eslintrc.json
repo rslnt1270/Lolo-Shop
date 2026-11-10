@@ -1,0 +1,32 @@
+{
+  "extends": "next/core-web-vitals",
+  "overrides": [
+    {
+      "files": [
+        "components/virtual-store/**/*",
+        "lib/virtual-store/**/*",
+        "app/catalogo/**/*"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              { "name": "@prisma/client", "message": "Lo público usa solo PublicProduct" },
+              { "name": "@/lib/prisma", "message": "Lo público usa solo PublicProduct" },
+              {
+                "name": "@/lib/domain/types",
+                "importNames": ["Product"],
+                "message": "Lo público usa solo PublicProduct"
+              }
+            ],
+            "patterns": [
+              { "group": ["@/lib/generated/prisma*"], "message": "Lo público usa solo PublicProduct" },
+              { "group": ["@/lib/data/prisma*"], "message": "Lo público usa solo PublicProduct" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
