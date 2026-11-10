@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
-import { getPublicCatalog, toPublicProduct } from "../public-projection";
+import { findPublicByCode, getPublicCatalog, toPublicProduct } from "../public-projection";
 import { parsePublicCodeRequest } from "@/lib/domain/public-code";
 import type { Product } from "@/lib/domain/types";
 import type { InventoryDataSource } from "../source";
@@ -94,5 +94,39 @@ describe("catálogo público: solo productos con las dos fotos", () => {
     const both = (await getPublicCatalog(ds)).find((p) => p.publicCode === "BBBB2")!;
     expect(both.imageUrl).toBe("https://a/f.jpg");
     expect(both.backImageUrl).toBe("https://a/b.jpg");
+  });
+});
+
+describe("findPublicByCode", () => {
+  async function seed() {
+    const ds = new FixtureDataSource();
+    const store = (await ds.getLocations()).find((l) => l.type === "store")!;
+    const photos = { imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" };
+    const a = await ds.createProduct({ ...base, ...photos, locationId: store.id, publicCode: "AAAA1", variants: one("S-1", "9001") });
+    const b = await ds.createProduct({ ...base, ...photos, locationId: store.id, publicCode: "BBBB2", variants: one("S-2", "9002") });
+    return { ds, a: a.product, b: b.product };
+  }
+
+  it("devuelve el producto público sin SKU ni conteos", async () => {
+    const { ds } = await seed();
+    const res = await findPublicByCode(ds, "AAAA1");
+    expect(res?.publicCode).toBe("AAAA1");
+    expect(JSON.stringify(res)).not.toMatch(/sku|barcode|inventory|available":\d/i);
+  });
+
+  it("el código de un producto unido devuelve el que se quedó", async () => {
+    const { ds, a, b } = await seed();
+    await ds.mergeProducts(a.id, [b.id], "u");
+    expect((await findPublicByCode(ds, "BBBB2"))?.id).toBe(a.id);
+  });
+
+  it("código inexistente, producto sin las dos fotos o inactivo: null", async () => {
+    const { ds, a } = await seed();
+    expect(await findPublicByCode(ds, "ZZZZZ")).toBeNull();
+    a.backImageUrl = null;
+    expect(await findPublicByCode(ds, "AAAA1")).toBeNull();
+    a.backImageUrl = "https://a/b.jpg";
+    a.isActive = false;
+    expect(await findPublicByCode(ds, "AAAA1")).toBeNull();
   });
 });

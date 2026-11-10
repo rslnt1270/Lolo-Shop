@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { Location, Product } from "@/lib/domain/types";
 import { filterProducts } from "@/lib/data/filter";
@@ -78,6 +79,14 @@ export default function ProductosPage() {
   return (
     <main className="mx-auto max-w-2xl space-y-4 p-4">
       <h1 className="text-xl font-bold">Productos</h1>
+      {role === "owner" && (
+        <Link
+          href="/productos/unir"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-loloteal px-4 text-sm font-semibold text-loloteal focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+        >
+          Unir duplicados por talla
+        </Link>
+      )}
       <SearchFilter categories={CATEGORIES} onQuery={setQuery} onCategory={setCategory} />
       <div className="grid gap-3">
         {visible.map((p) => (

@@ -37,3 +37,18 @@ describe("webhook WhatsApp", () => {
     expect(out).toContain("no es válido");
   });
 });
+
+describe("webhook WhatsApp: producto unido", () => {
+  it("tras unir B en A, el código de B contesta con el título de A", async () => {
+    state.ds = new FixtureDataSource();
+    const store = (await state.ds.getLocations()).find((l) => l.type === "store")!;
+    const mk = (title: string, code: string, size: string) =>
+      state.ds.createProduct({ title, brand: "Nautica", brandId: "b", departmentId: "d", publicCode: code, category: "c", variants: [{ barcode: null, sku: `LS-${code}`, size, price: 1, initialStock: 3 }], locationId: store.id, userId: "u", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" });
+    const a = await mk("Polo Nautica", "AAAAA", "M");
+    const b = await mk("Polo Nautica L", "BBBBB", "L");
+    await state.ds.mergeProducts(a.product.id, [b.product.id], "u");
+    const out = await send("Código BBBBB talla M");
+    expect(out).toContain('"Polo Nautica"');
+    expect(out).not.toContain("Polo Nautica L");
+  });
+});

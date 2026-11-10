@@ -60,3 +60,17 @@ export function matchesPublicQuery(p: PublicProduct, query: string): boolean {
   if (!q) return true;
   return [p.title, p.brand, p.category].join(" ").toLowerCase().includes(q);
 }
+
+/**
+ * Producto público por código: resuelve uniones (el código de un producto unido
+ * devuelve el que se quedó) y proyecta solo si es público: activo, con las dos
+ * fotos y alguna talla activa. Lo usan el bot de WhatsApp, el modal y la ficha.
+ */
+export async function findPublicByCode(ds: InventoryDataSource, code: string): Promise<PublicProduct | null> {
+  const product = await ds.getProductByPublicCode(code);
+  if (!product || product.isActive === false || !product.imageUrl || !product.backImageUrl) return null;
+  const locations = await ds.getLocations();
+  const storeIds = new Set(locations.filter((l) => l.type === "store").map((l) => l.id));
+  const projected = toPublicProduct({ ...product, publicCode: product.publicCode ?? null }, storeIds);
+  return projected.sizes.length > 0 ? projected : null;
+}

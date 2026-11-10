@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getDataSource } from '@/lib/data/get-source';
-import { getPublicCatalog } from '@/lib/data/public-projection';
+import { findPublicByCode } from '@/lib/data/public-projection';
 import { parsePublicCodeRequest } from '@/lib/domain/public-code';
 
 // Configuración de Meta Cloud API
@@ -105,8 +105,8 @@ async function processMessage(phoneNumberId: string, from: string, text: string)
 
     if (req.kind === "ok") {
       // Solo se consulta la base con un código de formato válido.
-      const catalog = await getPublicCatalog(getDataSource());
-      const product = catalog.find((p) => p.publicCode === req.code);
+      // Un código de un producto unido contesta con el producto que se quedó.
+      const product = await findPublicByCode(getDataSource(), req.code);
       const sizes = product ? (req.size ? product.sizes.filter((s) => s.size.toUpperCase() === req.size) : product.sizes) : [];
 
       if (product && sizes.some((s) => s.available)) {

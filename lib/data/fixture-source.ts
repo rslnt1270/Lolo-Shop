@@ -1,7 +1,7 @@
 import type { Location, Product, Variant } from "@/lib/domain/types";
 import {
   MAX_SEARCH_RESULTS,
-  type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource,
+  type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
   type UpdateVariantPriceResult, type VariantMatch,
 } from "./source";
@@ -280,6 +280,60 @@ export class FixtureDataSource implements InventoryDataSource {
       count++;
     }
     return count;
+  }
+
+  async mergeProducts(targetId: string, sourceIds: string[], userId: string): Promise<MergeProductsResult> {
+    const sources = [...new Set(sourceIds)];
+    if (sources.length === 0) throw new InventoryRuleError("Elige al menos un producto para unir.");
+    if (sources.includes(targetId)) throw new InventoryRuleError("El producto que se queda no puede ser también uno de los que se unen.");
+    const target = this.products.find((p) => p.id === targetId);
+    const found = sources.map((id) => this.products.find((p) => p.id === id));
+    if (!target || found.some((p) => !p)) throw new InventoryRuleError("Alguno de los productos ya no existe. Actualiza la pantalla.");
+    if (target.isActive === false || target.mergedIntoId) {
+      throw new InventoryRuleError("El producto que se queda ya no está activo o se unió con otro.");
+    }
+    if (!target.brandId) throw new InventoryRuleError("El producto que se queda no tiene marca.");
+
+    let alreadyMerged = 0;
+    const toMove: Product[] = [];
+    for (const src of found as Product[]) {
+      if (src.mergedIntoId === targetId) {
+        alreadyMerged++;
+        continue;
+      }
+      if (src.mergedIntoId) throw new InventoryRuleError("Uno de los productos ya se unió con otro distinto.");
+      if (src.brandId !== target.brandId) throw new InventoryRuleError("Solo se pueden unir productos de la misma marca.");
+      toMove.push(src);
+    }
+    let movedVariants = 0;
+    const moveIds = new Set(toMove.map((p) => p.id));
+    if (toMove.length > 0 && (!target.imageUrl || !target.backImageUrl)) {
+      const donor = toMove.find((s) => s.imageUrl && s.backImageUrl);
+      if (donor) {
+        target.imageUrl = donor.imageUrl;
+        target.backImageUrl = donor.backImageUrl;
+      }
+    }
+    for (const p of this.products) {
+      if (p.mergedIntoId && moveIds.has(p.mergedIntoId)) p.mergedIntoId = targetId;
+    }
+    for (const src of toMove) {
+      movedVariants += src.variants.length;
+      target.variants.push(...src.variants);
+      src.variants = [];
+      src.isActive = false;
+      src.mergedIntoId = targetId;
+    }
+    void userId;
+    // El doble no guarda ventas: no hay renglones que mover.
+    return { movedVariants, movedSaleLines: 0, alreadyMerged };
+  }
+
+  async getProductByPublicCode(code: string): Promise<Product | null> {
+    const products = await this.getProducts();
+    let p = products.find((x) => x.publicCode === code) ?? null;
+    if (p?.mergedIntoId) p = products.find((x) => x.id === p!.mergedIntoId) ?? null;
+    return p;
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {

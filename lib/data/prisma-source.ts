@@ -1,6 +1,6 @@
 import {
   MAX_SEARCH_RESULTS,
-  type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource,
+  type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
   type UpdateVariantPriceResult, type VariantMatch,
 } from "./source";
@@ -503,6 +503,74 @@ export class PrismaDataSource implements InventoryDataSource {
       data: { departmentId },
     });
     return res.count;
+  }
+
+  async mergeProducts(targetId: string, sourceIds: string[], userId: string): Promise<MergeProductsResult> {
+    const sources = [...new Set(sourceIds)];
+    if (sources.length === 0) throw new InventoryRuleError("Elige al menos un producto para unir.");
+    if (sources.includes(targetId)) throw new InventoryRuleError("El producto que se queda no puede ser también uno de los que se unen.");
+    const ids = [targetId, ...sources].sort();
+
+    return await this.db.$transaction(async (tx) => {
+      // Mismo orden de bloqueo en todas las uniones: evita interbloqueos entre uniones cruzadas.
+      await tx.$queryRaw`SELECT "id" FROM "Product" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`;
+      const rows = await tx.product.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, brandId: true, isActive: true, mergedIntoId: true, imageUrl: true, backImageUrl: true },
+      });
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      if (rows.length !== ids.length) throw new InventoryRuleError("Alguno de los productos ya no existe. Actualiza la pantalla.");
+
+      const target = byId.get(targetId)!;
+      if (!target.isActive || target.mergedIntoId) {
+        throw new InventoryRuleError("El producto que se queda ya no está activo o se unió con otro.");
+      }
+      if (!target.brandId) throw new InventoryRuleError("El producto que se queda no tiene marca.");
+
+      let alreadyMerged = 0;
+      const toMove: string[] = [];
+      for (const id of sources) {
+        const src = byId.get(id)!;
+        if (src.mergedIntoId === targetId) {
+          alreadyMerged++;
+          continue;
+        }
+        if (src.mergedIntoId) throw new InventoryRuleError("Uno de los productos ya se unió con otro distinto.");
+        if (src.brandId !== target.brandId) throw new InventoryRuleError("Solo se pueden unir productos de la misma marca.");
+        toMove.push(id);
+      }
+      if (toMove.length === 0) return { movedVariants: 0, movedSaleLines: 0, alreadyMerged };
+
+      const variants = await tx.variant.updateMany({ where: { productId: { in: toMove } }, data: { productId: targetId } });
+      // SaleLine.departmentId no se toca: es el departamento de la venta, histórico.
+      const lines = await tx.saleLine.updateMany({ where: { productId: { in: toMove } }, data: { productId: targetId } });
+
+      const photoData: Prisma.ProductUpdateInput = {};
+      if (!target.imageUrl || !target.backImageUrl) {
+        const donor = toMove.map((id) => byId.get(id)!).find((s) => s.imageUrl && s.backImageUrl);
+        if (donor) {
+          photoData.imageUrl = donor.imageUrl;
+          photoData.backImageUrl = donor.backImageUrl;
+        }
+      }
+
+      // Sin cadenas: lo que ya apuntaba a un origen pasa a apuntar al destino.
+      await tx.product.updateMany({ where: { mergedIntoId: { in: toMove } }, data: { mergedIntoId: targetId } });
+      await tx.product.updateMany({
+        where: { id: { in: toMove } },
+        data: { isActive: false, mergedIntoId: targetId, mergedAt: new Date(), mergedById: userId },
+      });
+      if (Object.keys(photoData).length > 0) await tx.product.update({ where: { id: targetId }, data: photoData });
+
+      return { movedVariants: variants.count, movedSaleLines: lines.count, alreadyMerged };
+    });
+  }
+
+  async getProductByPublicCode(code: string): Promise<Product | null> {
+    const include = { variants: { include: { inventory: true } } } as const;
+    let p = await this.db.product.findUnique({ where: { publicCode: code }, include });
+    if (p?.mergedIntoId) p = await this.db.product.findUnique({ where: { id: p.mergedIntoId }, include });
+    return p ? toProduct(p, p.variants.map(toVariant)) : null;
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {

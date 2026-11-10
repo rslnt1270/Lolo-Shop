@@ -7,6 +7,7 @@ import { InventoryRuleError, ProductNotFoundError } from "@/lib/data/errors";
 import type { ProductPatch } from "@/lib/data/source";
 import { MAX_PRICE, MAX_TITLE_LENGTH, PRODUCT_CATEGORIES, roundToCents } from "@/lib/domain/new-product";
 import { validateReason } from "@/lib/domain/stock-movement";
+import type { Role } from "@/lib/domain/types";
 import prisma from "@/lib/prisma";
 
 export type UpdateVariantPriceResult =
@@ -25,19 +26,24 @@ export type ProductAdminResult =
   | { ok: true; updated?: number }
   | { ok: false; code: "SESSION" | "FORBIDDEN" | "INVALID" | "NOT_FOUND"; message: string };
 
+export type MergeResult =
+  | { ok: true; movedVariants: number; movedSaleLines: number; alreadyMerged: number }
+  | { ok: false; code: "SESSION" | "FORBIDDEN" | "INVALID"; message: string };
+
 const MAX_BATCH = 100;
 const HISTORY_LIMIT = 5;
 const SESSION_MESSAGE = "Tu sesión venció. Vuelve a iniciar sesión.";
 const ROLES = ["owner", "manager"] as const;
+const OWNER_ONLY = ["owner"] as const;
 
 type Gate = { ok: true; userId: string } | { ok: false; code: "SESSION" | "FORBIDDEN"; message: string };
 
-/** Sesión vigente de la base y rol owner o manager. */
-async function gate(): Promise<Gate> {
+/** Sesión vigente de la base y rol owner o manager (o el que se indique). */
+async function gate(roles: readonly Role[] = ROLES): Promise<Gate> {
   const user = await currentUserOrNull();
   if (!user) return { ok: false, code: "SESSION", message: SESSION_MESSAGE };
   try {
-    requireRole(user, ROLES);
+    requireRole(user, roles);
   } catch (err) {
     if (err instanceof ForbiddenError) return { ok: false, code: "FORBIDDEN", message: err.message };
     throw err;
@@ -209,4 +215,29 @@ export async function assignDepartmentAction(productIds: string[], departmentId:
   const updated = await getDataSource().assignDepartment(ids, departmentId);
   refresh();
   return { ok: true, updated };
+}
+
+/** Une productos duplicados por talla. Solo el dueño, releído de la base. */
+export async function mergeProductsAction(input: { targetId: string; sourceIds: string[] }): Promise<MergeResult> {
+  const g = await gate(OWNER_ONLY);
+  if (!g.ok) return g;
+
+  const { targetId, sourceIds } = input ?? ({} as typeof input);
+  if (typeof targetId !== "string" || !targetId) return invalid("Elige el producto que se queda.");
+  if (!Array.isArray(sourceIds) || sourceIds.some((id) => typeof id !== "string" || !id)) {
+    return invalid("La selección no es válida.");
+  }
+  const sources = [...new Set(sourceIds)];
+  if (sources.length === 0) return invalid("Elige al menos un producto para unir.");
+  if (sources.includes(targetId)) return invalid("El producto que se queda no puede ser también uno de los que se unen.");
+  if (sources.length > MAX_BATCH) return invalid(`Puedes unir hasta ${MAX_BATCH} productos a la vez.`);
+
+  try {
+    const res = await getDataSource().mergeProducts(targetId, sources, g.userId);
+    refresh();
+    return { ok: true, ...res };
+  } catch (err) {
+    if (err instanceof InventoryRuleError) return invalid(err.message);
+    throw err;
+  }
 }

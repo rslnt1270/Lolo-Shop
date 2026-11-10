@@ -111,6 +111,14 @@ export interface ProductPatch {
   category?: string;
 }
 
+/** Lo que movió una unión de productos. */
+export interface MergeProductsResult {
+  movedVariants: number;
+  movedSaleLines: number;
+  /** Orígenes que ya estaban unidos a este destino (la unión es idempotente). */
+  alreadyMerged: number;
+}
+
 export interface InventoryDataSource {
   getLocations(): Promise<Location[]>;
   createLocation(data: CreateLocationData): Promise<Location>;
@@ -176,6 +184,19 @@ export interface InventoryDataSource {
   setVariantActive(variantId: string, active: boolean): Promise<void>;
   /** Asigna el departamento a varios productos; devuelve cuántos existían. */
   assignDepartment(productIds: string[], departmentId: string): Promise<number>;
+  /**
+   * Une productos duplicados por talla: mueve las tallas y los renglones de venta de
+   * cada origen al destino, desactiva los orígenes y deja `mergedIntoId`. Una sola
+   * transacción que bloquea los productos en orden de id. Lanza `InventoryRuleError`
+   * si el destino está inactivo o unido, si las marcas no coinciden, si un origen ya
+   * está unido a otro destino o si `sourceIds` está vacío o incluye al destino.
+   */
+  mergeProducts(targetId: string, sourceIds: string[], userId: string): Promise<MergeProductsResult>;
+  /**
+   * Producto por su código público (sin normalizar). Si fue unido a otro, un salto
+   * al destino. `null` si no existe.
+   */
+  getProductByPublicCode(code: string): Promise<Product | null>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
   updateProductBackImage(productId: string, backImageUrl: string): Promise<void>;
 }
