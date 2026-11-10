@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
@@ -130,6 +131,14 @@ const config: Config = {
             }
           }
         },
-  plugins: [],
+  plugins: [
+    // Oculta la barra de las tiras con desplazamiento horizontal (chips); el desplazamiento sigue funcionando.
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        ".scrollbar-none": { "scrollbar-width": "none", "-ms-overflow-style": "none" },
+        ".scrollbar-none::-webkit-scrollbar": { display: "none" },
+      });
+    }),
+  ],
 };
 export default config;

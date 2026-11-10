@@ -53,7 +53,7 @@ export default function LoginPage() {
       <motion.div
         className="w-full max-w-sm rounded-[28px] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-[rgba(226,232,240,0.5)]"
         variants={containerVariants}
-        initial="hidden"
+        initial={false}
         animate="visible"
       >
         <motion.div variants={itemVariants} className="flex flex-col items-center justify-center space-y-3 pb-8">

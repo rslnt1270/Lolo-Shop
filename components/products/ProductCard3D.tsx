@@ -14,9 +14,11 @@ interface Props {
   price: number | null;
   /** Enlace a WhatsApp; null si no hay número válido configurado. */
   waLink: string | null;
+  /** `id` del título, para que el diálogo que lo contiene se nombre con él. */
+  titleId?: string;
 }
 
-export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLink }: Props) {
+export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLink, titleId }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
 
@@ -35,7 +37,8 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
   const glareBackground = useMotionTemplate`radial-gradient(circle at ${glareX} ${glareY}, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 60%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement> | React.PointerEvent<HTMLDivElement>) => {
-    if (!ref.current) return;
+    // Con movimiento reducido no hay inclinación por puntero (ni ratón ni toque).
+    if (reduceMotion || !ref.current) return;
     const rect = ref.current.getBoundingClientRect();
     const width = rect.width;
     const height = rect.height;
@@ -59,19 +62,16 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
     <div style={{ perspective: 1200 }} className="w-full">
       <motion.div
         ref={ref}
+        data-testid="product-card-3d"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onPointerDown={handleMouseMove} // Soporte para toque en móvil
         onPointerUp={handleMouseLeave}
-        style={{
-          rotateX,
-          rotateY,
-          transformStyle: "preserve-3d",
-        }}
+        style={reduceMotion ? undefined : { rotateX, rotateY, transformStyle: "preserve-3d" }}
         className="group relative w-full rounded-2xl bg-white shadow-2xl border border-gray-100 flex flex-col cursor-pointer"
-        initial={{ opacity: 0, y: 20 }}
+        initial={reduceMotion ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: reduceMotion ? 0 : 0.5 }}
       >
         {/* Efecto de Luz (Glare) Dinámico */}
         <motion.div
@@ -82,7 +82,7 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
         {/* Contenedor Superior (Imagen simulada) */}
         <div 
           className="relative aspect-w-1 aspect-h-1 w-full bg-gradient-to-br from-gray-100 to-gray-50 p-8 h-64 rounded-t-2xl overflow-hidden flex items-center justify-center"
-          style={{ transform: "translateZ(60px)" }}
+          style={reduceMotion ? undefined : { transform: "translateZ(60px)" }}
         >
           <motion.div
             animate={reduceMotion ? { y: 0 } : { y: [0, -10, 0] }}
@@ -102,8 +102,8 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
         </div>
         
         {/* Datos del producto */}
-        <div className="p-5 flex flex-col flex-grow bg-white rounded-b-2xl" style={{ transform: "translateZ(30px)" }}>
-          <h3 className="text-xl font-bold text-gray-900 leading-tight mb-2">
+        <div className="p-5 flex flex-col flex-grow bg-white rounded-b-2xl" style={reduceMotion ? undefined : { transform: "translateZ(30px)" }}>
+          <h3 id={titleId} className="text-xl font-bold text-gray-900 leading-tight mb-2">
             {title}
           </h3>
           {publicCode && (
@@ -112,7 +112,7 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
             </p>
           )}
 
-          <div className="mt-auto flex flex-col gap-3 border-t border-gray-50 pt-4" style={{ transform: "translateZ(40px)" }}>
+          <div className="mt-auto flex flex-col gap-3 border-t border-gray-50 pt-4" style={reduceMotion ? undefined : { transform: "translateZ(40px)" }}>
             {price !== null && <p className="text-2xl font-black text-gray-900">{formatPrice(price)}</p>}
 
             {waLink ? (

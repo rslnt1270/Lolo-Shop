@@ -110,7 +110,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
       {/* Barra Superior Flotante (Glassmorphism) */}
       <header className="sticky top-4 z-40 mx-auto w-[calc(100%-32px)] max-w-6xl rounded-2xl border border-white/60 bg-white/75 p-3.5 shadow-xl backdrop-blur-xl flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2 group">
+          <Link href="/" className="flex min-h-11 items-center gap-2 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/loloshop-logo.png"
@@ -135,24 +135,26 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
         <div className="flex items-center rounded-xl bg-gray-100/80 p-1 border border-gray-200/60 shadow-inner">
           <button
             onClick={() => setViewMode("tour")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+            aria-label="Recorrido 3D"
+            className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
               viewMode === "tour"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            <Rotate3d size={14} className={viewMode === "tour" ? "text-loloteal" : ""} />
+            <Rotate3d aria-hidden="true" size={14} className={viewMode === "tour" ? "text-loloteal" : ""} />
             <span className="hidden sm:inline">Recorrido 3D</span>
           </button>
           <button
             onClick={() => setViewMode("grid")}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+            aria-label="Catálogo"
+            className={`flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
               viewMode === "grid"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            <Grid size={14} className={viewMode === "grid" ? "text-loloteal" : ""} />
+            <Grid aria-hidden="true" size={14} className={viewMode === "grid" ? "text-loloteal" : ""} />
             <span className="hidden sm:inline">Catálogo</span>
           </button>
         </div>
@@ -163,7 +165,8 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
           {tourEnabled && (
           <button
             onClick={() => setIsCatalogDrawerOpen(true)}
-            className="flex items-center gap-1.5 rounded-full bg-black px-3.5 py-1.5 text-xs font-semibold text-white shadow-md hover:bg-gray-800 transition-all active:scale-95"
+            aria-label="Ver productos"
+            className="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full bg-black px-3.5 py-1.5 text-xs font-semibold text-white shadow-md hover:bg-gray-800 transition-all active:scale-95"
           >
             <ShoppingBag size={14} />
             <span className="hidden md:inline">Ver Productos</span>
@@ -176,10 +179,11 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
           {isLoggedIn && (
             <Link
               href="/"
-              className="rounded-full border border-gray-200 bg-white p-2 text-gray-600 hover:bg-gray-50 transition-colors"
-              title="Ir al Dashboard"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50"
+              aria-label="Ir al panel"
+              title="Ir al panel"
             >
-              <Compass size={16} />
+              <Compass size={16} aria-hidden="true" />
             </Link>
           )}
         </div>
@@ -201,7 +205,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
                   <button
                     key={zone.id}
                     onClick={() => handleSelectZone(zone.id)}
-                    className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all flex-none border ${
+                    className={`flex min-h-11 items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all flex-none border ${
                       isActive
                         ? "border-loloteal bg-white text-gray-900 shadow-md ring-2 ring-loloteal/20"
                         : "border-gray-200/80 bg-white/60 text-gray-600 hover:bg-white hover:border-gray-300"
@@ -261,7 +265,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsCatalogDrawerOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                    className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
                   >
                     <Search size={14} className="text-gray-400" />
                     Buscar en Tienda
@@ -324,6 +328,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
 
       {/* Modal / Ficha Técnica 3D del Producto Seleccionado */}
       <ProductHotspotModal
+        key={selectedProduct?.id ?? "sin-producto"}
         product={selectedProduct}
         shelfLabel={selectedShelf}
         onClose={() => setSelectedProduct(null)}

@@ -27,12 +27,12 @@ export function CatalogGrid({ products, onSelect }: Props) {
           <button
             type="button"
             onClick={() => onSelect(p)}
-            className="flex min-h-[44px] w-full flex-col text-left transition-opacity active:opacity-80"
+            className="flex min-h-11 min-w-11 w-full flex-col text-left transition-opacity active:opacity-80"
           >
             <span className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-[14px] border border-gray-200 bg-gray-100">
               {p.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+                <img src={p.imageUrl} alt="" width={320} height={320} loading="lazy" className="h-full w-full object-cover" />
               ) : (
                 <span className="text-[11px] font-medium text-gray-500">Foto de frente</span>
               )}

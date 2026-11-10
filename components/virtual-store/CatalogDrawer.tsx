@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 import { Search, X, MapPin, Eye, ShoppingBag } from "lucide-react";
 import type { StoreHotspot } from "@/lib/virtual-store/types";
+import { useDialog } from "./useDialog";
 
 interface Props {
   isOpen: boolean;
@@ -11,16 +12,16 @@ interface Props {
   onSelectProduct: (hotspot: StoreHotspot) => void;
 }
 
-export function CatalogDrawer({
-  isOpen,
-  onClose,
-  hotspots,
-  onSelectProduct,
-}: Props) {
+export function CatalogDrawer({ isOpen, onClose, hotspots, onSelectProduct }: Props) {
+  if (!isOpen) return null;
+  return <DrawerBody onClose={onClose} hotspots={hotspots} onSelectProduct={onSelectProduct} />;
+}
+
+function DrawerBody({ onClose, hotspots, onSelectProduct }: Omit<Props, "isOpen">) {
+  const dialogRef = useDialog<HTMLDivElement>(onClose);
+  const titleId = useId();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Todas");
-
-  if (!isOpen) return null;
 
   const categories = ["Todas", ...Array.from(new Set(hotspots.map((h) => h.category)))];
 
@@ -35,11 +36,19 @@ export function CatalogDrawer({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex justify-end"
+    >
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Drawer Panel */}
@@ -47,28 +56,29 @@ export function CatalogDrawer({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 p-5">
           <div className="flex items-center gap-2">
-            <ShoppingBag className="text-loloteal" size={20} />
-            <h3 className="font-bold text-gray-900 text-lg">Catálogo de la Tienda</h3>
+            <ShoppingBag className="text-loloteal" size={20} aria-hidden="true" />
+            <h3 id={titleId} className="font-bold text-gray-900 text-lg">Catálogo de la Tienda</h3>
           </div>
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
             aria-label="Cerrar catálogo"
           >
-            <X size={18} />
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
         {/* Buscador & Categorías */}
         <div className="p-4 border-b border-gray-100 space-y-3">
           <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} aria-hidden="true" />
             <input
               type="text"
+              aria-label="Buscar prendas"
               placeholder="Buscar prendas, calzado, accesorios..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-2xl border border-gray-200 bg-gray-50/70 py-2.5 pl-10 pr-4 text-xs text-gray-800 placeholder-gray-400 focus:border-loloteal focus:bg-white focus:outline-none focus:ring-1 focus:ring-loloteal"
+              className="w-full rounded-2xl border border-gray-200 bg-gray-50/70 min-h-11 py-2.5 pl-10 pr-4 text-xs text-gray-800 placeholder-gray-400 focus:border-loloteal focus:bg-white focus:outline-none focus:ring-1 focus:ring-loloteal"
             />
           </div>
 
@@ -78,7 +88,7 @@ export function CatalogDrawer({
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`rounded-full px-3 py-1 font-medium whitespace-nowrap transition-all ${
+                className={`min-h-11 min-w-11 rounded-full px-3 py-1 font-medium whitespace-nowrap transition-all ${
                   selectedCategory === cat
                     ? "bg-primary text-white shadow-sm"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -98,13 +108,14 @@ export function CatalogDrawer({
             </div>
           ) : (
             filteredHotspots.map((h) => (
-              <div
+              <button
+                type="button"
                 key={h.id}
                 onClick={() => {
                   onSelectProduct(h);
                   onClose();
                 }}
-                className="group flex items-center gap-3.5 p-3 rounded-2xl border border-gray-100 bg-white hover:border-loloteal/50 hover:shadow-lg transition-all cursor-pointer"
+                className="group flex min-h-11 min-w-11 w-full items-center gap-3.5 p-3 text-left rounded-2xl border border-gray-100 bg-white hover:border-loloteal/50 hover:shadow-lg transition-all"
               >
                 {/* Miniatura */}
                 <div className="h-16 w-16 flex-none rounded-xl bg-gray-50 flex items-center justify-center overflow-hidden border border-gray-100">
@@ -123,7 +134,7 @@ export function CatalogDrawer({
                 {/* Detalles y ubicación física */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 text-[10px] font-semibold text-loloteal">
-                    <MapPin size={10} />
+                    <MapPin size={10} aria-hidden="true" />
                     <span className="truncate">{h.shelfLabel}</span>
                   </div>
                   <h4 className="font-bold text-gray-900 text-xs truncate group-hover:text-loloteal transition-colors">
@@ -135,13 +146,13 @@ export function CatalogDrawer({
                   </p>
                 </div>
 
-                {/* Botón flotante para ver en 3D */}
-                <div className="flex-none opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Aviso visual (el botón es toda la fila) */}
+                <div className="flex-none opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-loloteal bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
-                    <Eye size={12} /> Ver en 3D
+                    <Eye size={12} aria-hidden="true" /> Ver en 3D
                   </span>
                 </div>
-              </div>
+              </button>
             ))
           )}
         </div>
