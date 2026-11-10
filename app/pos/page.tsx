@@ -11,13 +11,15 @@ import { createSaleAction } from "@/lib/sales/actions";
 import { isValidGtin } from "@/lib/domain/barcode";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
-import { formatPriceShort } from "@/lib/products/format";
+import { formatPrice } from "@/lib/public/format";
+import { saleTotal } from "@/lib/domain/sale";
+import { StaffLoadState } from "@/components/layout/StaffLoadState";
+import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
 
 type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
 type StockError = { message: string; signature: string; variantId?: string };
 
-const SESSION_EXPIRED = "Tu sesión terminó. Vuelve a iniciar sesión.";
 const LOCATION_KEY = "loloshop:pos:location";
 
 export default function POSPage() {
@@ -36,6 +38,8 @@ export default function POSPage() {
   const [searching, setSearching] = useState(false);
   const [scannerKey, setScannerKey] = useState(0);
   const [cameraReady, setCameraReady] = useState(false);
+  const [locationsFailed, setLocationsFailed] = useState(false);
+  const [locationsAttempt, setLocationsAttempt] = useState(0);
   const submittingRef = useRef(false);
 
   const role = session?.user?.role;
@@ -46,10 +50,16 @@ export default function POSPage() {
   useEffect(() => {
     if (status !== "authenticated" || isCollaborator) return;
     let cancelled = false;
+    setLocationsFailed(false);
     fetchLocationsAction()
       .then((res) => {
         if (cancelled) return;
-        const list = res ?? [];
+        if (res == null) {
+          setLocationsFailed(true);
+          setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
+          return;
+        }
+        const list = res;
         setLocations(list.map((l) => ({ id: l.id, name: l.name })));
         let saved = "";
         try {
@@ -61,12 +71,14 @@ export default function POSPage() {
         if (pick) setChosenLocation(pick.id);
       })
       .catch(() => {
-        if (!cancelled) setNotice({ kind: "error", text: "No se pudieron cargar las tiendas. Recarga la página." });
+        if (cancelled) return;
+        setLocationsFailed(true);
+        setNotice({ kind: "error", text: "No pudimos cargar las tiendas. Revisa tu conexión." });
       });
     return () => {
       cancelled = true;
     };
-  }, [status, isCollaborator]);
+  }, [status, isCollaborator, locationsAttempt]);
 
   const chooseLocation = (id: string) => {
     setChosenLocation(id);
@@ -85,7 +97,7 @@ export default function POSPage() {
       try {
         const result = await lookupCodeAction(code);
         if (!result) {
-          setNotice({ kind: "error", text: SESSION_EXPIRED, login: true });
+          setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
           const variant = result.product.variants.find((v) => v.id === result.variantId);
           if (variant) {
@@ -153,9 +165,15 @@ export default function POSPage() {
       });
       if (!result) {
         // Con la sesión vencida el middleware redirige y Next resuelve la acción con undefined.
-        setNotice({ kind: "error", text: SESSION_EXPIRED, login: true });
+        setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
       } else if (result.ok) {
-        setNotice({ kind: "ok", text: `Venta #${result.sale.number} registrada` });
+        setNotice({
+          kind: "ok",
+          text:
+            result.sale.status === "pending_payment"
+              ? `Venta #${result.sale.number} registrada. Pago por confirmar.`
+              : `Venta #${result.sale.number} registrada`,
+        });
         setAlias("");
         draft.reset();
       } else if (result.code === "PRICE_CHANGED" && result.lines?.length) {
@@ -164,7 +182,7 @@ export default function POSPage() {
         for (const l of result.lines) {
           draft.setPrice(l.variantId, l.price);
           const title = lines.find((x) => x.variantId === l.variantId)?.productTitle ?? "la prenda";
-          notes.push(`El precio de ${title} cambió a ${formatPriceShort(l.price)}.`);
+          notes.push(`El precio de ${title} cambió a ${formatPrice(l.price)}.`);
         }
         // Si el intento anterior quedó incierto (red o timeout), quizá ya se registró: se conserva el id.
         // El reintento con el mismo id termina en replay en cuanto ese cobro confirma. Solo una
@@ -202,10 +220,10 @@ export default function POSPage() {
   };
 
   if (status === "loading") {
-    return <main className="p-4 text-center">Cargando...</main>;
+    return <StaffLoadState state="loading" retry={() => {}} />;
   }
   if (!session?.user) {
-    return <main className="p-4 text-center">Inicia sesión para vender.</main>;
+    return <StaffLoadState state="session" retry={() => {}} />;
   }
   if (isCollaborator && !session.user.locationId) {
     return (
@@ -218,7 +236,7 @@ export default function POSPage() {
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-on-surface">Nueva venta</h1>
+        <h1 className="text-lg font-bold text-on-surface">Nueva venta</h1>
         <Link
           href="/"
           className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -226,6 +244,26 @@ export default function POSPage() {
           Volver al inicio
         </Link>
       </header>
+
+<div aria-live="polite" className="sticky top-2 z-30 space-y-2">
+            {searching && <p className="rounded-lg bg-surface-container-low p-3 text-sm shadow-sm">Buscando…</p>}
+            {notice && !searching && (
+              <p
+                role={notice.kind === "error" ? "alert" : "status"}
+                className={`rounded-lg p-3 text-sm font-semibold shadow-sm ${
+                  notice.kind === "error" ? "bg-error-container text-on-error-container" : "bg-primary/10 text-on-primary-container"
+                }`}
+              >
+                {notice.text}
+                {notice.login && (
+                  <>
+                    {" "}
+                    <LoginLink />
+                  </>
+                )}
+              </p>
+            )}
+          </div>
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
         <section aria-label="Agregar prendas" className="space-y-4 rounded-2xl border border-outline-variant bg-white p-4">
@@ -240,13 +278,24 @@ export default function POSPage() {
                 onChange={(e) => chooseLocation(e.target.value)}
                 className="mt-1 block min-h-[44px] w-full rounded-lg border border-outline bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {locations.length === 0 && <option value="">Cargando tiendas…</option>}
+                {locations.length === 0 && (
+                  <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
+                )}
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
                   </option>
                 ))}
               </select>
+              {locationsFailed && (
+                <button
+                  type="button"
+                  onClick={() => setLocationsAttempt((n) => n + 1)}
+                  className="mt-2 min-h-11 rounded-xl border border-outline px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
+                  Reintentar
+                </button>
+              )}
             </div>
           )}
           <Scanner
@@ -260,31 +309,6 @@ export default function POSPage() {
         </section>
 
         <section aria-label="Venta" className="space-y-4">
-          <div aria-live="polite">
-            {searching && <p className="rounded-lg bg-surface-container-low p-3 text-sm">Buscando…</p>}
-            {notice && !searching && (
-              <p
-                role={notice.kind === "error" ? "alert" : "status"}
-                className={`rounded-lg p-3 text-sm font-semibold ${
-                  notice.kind === "error" ? "bg-error-container text-on-error-container" : "bg-primary/10 text-on-primary-container"
-                }`}
-              >
-                {notice.text}
-                {notice.login && (
-                  <>
-                    {" "}
-                    <Link
-                      href="/login"
-                      className="inline-flex min-h-[44px] items-center rounded-lg px-1 underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    >
-                      Iniciar sesión
-                    </Link>
-                  </>
-                )}
-              </p>
-            )}
-          </div>
-
           {activeStockError && !stockLineId && (
             <p role="alert" className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">
               {activeStockError.message} Revisa las cantidades de la venta.
@@ -311,15 +335,15 @@ export default function POSPage() {
             />
           </div>
 
-          <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white/95 p-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
+          <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
             <button
               type="button"
               onClick={() => void charge()}
               disabled={lines.length === 0 || submitting}
               aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
-              className="min-h-[52px] w-full rounded-2xl bg-primary px-4 text-lg font-bold text-on-primary hover:bg-on-primary-fixed-variant focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:bg-outline-variant disabled:text-on-surface-variant"
+              className="min-h-[52px] w-full rounded-xl bg-loloteal px-4 text-lg font-bold text-white transition-transform duration-150 hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal focus-visible:ring-offset-2 disabled:bg-outline-variant disabled:text-on-surface-variant disabled:active:scale-100"
             >
-              {submitting ? "Cobrando…" : "Cobrar"}
+              {submitting ? "Cobrando…" : lines.length ? `Cobrar ${formatPrice(saleTotal(lines))}` : "Cobrar"}
             </button>
             {lines.length === 0 && (
               <p id="cobrar-ayuda" className="mt-2 text-center text-sm text-on-surface-variant">

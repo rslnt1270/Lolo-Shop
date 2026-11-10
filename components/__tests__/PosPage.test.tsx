@@ -132,7 +132,7 @@ describe("POSPage", () => {
     fireEvent.click(screen.getByLabelText("WhatsApp"));
     fireEvent.click(screen.getByLabelText("Transferencia SPAY"));
     expect(screen.getByLabelText(/alias del pedido/i)).toBeInTheDocument();
-    expect(screen.getByText("Sin teléfono ni nombre completo")).toBeInTheDocument();
+    expect(screen.getByText("Máximo 40 caracteres. Sin teléfono ni nombre completo.")).toBeInTheDocument();
   });
 
   it("tras un error de red, reintentar manda el mismo clientRequestId", async () => {
@@ -203,7 +203,7 @@ describe("POSPage", () => {
       "El precio de Playera cambió a $120. Revisa el total y cobra de nuevo.",
     );
     expect(screen.getByText("Playera")).toBeInTheDocument();
-    expect(screen.getByTestId("sale-total")).toHaveTextContent("$120.00");
+    expect(screen.getByTestId("sale-total")).toHaveTextContent("$120");
     cobrar();
     await screen.findByText("Venta #11 registrada");
     const [first, second] = sentIds();
@@ -414,5 +414,55 @@ describe("POSPage", () => {
     expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
     expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
     expect(screen.queryByText(/revisa tu conexión/i)).toBeNull();
+  });
+
+  it("Cobrar muestra el total en el botón", async () => {
+    await readyWithOneLine();
+    expect(screen.getByRole("button", { name: "Cobrar $199.95" })).toBeEnabled();
+  });
+
+  it("el aviso de la venta va arriba, antes del escáner", async () => {
+    actions.createSaleAction.mockResolvedValue({ ok: true, sale: { number: 12, status: "paid" } });
+    await readyWithOneLine();
+    cobrar();
+    const notice = await screen.findByText("Venta #12 registrada");
+    const scanner = screen.getByTestId("scanner");
+    expect(notice.compareDocumentPosition(scanner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("transferencia pendiente avisa que el pago está por confirmar", async () => {
+    actions.createSaleAction.mockResolvedValue({ ok: true, sale: { number: 13, status: "pending_payment" } });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText("Venta #13 registrada. Pago por confirmar.");
+  });
+
+  it("fetchLocationsAction sin valor (sesión vencida): aviso con enlace y el selector no queda en Cargando", async () => {
+    actions.fetchLocationsAction.mockResolvedValue(undefined);
+    render(<POSPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Tu sesión terminó. Vuelve a iniciar sesión.");
+    expect(within(alert).getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+    expect(screen.queryByText("Cargando tiendas…")).toBeNull();
+  });
+
+  it("fetchLocationsAction falla: mensaje y Reintentar vuelve a cargar", async () => {
+    actions.fetchLocationsAction.mockRejectedValueOnce(new Error("red"));
+    render(<POSPage />);
+    await screen.findByText(/no pudimos cargar las tiendas/i);
+    fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
+    await screen.findByDisplayValue("Centro");
+  });
+
+  it("sin sesión: aviso con enlace a iniciar sesión", () => {
+    session.value = { data: null, status: "unauthenticated" };
+    render(<POSPage />);
+    expect(screen.getByRole("link", { name: /iniciar sesión/i })).toHaveAttribute("href", "/login");
+  });
+
+  it("cargando sesión: estado de carga accesible", () => {
+    session.value = { data: null, status: "loading" };
+    render(<POSPage />);
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando…");
   });
 });
