@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Nuevo producto - LoloShop</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {},
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+          spacing: {},
+          fontFamily: {
+            headline: ["Plus Jakarta Sans"],
+            display: ["Plus Jakarta Sans"],
+            body: ["Plus Jakarta Sans"],
+            label: ["Public Sans"],
+            mono: ["JetBrains Mono"]
+          },
+          fontSize: {}
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    input, select, textarea {
+      font-size: 16px !important; /* Prevent iOS zoom */
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-white text-[#16302F] font-body antialiased min-h-screen pb-24 select-none">
+<!-- Main View Container (Targeted for 375px mobile experience) -->
+<div class="max-w-[375px] mx-auto min-h-screen bg-white relative flex flex-col">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-50 flex items-center justify-between w-full h-14 px-4 bg-white border-b border-[#E1E9E9]">
+<div class="flex items-center gap-1">
+<button aria-label="Regresar" class="w-11 h-11 -ml-2 rounded-xl flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:scale-[0.98] transition-transform" type="button">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<h1 class="font-headline font-bold text-base text-[#16302F] tracking-tight">Nuevo producto</h1>
+</div>
+<div class="flex items-center">
+<span class="bg-[#E7F3F3] text-[#007272] font-semibold text-xs px-2.5 py-1 rounded-full border border-[#D2E7E7]">Lomas</span>
+</div>
+</header>
+<!-- Scrollable Content Canvas -->
+<main class="flex-1 px-4 py-4 space-y-4">
+<!-- Card 1: Duplicate / Existing Product Check -->
+<section class="bg-white rounded-xl border border-[#E1E9E9] p-4 space-y-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#007272] text-[20px]">help_outline</span>
+<h2 class="font-semibold text-sm text-[#16302F]">¿Es otra talla de un producto ya registrado?</h2>
+</div>
+<!-- Search Input -->
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-[#5C6E6D] text-[20px] pointer-events-none">search</span>
+<input class="w-full h-11 pl-10 pr-3 border border-[#7F9392] rounded-lg text-sm placeholder-[#5C6E6D] focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272] transition-colors" placeholder="Busca por título, marca o código público" type="text"/>
+</div>
+<!-- Search Results -->
+<div class="space-y-2 pt-1">
+<!-- Result Item 1 -->
+<div class="flex items-center justify-between p-2.5 bg-[#F3F7F7] rounded-lg border border-[#E1E9E9]">
+<div class="flex items-center gap-3">
+<div class="w-11 h-11 rounded-lg bg-[#E1E9E9] flex flex-col items-center justify-center text-[#5C6E6D] flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+<span class="text-[9px] font-medium leading-none mt-0.5">Foto</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-baseline gap-1.5">
+<p class="font-medium text-sm text-[#16302F] leading-tight">Playera ejemplo</p>
+<span class="text-xs text-[#5C6E6D] leading-tight">Marca ejemplo</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="font-mono text-xs px-1.5 py-0.5 border border-[#7F9392] bg-white rounded text-[#16302F]">M</span>
+<span class="font-mono text-xs px-1.5 py-0.5 border border-[#7F9392] bg-white rounded text-[#16302F]">L</span>
+</div>
+</div>
+</div>
+<button aria-label="Agregar talla a Playera ejemplo" class="w-11 h-11 rounded-lg flex items-center justify-center text-[#007272] hover:bg-white active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[24px]">add</span>
+</button>
+</div>
+<!-- Result Item 2 -->
+<div class="flex items-center justify-between p-2.5 bg-[#F3F7F7] rounded-lg border border-[#E1E9E9]">
+<div class="flex items-center gap-3">
+<div class="w-11 h-11 rounded-lg bg-[#E1E9E9] flex flex-col items-center justify-center text-[#5C6E6D] flex-shrink-0">
+<span class="material-symbols-outlined text-[18px]">photo_camera</span>
+<span class="text-[9px] font-medium leading-none mt-0.5">Foto</span>
+</div>
+<div class="space-y-1">
+<div class="flex items-baseline gap-1.5">
+<p class="font-medium text-sm text-[#16302F] leading-tight">Sudadera básica</p>
+<span class="text-xs text-[#5C6E6D] leading-tight">Marca ejemplo</span>
+</div>
+<div class="flex items-center gap-1">
+<span class="font-mono text-xs px-1.5 py-0.5 border border-[#7F9392] bg-white rounded text-[#16302F]">S</span>
+<span class="font-mono text-xs px-1.5 py-0.5 border border-[#7F9392] bg-white rounded text-[#16302F]">XL</span>
+</div>
+</div>
+</div>
+<button aria-label="Agregar talla a Sudadera básica" class="w-11 h-11 rounded-lg flex items-center justify-center text-[#007272] hover:bg-white active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[24px]">add</span>
+</button>
+</div>
+</div>
+<!-- Outlined Dismiss Button -->
+<button class="w-full h-11 border border-[#007272] text-[#007272] font-semibold text-sm rounded-lg flex items-center justify-center hover:bg-[#F3F7F7] active:scale-[0.98] transition-all" type="button">
+          No, es un producto nuevo
+        </button>
+</section>
+<!-- Main Product Form -->
+<section class="space-y-4">
+<!-- Segmented Control -->
+<div class="h-11 rounded-lg bg-[#F3F7F7] p-1 grid grid-cols-2 border border-[#E1E9E9]"><button class="h-full rounded-md text-[#5C6E6D] font-medium text-xs flex items-center justify-center hover:text-[#16302F] transition-colors" type="button">
+            Solo stock
+          </button>
+<button class="h-full rounded-md bg-[#007272] text-white font-medium text-xs flex items-center justify-center transition-colors" type="button">
+            Catálogo
+          </button></div>
+<!-- Text Inputs -->
+<div class="space-y-3">
+<div class="space-y-1">
+<label class="block font-semibold text-xs text-[#16302F]">Título</label>
+<input class="w-full h-11 px-3 border border-[#7F9392] rounded-lg text-sm placeholder-[#5C6E6D] focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" placeholder="Playera ejemplo" type="text"/>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-xs text-[#16302F]">Marca</label>
+<input class="w-full h-11 px-3 border border-[#7F9392] rounded-lg text-sm placeholder-[#5C6E6D] focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" placeholder="Marca ejemplo" type="text"/>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="space-y-1">
+<label class="block font-semibold text-xs text-[#16302F]">Departamento</label>
+<div class="relative">
+<select class="w-full h-11 px-3 pr-8 border border-[#7F9392] rounded-lg text-sm bg-white text-[#16302F] appearance-none focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]"><option selected="">Dama</option>
+<option>Caballero</option>
+<option>Niños</option>
+<option>Calzado</option></select>
+<span class="material-symbols-outlined absolute right-2.5 top-3 text-[#5C6E6D] text-[18px] pointer-events-none">expand_more</span>
+</div>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-xs text-[#16302F]">Categoría</label>
+<div class="relative">
+<select class="w-full h-11 px-3 pr-8 border border-[#7F9392] rounded-lg text-sm bg-white text-[#16302F] appearance-none focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]"><option selected="">Playeras</option>
+<option>Sudaderas</option>
+<option>Pantalones</option>
+<option>Vestidos</option></select>
+<span class="material-symbols-outlined absolute right-2.5 top-3 text-[#5C6E6D] text-[18px] pointer-events-none">expand_more</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Section: Fotos -->
+<section class="space-y-2 pt-1">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-sm text-[#16302F]">Fotos del producto</h2>
+<span class="text-xs text-[#5C6E6D] font-medium">2 requeridas</span>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<!-- Slot 1: Frente -->
+<div class="h-28 border-2 border-dashed border-[#7F9392] rounded-xl flex flex-col items-center justify-center bg-[#F3F7F7] hover:bg-[#E7F3F3] cursor-pointer transition-colors p-2 text-center">
+<span class="material-symbols-outlined text-[#007272] text-[24px]">photo_camera</span>
+<span class="font-medium text-xs text-[#16302F] mt-1">Foto de frente</span>
+<span class="text-[11px] text-[#007272] font-semibold mt-0.5">Obligatoria</span>
+</div>
+<!-- Slot 2: Atrás -->
+<div class="h-28 border-2 border-dashed border-[#7F9392] rounded-xl flex flex-col items-center justify-center bg-[#F3F7F7] hover:bg-[#E7F3F3] cursor-pointer transition-colors p-2 text-center">
+<span class="material-symbols-outlined text-[#007272] text-[24px]">photo_camera</span>
+<span class="font-medium text-xs text-[#16302F] mt-1">Foto de atrás</span>
+<span class="text-[11px] text-[#007272] font-semibold mt-0.5">Obligatoria</span>
+</div>
+</div>
+</section>
+<!-- Section: Tallas -->
+<section class="space-y-3 pt-1">
+<div class="flex items-center justify-between">
+<h2 class="font-headline font-bold text-sm text-[#16302F]">Tallas</h2>
+<span class="text-xs font-semibold px-2 py-0.5 bg-[#F3F7F7] text-[#007272] rounded-md border border-[#E1E9E9]">3 asignadas</span>
+</div>
+<!-- Talla Card 1 -->
+<div class="bg-white rounded-xl border border-[#E1E9E9] p-3 space-y-3">
+<div class="flex items-start justify-between gap-2">
+<div class="grid grid-cols-3 gap-2 flex-1">
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D]">Talla</label>
+<input class="w-full h-11 px-2 text-center font-mono font-bold text-sm bg-[#E7F3F3] text-[#007272] border border-[#CCD7D7] rounded-lg focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" type="text" value="S"/>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D]">Precio</label>
+<div class="relative flex items-center">
+<span class="absolute left-2.5 font-mono text-sm text-[#5C6E6D] font-semibold pointer-events-none">$</span>
+<input class="w-full h-11 pl-6 pr-2 font-mono text-sm font-semibold text-[#16302F] bg-white border border-[#7F9392] rounded-lg focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" type="text" value="000"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D] text-center">Piezas</label>
+<div class="flex items-center border border-[#CCD7D7] rounded-lg overflow-hidden bg-white h-11">
+<button aria-label="Disminuir piezas" class="w-8 h-11 flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:bg-[#E1E9E9] text-base font-bold" type="button">-</button>
+<span class="flex-1 text-center font-mono text-sm font-semibold text-[#16302F]">1</span>
+<button aria-label="Aumentar piezas" class="w-8 h-11 flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:bg-[#E1E9E9] text-base font-bold" type="button">+</button>
+</div>
+</div>
+</div>
+<button aria-label="Eliminar talla S" class="w-9 h-9 mt-5 -mr-1 rounded-lg flex items-center justify-center text-[#9A3B2E] hover:bg-[#FDF3F2] active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex items-center justify-between gap-2 pt-1 border-t border-[#F3F7F7]">
+<div class="flex items-center gap-1.5 bg-[#F3F7F7] px-2.5 py-1.5 rounded-lg border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[#5C6E6D] text-[18px]">barcode</span>
+<span class="font-mono text-xs text-[#16302F] tracking-tight">CÓDIGO-EJEMPLO-1</span>
+</div>
+</div>
+</div>
+<!-- Talla Card 2 (With Error State) -->
+<div class="bg-[#FFFDFD] rounded-xl border border-[#F2C5C0] p-3 space-y-3">
+<div class="flex items-start justify-between gap-2">
+<div class="grid grid-cols-3 gap-2 flex-1">
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D]">Talla</label>
+<input class="w-full h-11 px-2 text-center font-mono font-bold text-sm bg-[#E7F3F3] text-[#007272] border border-[#CCD7D7] rounded-lg focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" type="text" value="M"/>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D]">Precio</label>
+<div class="relative flex items-center">
+<span class="absolute left-2.5 font-mono text-sm text-[#5C6E6D] font-semibold pointer-events-none">$</span>
+<input class="w-full h-11 pl-6 pr-2 font-mono text-sm font-semibold text-[#16302F] bg-white border border-[#7F9392] rounded-lg focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" type="text" value="000"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D] text-center">Piezas</label>
+<div class="flex items-center border border-[#CCD7D7] rounded-lg overflow-hidden bg-white h-11">
+<button aria-label="Disminuir piezas" class="w-8 h-11 flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:bg-[#E1E9E9] text-base font-bold" type="button">-</button>
+<span class="flex-1 text-center font-mono text-sm font-semibold text-[#16302F]">1</span>
+<button aria-label="Aumentar piezas" class="w-8 h-11 flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:bg-[#E1E9E9] text-base font-bold" type="button">+</button>
+</div>
+</div>
+</div>
+<button aria-label="Eliminar talla M" class="w-9 h-9 mt-5 -mr-1 rounded-lg flex items-center justify-center text-[#9A3B2E] hover:bg-[#FDF3F2] active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex items-center justify-between gap-2 pt-1 border-t border-[#F8ECEB]">
+<div class="flex items-center gap-1.5 bg-[#FDF3F2] px-2.5 py-1.5 rounded-lg border border-[#F6D0CC]">
+<span class="material-symbols-outlined text-[#9A3B2E] text-[18px]">barcode</span>
+<span class="font-mono text-xs text-[#9A3B2E] font-medium tracking-tight">CÓDIGO-EJEMPLO-2</span>
+</div>
+</div>
+<div class="bg-[#FDF3F2] border border-[#F6D0CC] rounded-lg p-2.5 flex items-start gap-2 text-xs text-[#9A3B2E] font-medium leading-tight">
+<span class="material-symbols-outlined text-[18px] flex-shrink-0 text-[#9A3B2E]">error</span>
+<span>Este código ya está registrado en Playera ejemplo.</span>
+</div>
+</div>
+<!-- Talla Card 3 (Sin Código) -->
+<div class="bg-white rounded-xl border border-[#E1E9E9] p-3 space-y-3">
+<div class="flex items-start justify-between gap-2">
+<div class="grid grid-cols-3 gap-2 flex-1">
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D]">Talla</label>
+<input class="w-full h-11 px-2 text-center font-mono font-bold text-sm bg-[#E7F3F3] text-[#007272] border border-[#CCD7D7] rounded-lg focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" type="text" value="L"/>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D]">Precio</label>
+<div class="relative flex items-center">
+<span class="absolute left-2.5 font-mono text-sm text-[#5C6E6D] font-semibold pointer-events-none">$</span>
+<input class="w-full h-11 pl-6 pr-2 font-mono text-sm font-semibold text-[#16302F] bg-white border border-[#7F9392] rounded-lg focus:outline-none focus:border-[#007272] focus:ring-1 focus:ring-[#007272]" type="text" value="000"/>
+</div>
+</div>
+<div class="space-y-1">
+<label class="block font-semibold text-[11px] text-[#5C6E6D] text-center">Piezas</label>
+<div class="flex items-center border border-[#CCD7D7] rounded-lg overflow-hidden bg-white h-11">
+<button aria-label="Disminuir piezas" class="w-8 h-11 flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:bg-[#E1E9E9] text-base font-bold" type="button">-</button>
+<span class="flex-1 text-center font-mono text-sm font-semibold text-[#16302F]">1</span>
+<button aria-label="Aumentar piezas" class="w-8 h-11 flex items-center justify-center text-[#16302F] hover:bg-[#F3F7F7] active:bg-[#E1E9E9] text-base font-bold" type="button">+</button>
+</div>
+</div>
+</div>
+<button aria-label="Eliminar talla L" class="w-9 h-9 mt-5 -mr-1 rounded-lg flex items-center justify-center text-[#9A3B2E] hover:bg-[#FDF3F2] active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+<div class="flex items-center justify-between gap-2 pt-1 border-t border-[#F3F7F7]">
+<div class="flex items-center gap-1.5 bg-[#F3F7F7] px-2.5 py-1.5 rounded-lg border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[#5C6E6D] text-[18px]">barcode</span>
+<span class="text-xs italic text-[#5C6E6D]">Sin código</span>
+</div>
+</div>
+</div>
+<!-- Add Size Action -->
+<div class="space-y-1.5 pt-1">
+<button class="w-full h-11 border border-[#007272] text-[#007272] font-semibold text-sm rounded-lg flex items-center justify-center gap-1.5 hover:bg-[#F3F7F7] active:scale-[0.98] transition-all" type="button">
+<span class="material-symbols-outlined text-[20px]">add</span>
+<span>Agregar otra talla</span>
+</button>
+<p class="text-xs text-center text-[#5C6E6D] px-2">
+            Abre el escáner y copia el precio de la talla anterior.
+          </p>
+</div>
+</section>
+</main>
+<!-- Bottom Sticky Save Action Bar -->
+<footer class="sticky bottom-0 w-full z-40 bg-white border-t border-[#E1E9E9] p-4 pb-6">
+<button class="w-full h-12 bg-[#007272] text-white font-bold text-base rounded-xl shadow-none flex items-center justify-center gap-2 hover:bg-[#005F5F] active:bg-[#004C4C] active:scale-[0.99] transition-all" type="button">
+<span class="material-symbols-outlined text-[22px]">save</span>
+<span>Guardar producto</span>
+</button>
+</footer>
+</div>
+</body></html>

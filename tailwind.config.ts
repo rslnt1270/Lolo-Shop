@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
@@ -7,12 +8,14 @@ const config: Config = {
         theme: {
           extend: {
             "colors": {
+              "loloteal": "#007272",
+              "loloteal-dark": "#005F5F",
               "surface-container": "#edeeef",
               "inverse-primary": "#5cd9d8",
               "background": "#f8f9fa",
               "surface-container-low": "#f3f4f5",
               "on-secondary-container": "#636262",
-              "primary": "#006a6a",
+              "primary": "#007272",
               "on-tertiary-fixed-variant": "#773205",
               "on-primary-fixed-variant": "#004f50",
               "surface-bright": "#f8f9fa",
@@ -47,7 +50,7 @@ const config: Config = {
               "tertiary-fixed": "#ffdbcb",
               "outline": "#6c7a79",
               "on-tertiary-fixed": "#341100",
-              "surface-tint": "#006a6a",
+              "surface-tint": "#007272",
               "surface-container-highest": "#e1e3e4",
               "surface-container-high": "#e7e8e9",
               "tertiary-fixed-dim": "#ffb692",
@@ -128,6 +131,14 @@ const config: Config = {
             }
           }
         },
-  plugins: [],
+  plugins: [
+    // Oculta la barra de las tiras con desplazamiento horizontal (chips); el desplazamiento sigue funcionando.
+    plugin(({ addUtilities }) => {
+      addUtilities({
+        ".scrollbar-none": { "scrollbar-width": "none", "-ms-overflow-style": "none" },
+        ".scrollbar-none::-webkit-scrollbar": { display: "none" },
+      });
+    }),
+  ],
 };
 export default config;

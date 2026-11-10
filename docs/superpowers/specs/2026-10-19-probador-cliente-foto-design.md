@@ -1,5 +1,7 @@
 # Probador virtual (modo cliente, por foto) — investigación y plan
 
+> **Reemplazado parcialmente (2026-10-20, ver `2026-10-20-auditoria-probador-design.md`).** (1) Acceso: **solo con enlace/QR firmado**, no abierto en `/catalogo`. (2) Ruta: `/api/tryon/*` en lugar de `/api/probador` (evita la colisión de prefijos del middleware). (3) FASHN **no cobra los intentos fallidos** (§4 lo dejaba como no verificado). (4) Proveedor estándar: se decide tras el piloto de `probador-bajo-costo`; klein-4B exige entradas menores de 512x512. (5) BotID, `maxDuration`, `x-forwarded-for` y Blob son de Vercel: usar la capa `lib/platform/` para poder correr en Cloudflare Workers y luego en Vercel Pro.
+
 Fecha: 2026-10-19 · Estado: borrador para validación del usuario · Autor: agente investigador/arquitecto
 
 > Este documento NO contiene código de producto ni valores de claves. El repo es público: solo aparecen nombres de variables de entorno.

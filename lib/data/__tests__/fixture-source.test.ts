@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
+import { getPublicCatalog } from "../public-projection";
 
 describe("FixtureDataSource", () => {
   const ds = new FixtureDataSource();
@@ -55,11 +56,15 @@ describe("FixtureDataSource.updateProductImage", () => {
   it("actualiza el imageUrl del producto indicado", async () => {
     const ds = new FixtureDataSource();
     const { product } = await ds.createProduct({
-      barcode: "TEST-IMG-001",
+      userId: "u1",
       title: "Producto Test Imagen",
       brand: "TestBrand",
-      price: 100,
+      brandId: "b1",
+      departmentId: "d1",
+      publicCode: "K7Q2M",
+      category: "Playeras",
       locationId: "loc-1",
+      variants: [{ barcode: "TEST-IMG-001", sku: "LS-IMG001-0", size: "U", price: 100, initialStock: 1 }],
     });
 
     await ds.updateProductImage(product.id, "https://blob.example/x.jpg");
@@ -105,5 +110,53 @@ describe("FixtureDataSource.createLocation", () => {
     await a.createLocation({ name: "Solo en A" });
     const b = new FixtureDataSource();
     expect((await b.getLocations()).map((l) => l.name)).not.toContain("Solo en A");
+  });
+});
+
+describe("FixtureDataSource.createProduct", () => {
+  it("guarda la categoría y el stock inicial indicados", async () => {
+    const ds = new FixtureDataSource();
+    const { product, variants } = await ds.createProduct({
+      userId: "u1",
+      title: "Gorra Snapback",
+      brand: "LoloShop",
+      brandId: "b1",
+      departmentId: "d1",
+      publicCode: "ABCDE",
+      category: "Accesorios",
+      locationId: "loc-2",
+      variants: [{ barcode: "TEST-CAT-001", sku: "LS-CAT001-0", size: "U", price: 420, initialStock: 0 }],
+    });
+
+    expect(product.category).toBe("Accesorios");
+    expect(variants[0].inventory).toEqual([{ locationId: "loc-2", available: 0 }]);
+  });
+});
+
+describe("FixtureDataSource: catálogo público y departamentos", () => {
+  const input = (code: string, departmentId: string, loc: string) => ({
+    title: `P ${code}`, brand: "M", brandId: "b", departmentId, category: "Polos", publicCode: code,
+    imageUrl: "https://example.invalid/f.jpg", backImageUrl: "https://example.invalid/b.jpg",
+    locationId: loc, userId: "u",
+    variants: [{ size: "M", price: 100, initialStock: 1, sku: `SKU-${code}`, barcode: `${code}1` }],
+  });
+
+  it("un producto inactivo no aparece en getPublicCatalog", async () => {
+    const ds = new FixtureDataSource();
+    const store = (await ds.getLocations()).find((l) => l.type === "store")!;
+    const { product } = await ds.createProduct(input("AAAA1", "dep-dama", store.id));
+    expect((await getPublicCatalog(ds)).map((p) => p.publicCode)).toContain("AAAA1");
+    await ds.setProductActive(product.id, false);
+    expect((await getPublicCatalog(ds)).map((p) => p.publicCode)).not.toContain("AAAA1");
+  });
+
+  it("resuelve el departamento por id (dep-<slug>) y getPublicCatalog lo proyecta", async () => {
+    const ds = new FixtureDataSource();
+    const store = (await ds.getLocations()).find((l) => l.type === "store")!;
+    await ds.createProduct(input("BBBB1", "dep-calzado", store.id));
+    await ds.createProduct(input("CCCC1", "dep-desconocido", store.id));
+    const cat = await getPublicCatalog(ds);
+    expect(cat.find((p) => p.publicCode === "BBBB1")?.department).toEqual({ slug: "calzado", name: "Calzado", sortOrder: 4 });
+    expect(cat.find((p) => p.publicCode === "CCCC1")?.department).toBeNull();
   });
 });

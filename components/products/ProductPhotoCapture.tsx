@@ -3,18 +3,29 @@ import { useEffect, useId, useRef, useState } from "react";
 import { computeSquareCrop, autoLevels } from "@/lib/image/process";
 
 const MAX_SIZE = 1080;
+const MAX_BYTES = 1024 * 1024;
 
 interface ProductPhotoCaptureProps {
   onCapture: (file: File) => void;
   onClear: () => void;
+  onBusyChange?: (busy: boolean) => void;
+  /** Lado de la foto; distingue las dos capturas para lectores de pantalla. */
+  side?: "front" | "back";
 }
 
-export function ProductPhotoCapture({ onCapture, onClear }: ProductPhotoCaptureProps) {
+export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side }: ProductPhotoCaptureProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const sideWord = side === "back" ? "atrás" : side === "front" ? "frente" : null;
+  const forSide = sideWord ? ` de ${sideWord}` : "";
+
+  useEffect(() => {
+    onBusyChange?.(busy);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
 
   useEffect(() => {
     return () => {
@@ -41,13 +52,14 @@ export function ProductPhotoCapture({ onCapture, onClear }: ProductPhotoCaptureP
       autoLevels(imageData.data);
       ctx.putImageData(imageData, 0, 0);
 
-      const blob: Blob = await new Promise((resolve, reject) =>
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("toBlob falló"))),
-          "image/jpeg",
-          0.8
-        )
-      );
+      const encode = (quality: number): Promise<Blob> =>
+        new Promise((resolve, reject) =>
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob falló"))), "image/jpeg", quality)
+        );
+      // 1080x1080 a calidad 0.8 suele pesar 150-400 KB; si pasa de 1 MB, recomprime.
+      let blob = await encode(0.8);
+      if (blob.size > MAX_BYTES) blob = await encode(0.6);
+      if (blob.size > MAX_BYTES) blob = await encode(0.45);
       const edited = new File([blob], "producto.jpg", { type: "image/jpeg" });
 
       if (preview) URL.revokeObjectURL(preview);
@@ -91,12 +103,12 @@ export function ProductPhotoCapture({ onCapture, onClear }: ProductPhotoCaptureP
       {preview ? (
         <div className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt="Vista previa" className="w-32 h-32 rounded-lg object-cover border" />
+          <img src={preview} alt={`Vista previa de la foto${forSide}`} className="w-32 h-32 rounded-lg object-cover border" />
           <div className="flex gap-3 text-sm">
-            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="text-loloteal">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="min-h-[44px] px-2 text-loloteal" aria-label={`Retomar foto${forSide}`}>
               Retomar
             </button>
-            <button type="button" onClick={clear} className="text-gray-500">
+            <button type="button" onClick={clear} className="min-h-[44px] px-2 text-gray-500" aria-label={`Quitar foto${forSide}`}>
               Quitar
             </button>
           </div>
@@ -106,7 +118,8 @@ export function ProductPhotoCapture({ onCapture, onClear }: ProductPhotoCaptureP
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="w-full rounded-md border border-dashed border-gray-300 py-3 text-sm text-gray-600 hover:border-loloteal disabled:opacity-50"
+          aria-label={busy ? undefined : `Tomar o subir foto${forSide}`}
+          className="min-h-[44px] w-full rounded-md border border-dashed border-gray-300 py-3 text-sm text-gray-600 hover:border-loloteal disabled:opacity-50"
         >
           {busy ? "Procesando…" : "📷 Tomar o subir foto"}
         </button>

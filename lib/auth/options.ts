@@ -4,7 +4,7 @@ import type { Role } from "@/lib/domain/types";
 import { findUser } from "./users";
 
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 12 * 60 * 60 },
   providers: [
     CredentialsProvider({
       name: "Credenciales",

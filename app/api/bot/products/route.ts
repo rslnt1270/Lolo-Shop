@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { getDataSource } from "@/lib/data/get-source";
-import { filterProducts } from "@/lib/data/filter";
+import { getPublicCatalog, matchesPublicQuery } from "@/lib/data/public-projection";
 
 function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
@@ -31,39 +31,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q") || "";
 
-    // 2. Obtener los productos desde nuestra capa de datos (Prisma/Neon)
-    let products = await getDataSource().getProducts();
-
-    // 3. Filtrar si la IA envía un término de búsqueda (ej. q="playera negra")
-    if (q) {
-      products = filterProducts(products, q, null);
-    }
-
-    // 4. Formatear la respuesta optimizada para el LLM (menos tokens = menos costo)
-    const optimizedProducts = products.map((product) => {
-      // Devolver solo variantes que tengan stock > 0
-      const availableVariants = product.variants
-        .map((v) => {
-          const totalStock = v.inventory.reduce((acc, level) => acc + level.available, 0);
-          return {
-            sku: v.sku,
-            title: v.title,
-            size: v.size || "N/A",
-            color: v.color || "N/A",
-            price: v.price,
-            stock: totalStock,
-          };
-        })
-        .filter((v) => v.stock > 0);
-
-      return {
-        id: product.id,
-        title: product.title,
-        brand: product.brand,
-        category: product.category,
-        availableVariants,
-      };
-    }).filter(product => product.availableVariants.length > 0); // Excluir productos sin stock
+    // 2. Proyección pública: sin SKU, barcode ni conteos (B1).
+    const catalog = await getPublicCatalog(getDataSource());
+    const optimizedProducts = catalog.filter(
+      (p) => matchesPublicQuery(p, q) && p.sizes.some((s) => s.available),
+    );
 
     return NextResponse.json({
       success: true,

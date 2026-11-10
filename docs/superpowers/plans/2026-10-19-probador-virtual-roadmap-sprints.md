@@ -114,7 +114,7 @@ Si una puerta no se aprueba, el sprint siguiente se re-planifica. **No se constr
 
 | # | Tarea | Herramienta | h | Hecho cuando |
 |---|---|---|---|---|
-| 0.1 | Decisiones D0; pasar a **Vercel Pro** | Dueño | 1 | Billing muestra Pro |
+| 0.1 | Decisiones D0 (revisada 2026-10-20: hosting **interino en Cloudflare Workers**, paso a **Vercel Pro** cuando el cliente acepte la propuesta). Ver adenda §10 | Dueño | 1 | Decisión escrita |
 | 0.2 | Cerrar el **PR #17** (Next 15.5 + React 19 + Serwist): prueba manual y merge | Dueño + Claude | 5 | Deploy de producción verde y PWA instalable |
 | 0.3 | `reset-users.ts` en producción (pendiente desde septiembre) | Dueño | 1 | Cada rol inicia sesión en prod |
 | 0.4 | **Respaldo de Neon** (`pg_dump \| age → R2`) + **primer simulacro de restauración** (F05c, solo la parte de host). **Va antes de 0.5** | Claude + Codex | 6 | Restauración documentada en una BD scratch con conteo de filas |
@@ -122,7 +122,8 @@ Si una puerta no se aprueba, el sprint siguiente se re-planifica. **No se constr
 | 0.6 | Commit de los 6 specs y de este plan; marcar `docs/n8n-image-pipeline.md` como reemplazado | Claude | 1 | PR `docs:` mergeado |
 | 0.7 | PR `feat(dominio)` **con el flag apagado**: `NEXT_PUBLIC_SITE_URL` en las 5 URLs del webhook, `metadataBase`, `id`/`scope` en el manifest, redirección por `Host` detrás de `LEGACY_HOST_REDIRECT`, aviso de "nueva dirección" | Codex | 8 | `lint`, `test` y `build` en verde; producción idéntica |
 | 0.8 | Consultas escritas a proveedores (retención, entrenamiento, región): FASHN, Cloudflare, Google y Decart | Dueño (Claude redacta) | 2 | Respuestas archivadas **fuera del repo** |
-| | **Total** | | **32** | + margen |
+| 0.9 | **Prueba de Workers** (adenda §10): rama `spike/cloudflare-workers` desde el PR #17, build con OpenNext, rama de Neon, login por rol, escaneo ±1, alta con foto, `/catalogo`, CPU por petición. Informe go/no-go | Claude (build y medición) + Dueño (rama de Neon, `wrangler secret put`) | 8 | Informe con los 6 criterios del §4 de la auditoría |
+| | **Total** | | **40** | + margen |
 
 ### Sprint 1: Dominio y base de operación (2026-11-02 → 2026-11-13)
 **Objetivo:** LoloShop en `loloshop.y4ga.app` y la app capaz de vigilarse.
@@ -250,3 +251,39 @@ Duración total: **~7 sprints ≈ 15 semanas** (con el receso de fin de año), c
 | El gasto se sale del plan | Prepago sin recarga, topes en la app y avisos F02 desde el Sprint 3 |
 | El baseline de migraciones daña prod | Respaldo restaurable (0.4) **antes** del baseline (0.5), que además se ensaya en una rama de Neon |
 | Dependencia de proveedores que cambian modelos (Nano Banana original se apagó el 2026-10-02) | Slug configurable, `promptVersion` en el ledger y re-piloto corto ante cada cambio |
+
+---
+
+## 10. Adenda 2026-10-20: pista de Cloudflare Workers y auditoría
+
+Fuente: `docs/superpowers/specs/2026-10-20-auditoria-probador-design.md`.
+
+**Decisión del dueño:** empezar en **Cloudflare Workers** con inversión mínima de su cuenta para mostrar avance, y **pasar a Vercel Pro** cuando el cliente acepte la propuesta.
+
+| Tema | Cambio al plan |
+|---|---|
+| Costos fijos (§3.1) | Hoy **US$0 a US$5/mes** (Workers Free o Paid). Vercel Pro (US$20) se activa al aceptar el cliente |
+| D0 (§5) | "¿Cloudflare interino y luego Vercel Pro?" en lugar de "¿Pagas Vercel Pro?" |
+| Sprint 0 | Tarea 0.9 (prueba de Workers, 8 h). El PR #17 pasa a ser **tarea de seguridad** (Next 14.2.35 sin parche listado; el PR usa 15.5.25) |
+| Sprint 1, corte de dominio | Si D0 es Cloudflare, `loloshop.y4ga.app` se asigna al Worker. El paso posterior a Vercel Pro es un cambio de DNS con TTL baja y se ensaya antes |
+| Sprint 2, piloto de try-on | Incluye klein-4B (entradas menores de 512x512), klein-9B, Gemini 3.1 Flash Image y FASHN |
+| Sprint 4 y 5, rutas | Personal: `/api/probador/*` (protegida). Cliente: `/api/tryon/*` (pública con enlace firmado). Evita la colisión de prefijos del middleware |
+| Diseño | Capa `lib/platform/` (IP, anti-bot, almacenamiento) para correr en Workers y en Vercel sin tocar el dominio |
+| Contradicciones (§2) | Fotos de producto: no contratar AI Gateway de Vercel hasta la decisión de D2 |
+
+**Reglas de la prueba:** rama desechable en un `git worktree`, base de datos en una **rama de Neon**, secretos solo con `wrangler secret put` (los teclea el dueño), primero `workers.dev`, ningún cambio de DNS sin autorización expresa.
+
+## 11. Adenda 2026-10-27: demo de tienda digital
+
+Fuente: `docs/superpowers/specs/2026-10-27-demo-tienda-digital-design.md`.
+
+**Decisión del dueño:** hacer una demo que digitalice la tienda física y el catálogo, antes del probador. Orden: catálogo con escáner → fotos reales de la tienda → recorrido 3D → probador.
+
+| Tema | Cambio al plan |
+|---|---|
+| Orden | El probador (§6 de este plan) se mueve **después** de la demo. La demo no usa IA |
+| Recorrido 3D | Trabajo de Antigravity, en rama `feat/demo-recorrido-3d` (no en `main`). Se integra en el Sprint 4 como base del modo personal |
+| Catálogo público | Antes de la demo: proyección sin SKU ni inventario (tarea 5.4 adelantada). Bloqueante |
+| Alta de productos | Modo lote en `/escanear`, categoría obligatoria, stock inicial explícito (hoy fijo en 1). Original de la foto conservado (tarea 3.2 adelantada) |
+| Fotos de tienda | Sin personas ni precios visibles. Panorámicas 360° (R-1) para la demo; Gaussian Splat (R-2) después |
+| Decisiones | D-1 a D-6 del spec de la demo |

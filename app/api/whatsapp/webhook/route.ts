@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getDataSource } from '@/lib/data/get-source';
+import { findPublicByCode } from '@/lib/data/public-projection';
+import { parsePublicCodeRequest } from '@/lib/domain/public-code';
 
 // Configuración de Meta Cloud API
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
+const CATALOG_URL = 'https://lolo-shop.vercel.app/catalogo';
 
 // Valida la firma X-Hub-Signature-256 que Meta manda en cada POST.
 // Sin WHATSAPP_APP_SECRET configurado, se omite (solo para desarrollo local).
@@ -72,7 +75,7 @@ export async function POST(req: Request) {
 async function sendWhatsAppMessage(phoneNumberId: string, to: string, text: string) {
   // Si no hay token de producción, simulamos en consola (Modo Dev)
   if (!WHATSAPP_TOKEN) {
-    console.log(`\n🤖 [Bot de WhatsApp Simulado] \nPara: ${to}\nMensaje: ${text}\n`);
+    console.log(`\n🤖 [Bot de WhatsApp Simulado]\nMensaje: ${text}\n`);
     return;
   }
   
@@ -96,43 +99,31 @@ async function sendWhatsAppMessage(phoneNumberId: string, to: string, text: stri
 async function processMessage(phoneNumberId: string, from: string, text: string) {
   const lowerText = text.toLowerCase();
 
-  // --- Flujo 1: Apartar Producto ---
-  if (lowerText.includes("apartar la prenda") || lowerText.includes("apartar")) {
-    const skuMatch = text.match(/SKU:\s*([A-Za-z0-9\-]+)/i);
-    
-    if (skuMatch && skuMatch[1]) {
-      const sku = skuMatch[1];
-      
-      // Primera respuesta rápida de validación
-      await sendWhatsAppMessage(phoneNumberId, from, `¡Hola! 👋 ¡Excelente elección! Dame un segundo mientras verifico en nuestro inventario si el SKU ${sku} sigue disponible...`);
-      
-      // Consultar la Base de Datos Prisma
-      const ds = getDataSource();
-      const products = await ds.getProducts();
-      let foundVariant = null;
-      let foundProduct = null;
-      
-      for (const p of products) {
-        const v = p.variants.find(v => v.sku.toLowerCase() === sku.toLowerCase());
-        if (v) {
-          foundVariant = v;
-          foundProduct = p;
-          break;
-        }
-      }
+  // --- Flujo 1: Consultar una prenda por su código público ---
+  // Reconoce el verbo que usa el cliente para reservar (y sus formas con pronombre), no "aparte" ni "apartamento".
+  // El bot no promete reservar nada.
+  if (/\b(?:apart(?:ar|ad[oa]s?|as?\b)|apárt)/.test(lowerText) || /c[oó]digo/.test(lowerText)) {
+    const req = parsePublicCodeRequest(text);
 
-      if (foundVariant) {
-        const stock = foundVariant.inventory.reduce((sum, i) => sum + i.available, 0);
-        if (stock > 0) {
-          await sendWhatsAppMessage(phoneNumberId, from, `¡Buenas noticias! 🎉 Sí lo tenemos disponible. Te lo acabo de apartar a tu nombre por las próximas 24 horas. ⏳\n\nPara asegurar tu compra y coordinar el envío, completa tu pedido seguro en nuestra tienda oficial aquí:\n👉 https://lolo-shop.vercel.app/catalogo\n\n¿O prefieres pasar a recogerlo a nuestra tienda física?`);
-        } else {
-          await sendWhatsAppMessage(phoneNumberId, from, `Uy, parece que alguien más se nos adelantó y esa prenda acaba de agotarse. 💔 Pero no te preocupes, cada semana nos llegan modelos similares.\n\nPuedes revisar el resto del catálogo aquí 👉 https://lolo-shop.vercel.app/catalogo`);
-        }
+    if (req.kind === "ok") {
+      // Solo se consulta la base con un código de formato válido.
+      // Un código de un producto unido contesta con el producto que se quedó.
+      const product = await findPublicByCode(getDataSource(), req.code);
+      const sizes = product ? (req.size ? product.sizes.filter((s) => s.size.toUpperCase() === req.size) : product.sizes) : [];
+
+      if (product && sizes.some((s) => s.available)) {
+        await sendWhatsAppMessage(phoneNumberId, from, `¡Hola! Recibimos tu solicitud de "${product.title}" (código ${req.code}). La tienda te confirmará por este medio si está disponible. Mientras tanto, puedes ver el catálogo aquí 👉 ${CATALOG_URL}`);
+      } else if (product && req.size) {
+        await sendWhatsAppMessage(phoneNumberId, from, `Recibimos tu solicitud de "${product.title}", pero no vemos la talla ${req.size} disponible en tienda por ahora. La tienda te confirmará por este medio si hay alternativas.`);
+      } else if (product) {
+        await sendWhatsAppMessage(phoneNumberId, from, `Recibimos tu solicitud de "${product.title}" (código ${req.code}). La tienda te confirmará por este medio si está disponible.`);
       } else {
-         await sendWhatsAppMessage(phoneNumberId, from, `No logré encontrar ese SKU en nuestro catálogo actual. Revísalo nuevamente aquí 👉 https://lolo-shop.vercel.app/catalogo`);
+        await sendWhatsAppMessage(phoneNumberId, from, `No encontramos una prenda con ese código. Revísalo y vuelve a escribirlo, o mira el catálogo 👉 ${CATALOG_URL}`);
       }
+    } else if (req.kind === "invalid") {
+      await sendWhatsAppMessage(phoneNumberId, from, `Ese código no es válido: debe tener 5 caracteres, por ejemplo "Código K7Q2M talla M". Revísalo e inténtalo de nuevo.`);
     } else {
-      await sendWhatsAppMessage(phoneNumberId, from, `Hola, vi que quieres apartar una prenda pero no encontré el SKU en tu mensaje. Por favor envíame el SKU o búscalo en 👉 https://lolo-shop.vercel.app/catalogo`);
+      await sendWhatsAppMessage(phoneNumberId, from, `Hola, para consultar una prenda escríbenos su código, por ejemplo "Código K7Q2M talla M", o búscala en 👉 ${CATALOG_URL}`);
     }
   }
   // --- Flujo 3: Preguntas Frecuentes (FAQs) ---
@@ -140,10 +131,10 @@ async function processMessage(phoneNumberId: string, from: string, text: string)
     await sendWhatsAppMessage(phoneNumberId, from, `¡Claro que sí! 📦 Hacemos envíos a todo México. Al finalizar tu compra en nuestra página, el sistema calculará automáticamente el costo y tiempo de entrega basado en tu código postal. ¡Suele ser súper rápido! ⚡`);
   }
   else if (lowerText.includes("ubicación") || lowerText.includes("ubicacion") || lowerText.includes("dónde están") || lowerText.includes("donde estan") || lowerText.includes("tienda física") || lowerText.includes("tienda fisica")) {
-    await sendWhatsAppMessage(phoneNumberId, from, `Sí, ¡nos encantaría que nos visitaras! 📍 Estamos ubicados en nuestra Tienda Principal. \nRecuerda que si apartas una prenda por aquí, te la guardamos por 24 horas para que pases a probártela.`);
+    await sendWhatsAppMessage(phoneNumberId, from, `Sí, ¡nos encantaría que nos visitaras! 📍 Estamos ubicados en nuestra Tienda Principal. \nEscríbenos el código de la prenda y la tienda te confirma por aquí si está disponible.`);
   }
   // --- Flujo 2: Genérico (Exploración) ---
   else {
-    await sendWhatsAppMessage(phoneNumberId, from, `¡Hola! Bienvenido a LoloShop 🧢👟\nTenemos lo mejor en streetwear y marcas exclusivas. Puedes explorar todo nuestro inventario actual interactivo en el siguiente enlace:\n\n🔗 Nuestro Catálogo: https://lolo-shop.vercel.app/catalogo\n\nSi te gusta algo, solo presiona el botón 'Apartar' debajo de la prenda y yo me encargo de reservártela. ¿Buscas alguna marca o talla en específico?`);
+    await sendWhatsAppMessage(phoneNumberId, from, `¡Hola! Bienvenido a LoloShop 🧢👟\nTenemos lo mejor en streetwear y marcas exclusivas. Puedes explorar todo nuestro inventario actual interactivo en el siguiente enlace:\n\n🔗 Nuestro Catálogo: https://lolo-shop.vercel.app/catalogo\n\nSi te gusta algo, escríbenos su código (por ejemplo "Código K7Q2M talla M") y la tienda te confirmará por aquí si está disponible. ¿Buscas alguna marca o talla en específico?`);
   }
 }

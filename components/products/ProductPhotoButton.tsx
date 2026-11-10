@@ -1,18 +1,29 @@
 "use client";
 import { useState } from "react";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
-import { updateProductImageAction } from "@/lib/actions";
+import { setProductBackImageAction, updateProductImageAction, uploadProductImageAction } from "@/lib/actions";
 
 interface ProductPhotoButtonProps {
   productId: string;
+  /** Título del producto: forma parte del nombre accesible del botón. */
+  productTitle?: string;
   hasImage: boolean;
+  /** Lado de la foto: "front" (por defecto) o "back". */
+  side?: "front" | "back";
   onUpdated?: () => void;
 }
 
-export function ProductPhotoButton({ productId, hasImage, onUpdated }: ProductPhotoButtonProps) {
+export function ProductPhotoButton({
+  productId,
+  productTitle,
+  hasImage,
+  side = "front",
+  onUpdated,
+}: ProductPhotoButtonProps) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+  const sideWord = side === "back" ? "atrás" : "frente";
 
   const save = async (file: File) => {
     setSaving(true);
@@ -20,8 +31,22 @@ export function ProductPhotoButton({ productId, hasImage, onUpdated }: ProductPh
     try {
       const fd = new FormData();
       fd.append("image", file);
-      await updateProductImageAction(productId, fd);
-      setMsg("Foto actualizada.");
+      if (side === "back") {
+        const up = await uploadProductImageAction(fd);
+        if (!up.ok) throw new Error(up.message);
+        const r = await setProductBackImageAction(productId, up.url);
+        if (!r.ok) {
+          setMsg(r.message);
+          return;
+        }
+      } else {
+        const r = await updateProductImageAction(productId, fd);
+        if (!r.ok) {
+          setMsg(r.message);
+          return;
+        }
+      }
+      setMsg(`Foto de ${sideWord} actualizada.`);
       setOpen(false);
       onUpdated?.();
     } catch {
@@ -31,26 +56,35 @@ export function ProductPhotoButton({ productId, hasImage, onUpdated }: ProductPh
     }
   };
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="text-sm text-loloteal hover:underline"
-      >
-        {hasImage ? "Cambiar foto" : "Agregar foto"}
-      </button>
-    );
-  }
+  const label = `${hasImage ? "Cambiar" : "Agregar"} foto de ${sideWord}`;
 
   return (
-    <div className="mt-2 space-y-2">
-      <ProductPhotoCapture onCapture={save} onClear={() => {}} />
-      {saving && <p className="text-sm text-gray-500">Guardando…</p>}
-      {msg && <p className="text-sm text-gray-600">{msg}</p>}
-      <button type="button" onClick={() => setOpen(false)} className="text-sm text-gray-500">
-        Cerrar
-      </button>
+    <div>
+      {open ? (
+        <div className="mt-2 space-y-2">
+          <ProductPhotoCapture side={side} onCapture={save} onClear={() => {}} />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="min-h-[44px] px-2 text-sm text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={productTitle ? `${label} de ${productTitle}` : undefined}
+          className="min-h-[44px] px-2 text-sm text-loloteal hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+        >
+          {label}
+        </button>
+      )}
+      {/* Región en vivo siempre montada: el aviso se anuncia y sigue visible tras cerrar la captura. */}
+      <p role="status" className="text-sm text-gray-600">
+        {saving ? "Guardando…" : msg}
+      </p>
     </div>
   );
 }

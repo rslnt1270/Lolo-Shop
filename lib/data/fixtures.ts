@@ -1,13 +1,17 @@
 import type { Location, Product } from "@/lib/domain/types";
 
 export const fixtureLocations: Location[] = [
-  { id: "loc-1", name: "Tienda 1" },
-  { id: "loc-2", name: "Tienda 2" },
+  { id: "loc-1", name: "Tienda 1", type: "store" },
+  { id: "loc-2", name: "Tienda 2", type: "store" },
 ];
 
 export const fixtureProducts: Product[] = [
   {
     id: "prod-1",
+    brandId: "brand-fixture-1",
+    departmentId: "dept-hombre",
+    mergedIntoId: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
     title: "Hoodie NY Yankees",
     category: "Hoodies",
     brand: "NY Yankees",
@@ -43,6 +47,10 @@ export const fixtureProducts: Product[] = [
   },
   {
     id: "prod-2",
+    brandId: "brand-fixture-2",
+    departmentId: "dept-hombre",
+    mergedIntoId: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
     title: "Playera Guess",
     category: "Playeras",
     brand: "Guess",
@@ -63,4 +71,13 @@ export const fixtureProducts: Product[] = [
       },
     ],
   },
+];
+
+/** Departamentos del doble de pruebas; ids `dep-<slug>` (los mismos que sembrará la tarea 3.8). */
+export const FIXTURE_DEPARTMENTS: { id: string; slug: string; name: string; sortOrder: number; isActive: boolean }[] = [
+  { id: "dep-dama", slug: "dama", name: "Dama", sortOrder: 1, isActive: true },
+  { id: "dep-caballero", slug: "caballero", name: "Caballero", sortOrder: 2, isActive: true },
+  { id: "dep-ninos", slug: "ninos", name: "Niños", sortOrder: 3, isActive: true },
+  { id: "dep-calzado", slug: "calzado", name: "Calzado", sortOrder: 4, isActive: true },
+  { id: "dep-accesorios", slug: "accesorios", name: "Accesorios", sortOrder: 5, isActive: true },
 ];

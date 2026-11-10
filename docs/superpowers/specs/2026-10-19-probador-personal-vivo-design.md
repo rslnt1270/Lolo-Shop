@@ -1,5 +1,7 @@
 # Probador virtual — Modo Personal (demostración en vivo)
 
+> **Reemplazado parcialmente (2026-10-20, ver `2026-10-20-auditoria-probador-design.md`).** Decisión del dueño: el modo personal es **solo para el owner** (se ignoran §5.3, §11.2 pregunta 1 y §11.3 sobre roles) y su base es el **modo híbrido** de `2026-10-19-probador-bajo-costo-design.md` (cámara local sin IA y la IA solo en "Capturar"). Decart en vivo queda como extra opcional de 30 s. Las rutas del personal usan `/api/probador/*` (protegidas); las del cliente usan `/api/tryon/*`. Los supuestos de Vercel (§5, §10) deben pasar por la capa `lib/platform/`.
+
 - **Fecha:** 2026-10-19
 - **Estado:** borrador de investigación y diseño (sin código de producto, sin dependencias instaladas)
 - **Alcance:** solo el MODO PERSONAL. Sesión iniciada + rol permitido, verificado en el servidor. Demostraciones en tienda con tablet o móvil del personal.

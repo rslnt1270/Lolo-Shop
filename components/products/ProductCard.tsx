@@ -10,7 +10,12 @@ export function ProductCard({ product, locationId }: { product: Product; locatio
           {productStock(product, locationId)} en stock
         </span>
       </div>
-      <p className="text-sm text-gray-500">{product.brand} · {product.category}</p>
+      <p className="text-sm text-gray-600">{product.brand} · {product.category}</p>
+      {product.publicCode && (
+        <p className="mt-1 text-sm text-gray-700">
+          Código <span className="font-mono font-semibold tracking-wider text-gray-900">{product.publicCode}</span>
+        </p>
+      )}
       <ul className="mt-2 space-y-1 text-sm">
         {product.variants.map((v) => (
           <li key={v.id} className="flex justify-between">

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "db:push": "prisma db push",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "postinstall": "prisma generate"
   },
@@ -32,11 +33,14 @@
     "@testing-library/jest-dom": "6.4.6",
     "@testing-library/react": "16.3.3",
     "@types/bcryptjs": "^2.4.6",
+    "@types/eslint": "^8.56.12",
     "@types/node": "20.14.9",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
     "@vitejs/plugin-react": "4.3.1",
     "autoprefixer": "10.6.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
     "jsdom": "24.1.0",
     "postcss": "8.5.28",
     "prisma": "^5.22.0",
@@ -44,5 +48,8 @@
     "tsx": "^4.23.13",
     "typescript": "5.5.3",
     "vitest": "^1.6.1"
+  },
+  "engines": {
+    "node": "22.x"
   }
 }

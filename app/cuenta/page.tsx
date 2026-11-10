@@ -7,7 +7,7 @@ import { changePasswordAction } from "@/lib/actions";
 import { validateNewPassword } from "@/lib/auth/password-rules";
 
 const inputClass =
-  "w-full rounded-xl border border-[rgba(226,232,240,0.5)] bg-[#F9FAFB] p-3.5 text-sm text-[#18181B] transition-colors focus:border-[#2DD4BF] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#2DD4BF]";
+  "w-full rounded-xl border border-[rgba(226,232,240,0.5)] bg-[#F9FAFB] p-3.5 text-sm text-[#18181B] transition-colors focus:border-loloteal focus:bg-white focus:outline-none focus:ring-1 focus:ring-loloteal";
 const labelClass = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#71717A]";
 
 export default function CuentaPage() {
@@ -118,7 +118,7 @@ export default function CuentaPage() {
           <button
             type="submit"
             disabled={saving}
-            className="flex w-full items-center justify-center rounded-xl bg-[#2DD4BF] p-3.5 font-semibold text-white shadow-sm transition-all hover:bg-[#25B5A3] active:scale-[0.98] disabled:opacity-70"
+            className="flex w-full items-center justify-center rounded-xl bg-loloteal p-3.5 font-semibold text-white shadow-sm transition-all hover:bg-loloteal-dark active:scale-[0.98] disabled:opacity-70"
           >
             {saving ? "Guardando…" : "Guardar nueva contraseña"}
           </button>

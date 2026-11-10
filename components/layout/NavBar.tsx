@@ -2,20 +2,24 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Home, ScanLine, Tags, Package, LogOut } from "lucide-react";
+import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart, History } from "lucide-react";
 
 export function NavBar() {
   const pathname = usePathname();
   const { status } = useSession();
 
   if (status !== "authenticated") return null;
+  // /pos es pantalla completa (tiene su propio "Volver al inicio"); se entra con "Vender".
   if (pathname.startsWith("/pos") || pathname.startsWith("/catalogo") || pathname === "/login") return null;
-  
+
   const navItems = [
     { name: "Inicio", href: "/", icon: Home },
+    { name: "Vender", href: "/pos", icon: ShoppingCart },
     { name: "Escanear", href: "/escanear", icon: ScanLine },
     { name: "Etiquetas", href: "/etiquetas", icon: Tags },
     { name: "Productos", href: "/productos", icon: Package },
+    { name: "Ventas", href: "/ventas", icon: Receipt },
+    { name: "Movimientos", href: "/movimientos", icon: History },
   ];
 
   return (
@@ -37,7 +41,8 @@ export function NavBar() {
               <Link 
                 key={item.name} 
                 href={item.href} 
-                className={`flex items-center gap-2 transition-all ${isActive ? 'text-loloteal' : 'text-gray-500 hover:text-gray-900'}`}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex min-h-11 items-center gap-2 rounded-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal ${isActive ? 'text-loloteal' : 'text-gray-600 hover:text-gray-900'}`}
               >
                 <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
                 {item.name}
@@ -46,7 +51,7 @@ export function NavBar() {
           })}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-colors ml-4"
+            className="ml-4 flex min-h-11 items-center gap-2 rounded-md text-gray-600 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
           >
             <LogOut size={18} />
             Salir
@@ -63,21 +68,24 @@ export function NavBar() {
       </header>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur-xl pb-6 pt-2 px-4 z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center justify-between max-w-sm mx-auto">
+      {/* 8 destinos: cada uno flex-1 (≈ 44.9 px a 375 px; ≈ 43 px a 360 px) con mínimo de 44 px */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur-xl pb-6 pt-2 px-2 z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
+        <div className="flex items-center max-w-md mx-auto">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className="relative flex flex-col items-center justify-center w-16 h-12"
+                aria-label={item.name}
+                aria-current={isActive ? "page" : undefined}
+                className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
               >
-                <div className={`transition-all duration-300 ${isActive ? '-translate-y-1 text-loloteal' : 'text-gray-400'}`}>
+                <div className={`transition-all duration-300 ${isActive ? '-translate-y-1 text-loloteal' : 'text-gray-500'}`}>
                   <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
                 {isActive && (
-                  <span className="absolute bottom-0 text-[10px] font-bold text-loloteal opacity-100 transition-opacity">
+                  <span aria-hidden="true" className="absolute bottom-0 text-[10px] font-bold text-loloteal opacity-100 transition-opacity">
                     {item.name}
                   </span>
                 )}
@@ -85,8 +93,10 @@ export function NavBar() {
             );
           })}
           <button
+            type="button"
+            aria-label="Salir"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="relative flex flex-col items-center justify-center w-16 h-12 text-gray-400 hover:text-red-500"
+            className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg text-gray-500 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
           >
             <LogOut size={22} />
           </button>

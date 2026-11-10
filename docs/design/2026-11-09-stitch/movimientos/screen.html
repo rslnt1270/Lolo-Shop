@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>Movimientos - LoloShop</title>
+<!-- Material Symbols Google Font -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS Play CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              primary: "#007272",
+              pressed: "#005F5F",
+              accent: "#3CBFBF",
+              ink: "#16302F",
+              secondary: "#5C6E6D",
+              border: "#7F9392",
+              line: "#E1E9E9",
+              block: "#F3F7F7",
+              white: "#FFFFFF",
+              success: "#1F7A4A",
+              danger: "#9A3B2E",
+              muted: "#889998"
+            }
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "1rem",
+            "xl": "1.5rem",
+            "full": "9999px"
+          },
+          spacing: {},
+          fontFamily: {
+            headline: ["Plus Jakarta Sans", "sans-serif"],
+            display: ["Plus Jakarta Sans", "sans-serif"],
+            body: ["Plus Jakarta Sans", "sans-serif"],
+            label: ["Public Sans", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          },
+          fontSize: {}
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    /* Hide scrollbar for smooth chip horizontal scroll */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #FFFFFF;
+      color: #16302F;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-white min-h-screen flex justify-center text-brand-ink antialiased">
+<!-- Mobile Container strictly 375px width max for crisp mobile viewport rendering -->
+<main class="w-full max-w-[375px] min-h-screen bg-white flex flex-col pb-8">
+<!-- TopAppBar from Shared Components Specification -->
+<header class="sticky top-0 z-50 flex items-center justify-between w-full h-14 px-4 bg-white dark:bg-slate-900 border-b border-[#E1E9E9] dark:border-slate-800">
+<!-- Back Button -->
+<button aria-label="Regresar" class="w-11 h-11 -ml-1.5 flex items-center justify-center rounded-full text-brand-ink hover:bg-[#F3F7F7] active:scale-[0.98] transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+<!-- Headline -->
+<h1 class="font-headline text-base font-semibold leading-6 text-brand-ink text-center flex-1 pr-1 truncate">
+        Movimientos
+      </h1>
+<!-- Trailing Action: Owner Role Badge -->
+<div class="flex items-center">
+<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-[#F3F7F7] border border-[#E1E9E9] text-[#007272]">
+          Owner
+        </span>
+</div>
+</header>
+<!-- Filters Section -->
+<section class="w-full pt-3 pb-2">
+<!-- Scrollable Chip Row with 44px min height touch targets -->
+<div class="flex items-center gap-2 overflow-x-auto px-4 no-scrollbar scroll-smooth">
+<!-- Chip: Tienda -->
+<button class="flex-shrink-0 h-11 px-3.5 inline-flex items-center gap-1.5 rounded-full border border-[#E1E9E9] bg-white text-xs font-medium text-brand-ink hover:bg-[#F3F7F7] active:scale-95 transition-all" type="button">
+<span class="text-brand-secondary">Tienda:</span>
+<span class="font-semibold text-brand-ink">Todas</span>
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">expand_more</span>
+</button>
+<!-- Chip: Tipo -->
+<button class="flex-shrink-0 h-11 px-3.5 inline-flex items-center gap-1.5 rounded-full border border-[#E1E9E9] bg-white text-xs font-medium text-brand-ink hover:bg-[#F3F7F7] active:scale-95 transition-all" type="button">
+<span class="text-brand-secondary">Tipo:</span>
+<span class="font-semibold text-brand-ink">Todos</span>
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">expand_more</span>
+</button>
+<!-- Chip: Persona -->
+<button class="flex-shrink-0 h-11 px-3.5 inline-flex items-center gap-1.5 rounded-full border border-[#E1E9E9] bg-white text-xs font-medium text-brand-ink hover:bg-[#F3F7F7] active:scale-95 transition-all" type="button">
+<span class="text-brand-secondary">Persona:</span>
+<span class="font-semibold text-brand-ink">Todas</span>
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">expand_more</span>
+</button>
+<!-- Chip: Prenda with Barcode Scanner & Search -->
+<button class="flex-shrink-0 h-11 px-3.5 inline-flex items-center gap-1.5 rounded-full border border-[#E1E9E9] bg-white text-xs font-medium text-brand-ink hover:bg-[#F3F7F7] active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px] text-[#007272]">barcode_scanner</span>
+<span class="font-medium text-brand-ink">Prenda</span>
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">search</span>
+<span class="material-symbols-outlined text-[18px] text-brand-secondary">expand_more</span>
+</button>
+<!-- Chip: Fechas -->
+<button class="flex-shrink-0 h-11 px-3.5 inline-flex items-center gap-1.5 rounded-full border border-[#007272] bg-[#F3F7F7] text-xs font-medium text-[#007272] active:scale-95 transition-all" type="button">
+<span class="text-brand-secondary">Fechas:</span>
+<span class="font-bold text-[#007272]">Hoy</span>
+<span class="material-symbols-outlined text-[18px] text-[#007272]">expand_more</span>
+</button>
+</div>
+<!-- Subheader Information & Quick Reset Action -->
+<div class="flex items-center justify-between px-4 mt-2">
+<span class="text-[12px] font-normal text-brand-secondary">
+          Mostrando hoy · hora de México
+        </span>
+<button class="h-11 px-2 -mr-2 inline-flex items-center text-[12px] font-semibold text-[#007272] hover:text-brand-pressed active:opacity-70 transition-opacity" type="button">
+          Limpiar filtros
+        </button>
+</div>
+</section>
+<!-- Movements List: Structured Audit Log Rows -->
+<section class="flex flex-col border-t border-[#E1E9E9] divide-y divide-[#E1E9E9]">
+<!-- Row 1: Venta -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 18:20</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700">
+<span class="material-symbols-outlined text-[14px]">shopping_bag</span>
+              Venta
+            </span>
+</div>
+<!-- Signed Delta -->
+<span class="font-mono text-base font-bold text-slate-800 leading-none">−1</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Playera ejemplo · <span class="font-mono font-medium">M</span></span>
+<span class="text-xs font-normal text-brand-secondary">Lomas</span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Lolo · Folio <span class="font-mono">V-0000</span></span>
+</div>
+</article>
+<!-- Row 2: Entrada -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 16:45</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#E6F3F0] text-[#1F7A4A]">
+<span class="material-symbols-outlined text-[14px]">add_circle</span>
+              Entrada
+            </span>
+</div>
+<!-- Signed Delta Positive -->
+<span class="font-mono text-base font-bold text-[#007272] leading-none">+2</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Playera ejemplo · <span class="font-mono font-medium">L</span></span>
+<span class="text-xs font-normal text-brand-secondary">Lomas</span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Ana · Recepción de proveedor</span>
+</div>
+</article>
+<!-- Row 3: Merma -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 14:10</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#FDF0EE] text-[#9A3B2E]">
+<span class="material-symbols-outlined text-[14px]">delete_outline</span>
+              Merma
+            </span>
+</div>
+<!-- Signed Delta Negative Merma -->
+<span class="font-mono text-base font-bold text-[#9A3B2E] leading-none">−1</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Playera ejemplo · <span class="font-mono font-medium">M</span></span>
+<span class="text-xs font-normal text-brand-secondary">Lomas</span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Carlos · Motivo: mancha en la manga</span>
+</div>
+</article>
+<!-- Row 4: Corrección -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 12:30</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#1D4ED8]">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+              Corrección
+            </span>
+</div>
+<!-- Signed Delta Positive Correction -->
+<span class="font-mono text-base font-bold text-brand-ink leading-none">+1</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Sudadera básica · <span class="font-mono font-medium">S</span></span>
+<span class="text-xs font-normal text-brand-secondary">Lomas</span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Lolo · Ajuste de inventario físico</span>
+</div>
+</article>
+<!-- Row 5: Traspaso origen -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 11:15</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F3F7F7] text-[#007272] border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[14px]">swap_horiz</span>
+              Traspaso
+            </span>
+</div>
+<!-- Signed Delta origen -->
+<span class="font-mono text-base font-bold text-slate-800 leading-none">−1</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Playera ejemplo · <span class="font-mono font-medium">S</span></span>
+<span class="text-xs font-medium text-brand-secondary flex items-center gap-0.5">
+            Lomas <span class="material-symbols-outlined text-[12px]">arrow_forward</span> ClubAlva
+          </span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Lolo · Nota: para exhibición</span>
+</div>
+</article>
+<!-- Row 6: Traspaso Entrada -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 11:15</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#F3F7F7] text-[#007272] border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[14px]">swap_horiz</span>
+              Traspaso
+            </span>
+</div>
+<!-- Signed Delta Entrada -->
+<span class="font-mono text-base font-bold text-[#007272] leading-none">+1</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Playera ejemplo · <span class="font-mono font-medium">S</span></span>
+<span class="text-xs font-normal text-brand-secondary">ClubAlva (de Lomas)</span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Lolo · Nota: para exhibición</span>
+</div>
+</article>
+<!-- Row 7: Devolución -->
+<article class="px-4 py-3.5 bg-white hover:bg-[#F3F7F7]/50 transition-colors">
+<div class="flex items-start justify-between gap-2 mb-1.5">
+<div class="flex items-center gap-2">
+<span class="font-mono text-[12px] font-medium text-brand-secondary">10 nov · 09:40</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800">
+<span class="material-symbols-outlined text-[14px]">replay</span>
+              Devolución
+            </span>
+</div>
+<!-- Signed Delta Devolución -->
+<span class="font-mono text-base font-bold text-[#007272] leading-none">+1</span>
+</div>
+<div class="flex items-baseline justify-between text-sm font-semibold text-brand-ink">
+<span>Playera ejemplo · <span class="font-mono font-medium">XL</span></span>
+<span class="text-xs font-normal text-brand-secondary">Lomas</span>
+</div>
+<div class="mt-1 text-xs text-brand-secondary">
+<span>Ana · Folio <span class="font-mono">V-0000</span> · cambio de talla</span>
+</div>
+</article>
+</section>
+<!-- Bottom Actions & Empty State Indicator -->
+<section class="px-4 pt-6 pb-4 flex flex-col gap-4">
+<!-- Outlined Full-Width Button "Ver más" (48px tall) -->
+<button class="w-full h-12 inline-flex items-center justify-center rounded-xl border-2 border-[#007272] text-[#007272] font-semibold text-sm hover:bg-[#F3F7F7] active:scale-[0.99] transition-all" type="button">
+        Ver más
+      </button>
+<!-- Empty-State Helper Text -->
+<div class="pt-2 text-center">
+<p class="text-xs text-[#889998] font-normal leading-relaxed">
+          No hay movimientos con estos filtros.
+        </p>
+</div>
+</section>
+</main>
+<script>
+    // Lightweight micro-interaction for filter chip toggling
+    document.querySelectorAll('section button').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        // Visual tap response feedback
+        this.classList.add('opacity-80');
+        setTimeout(() => this.classList.remove('opacity-80'), 150);
+      });
+    });
+  </script>
+</body></html>
