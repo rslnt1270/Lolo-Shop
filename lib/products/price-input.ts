@@ -5,8 +5,8 @@
 const PRICE_RE = /^\d+(\.\d{1,2})?$/;
 
 export const COMMA_CENTS_MESSAGE = "Usa punto para los centavos: 350.50";
-/** Coma seguida de exactamente 2 dígitos al final ("350,50"): se confunde con centavos y se lee como miles. */
-const COMMA_CENTS_RE = /,\d{2}$/;
+/** Coma seguida de 1 o 2 dígitos al final ("350,50", "350,5"): se confunde con centavos y se leería como miles. */
+const COMMA_CENTS_RE = /,\d{1,2}$/;
 
 /** `true` si el texto parece usar coma como separador decimal ("350,50"). */
 export function hasCommaCents(text: string): boolean {

@@ -31,6 +31,7 @@ describe("isBigPriceDrop", () => {
 describe("residual 2: coma con centavos", () => {
   it("'350,50' se rechaza; '1,250' y '1,250.50' siguen válidos", () => {
     expect(parsePriceInput("350,50")).toBeNull();
+    expect(parsePriceInput("350,5")).toBeNull();
     expect(parsePriceInput("1,250")).toBe(1250);
     expect(parsePriceInput("1,250.50")).toBe(1250.5);
   });
