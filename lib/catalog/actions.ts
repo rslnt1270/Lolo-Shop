@@ -2,6 +2,8 @@
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
 import { UnauthenticatedError } from "@/lib/auth/errors";
+import { DB_TIMEOUT_TEXT, isTransactionTimeout } from "@/lib/data/errors";
+import { INVENTORY_TX_OPTIONS } from "@/lib/data/tx-options";
 import { checkBrandName } from "@/lib/domain/brand";
 import prisma from "@/lib/prisma";
 
@@ -21,7 +23,7 @@ export type CreateBrandResult = { ok: true; brand: BrandOption } | { ok: false; 
 
 export type MergeBrandsResult =
   | { ok: true }
-  | { ok: false; code: "FORBIDDEN" | "INVALID" | "NOT_FOUND"; message: string };
+  | { ok: false; code: "FORBIDDEN" | "INVALID" | "NOT_FOUND" | "ERROR"; message: string };
 
 const SESSION_EXPIRED = "Tu sesión terminó. Vuelve a iniciar sesión.";
 
@@ -115,11 +117,17 @@ export async function mergeBrandsAction(fromId: string, intoId: string): Promise
   if (!from || !into || !into.isActive) {
     return { ok: false, code: "NOT_FOUND", message: "La marca no existe o ya no está activa." };
   }
-  await prisma.$transaction(async (tx) => {
-    await tx.product.updateMany({ where: { brandId: from.id }, data: { brandId: into.id, brand: into.name } });
-    await tx.saleLine.updateMany({ where: { brandId: from.id }, data: { brandId: into.id } });
-    await tx.brand.update({ where: { id: from.id }, data: { isActive: false } });
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.product.updateMany({ where: { brandId: from.id }, data: { brandId: into.id, brand: into.name } });
+      await tx.saleLine.updateMany({ where: { brandId: from.id }, data: { brandId: into.id } });
+      await tx.brand.update({ where: { id: from.id }, data: { isActive: false } });
+    }, INVENTORY_TX_OPTIONS);
+  } catch (err) {
+    // P2028/P2024: la transacción venció sin escribir nada; el dueño puede reintentar.
+    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
+    throw err;
+  }
   revalidatePath("/productos");
   return { ok: true };
 }

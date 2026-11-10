@@ -8,6 +8,7 @@ const brandUpdate = vi.fn();
 const productUpdateMany = vi.fn();
 const saleLineUpdateMany = vi.fn();
 const departmentFindMany = vi.fn();
+const transactionOptions = vi.fn();
 const tx = {
   brand: { update: (a: unknown) => brandUpdate(a) },
   product: { updateMany: (a: unknown) => productUpdateMany(a) },
@@ -24,10 +25,15 @@ vi.mock("@/lib/prisma", () => ({
       create: (a: unknown) => brandCreate(a),
     },
     department: { findMany: (a: unknown) => departmentFindMany(a) },
-    $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
+    $transaction: (fn: (t: typeof tx) => unknown, opts?: unknown) => {
+      transactionOptions(opts);
+      return fn(tx);
+    },
   },
 }));
 
+import { DB_TIMEOUT_TEXT } from "@/lib/data/errors";
+import { INVENTORY_TX_OPTIONS } from "@/lib/data/tx-options";
 import { UnauthenticatedError } from "@/lib/auth/errors";
 import { createBrandAction, listBrandsAction, listDepartmentsAction, mergeBrandsAction } from "../actions";
 
@@ -107,6 +113,22 @@ describe("mergeBrandsAction", () => {
     expect(productUpdateMany).toHaveBeenCalledWith({ where: { brandId: "a" }, data: { brandId: "b", brand: "Guess" } });
     expect(saleLineUpdateMany).toHaveBeenCalledWith({ where: { brandId: "a" }, data: { brandId: "b" } });
     expect(brandUpdate).toHaveBeenCalledWith({ where: { id: "a" }, data: { isActive: false } });
+  });
+  it("la transacción usa INVENTORY_TX_OPTIONS (residual 4)", async () => {
+    as("owner");
+    brandFindUnique
+      .mockResolvedValueOnce({ id: "a", name: "GUESS", isActive: true })
+      .mockResolvedValueOnce({ id: "b", name: "Guess", isActive: true });
+    await mergeBrandsAction("a", "b");
+    expect(transactionOptions).toHaveBeenCalledWith(INVENTORY_TX_OPTIONS);
+  });
+  it("P2028 en la transacción: ERROR con el texto de reintento, sin lanzar (residual 4)", async () => {
+    as("owner");
+    brandFindUnique
+      .mockResolvedValueOnce({ id: "a", name: "GUESS", isActive: true })
+      .mockResolvedValueOnce({ id: "b", name: "Guess", isActive: true });
+    productUpdateMany.mockRejectedValueOnce(Object.assign(new Error("tx"), { code: "P2028" }));
+    expect(await mergeBrandsAction("a", "b")).toEqual({ ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT });
   });
   it("owner: misma marca o destino inactivo/inexistente: error", async () => {
     as("owner");
