@@ -239,7 +239,7 @@ Antes de la demo (Fases 1 y 2 sin 1.13, más el hito): ≈ 66 h. Con la Fase 3: 
 - *Depende:* nada. Bloquea la demo.
 
 **1.12 CI con `test:db`, ESLint y Node (H16, H23; v1 1.12).**
-- *Contrato:* en `.github/workflows/ci.yml`, un job con `services: postgres:16`, `TEST_DATABASE_URL` local, `npx prisma migrate deploy` y `npm run test:db`, en `pull_request` y en `push` a `main` y `feat/demo-alta-lote`. ESLint con el contrato de v1 1.12 (`next/core-web-vitals` y `no-restricted-imports` de Prisma y `Product` en `components/virtual-store/**`, `lib/virtual-store/**` y `app/catalogo/**`) y un paso `npm run lint`. `engines.node` `">=22"` y `setup-node` 24 (la de Vercel) en los dos workflows.
+- *Contrato:* en `.github/workflows/ci.yml`, un job con `services: postgres:16`, `TEST_DATABASE_URL` local, `npx prisma migrate deploy` y `npm run test:db`, en `pull_request` y en `push` a `main` y `feat/demo-alta-lote`. ESLint con el contrato de v1 1.12 (`next/core-web-vitals` y `no-restricted-imports` de Prisma y `Product` en `components/virtual-store/**`, `lib/virtual-store/**` y `app/catalogo/**`) y un paso `npm run lint`. `engines.node` `">=22"` y `setup-node` 22 (24 se evalúa en 3.5) en los dos workflows.
 - *Acepta:* (M) un PR muestra el job de base en verde con el número de pruebas; una rama de prueba que quita el `gte` de la venta lo hace fallar (se hace una vez y se anota). `npm run lint` sale con 0. (T) un archivo que importa Prisma bajo `components/virtual-store/` hace fallar el lint.
 - *Riesgos / no hacer:* no reformatear en masa; una regla que falle en código viejo queda en `warn` con aviso.
 - *Depende:* nada.
