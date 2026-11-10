@@ -8,6 +8,7 @@ type Props = {
   rows: DashboardData["lowStock"];
   threshold: number;
   locationNames: Record<string, string>;
+  namesReady?: boolean;
   canEditThreshold: boolean;
   /** Se llama tras guardar el umbral para recargar el tablero. */
   onThresholdSaved: () => void;
@@ -52,15 +53,15 @@ function ThresholdEditor({ threshold, onSaved }: { threshold: number; onSaved: (
           max={99}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          className="min-h-11 w-24 rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-3 text-sm text-[#12211F]"
+          className="min-h-11 w-24 rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-3 text-base text-[#12211F]"
         />
         <button
           type="button"
           disabled={busy}
           onClick={save}
-          className="min-h-11 rounded-[11px] bg-loloteal px-4 text-sm font-bold text-white transition-colors hover:bg-[#004f50] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal disabled:opacity-60"
+          className="min-h-11 rounded-[11px] bg-loloteal px-4 text-sm font-bold text-white transition-colors hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:active:scale-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal disabled:opacity-60"
         >
-          Guardar umbral
+          {busy ? "Guardando…" : "Guardar umbral"}
         </button>
       </div>
       {message && (
@@ -77,10 +78,10 @@ function ThresholdEditor({ threshold, onSaved }: { threshold: number; onSaved: (
   );
 }
 
-export function LowStockTable({ rows, threshold, locationNames, canEditThreshold, onThresholdSaved }: Props) {
+export function LowStockTable({ rows, threshold, locationNames, namesReady = true, canEditThreshold, onThresholdSaved }: Props) {
   return (
     <div>
-      <p className="mb-2 font-mono text-xs text-[#3A4D4A]">umbral ≤ {threshold}</p>
+      <p className="mb-2 text-xs text-[#3A4D4A]">Avisa cuando quedan {threshold} o menos piezas.</p>
       {rows.length === 0 ? (
         <p className="text-sm text-[#3A4D4A]">Sin alertas de stock.</p>
       ) : (
@@ -99,9 +100,9 @@ export function LowStockTable({ rows, threshold, locationNames, canEditThreshold
                 <tr key={`${r.variantId}-${r.locationId}`} className="border-t border-[rgba(18,33,31,0.08)]">
                   <td className="px-3 py-2 text-[#12211F]">{r.productTitle}</td>
                   <td className="px-3 py-2 text-[#12211F]">{r.size}</td>
-                  <td className="px-3 py-2 text-[#3A4D4A]">{locationNames[r.locationId] ?? "Tienda sin nombre"}</td>
+                  <td className="px-3 py-2 text-[#3A4D4A]">{locationNames[r.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</td>
                   <td className="px-3 py-2 text-right">
-                    <span className="rounded-full bg-[#FFE7E2] px-2.5 py-0.5 font-mono text-xs font-bold text-[#9B2C20]">{r.available}</span>
+                    <span aria-label={r.available === 0 ? "Agotado" : `${r.available} disponibles`} className="rounded-full bg-[#FFE7E2] px-2.5 py-0.5 font-data-mono tabular-nums text-xs font-bold text-[#9B2C20]">{r.available === 0 ? "Agotado" : r.available}</span>
                   </td>
                 </tr>
               ))}

@@ -1,12 +1,5 @@
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 
-const money = new Intl.NumberFormat("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/** `$1,234.50` */
-export function formatMoney(n: number): string {
-  return `$${money.format(n)}`;
-}
-
 export const CHANNEL_LABEL: Record<SaleChannel, string> = { store: "Tienda", whatsapp: "WhatsApp" };
 export const METHOD_LABEL: Record<PaymentMethod, string> = {
   spay_transfer: "Transferencia SPAY",

@@ -3,7 +3,8 @@ import { useId, useState } from "react";
 import type { DashboardData } from "@/lib/data/sales-source";
 import { MAX_REFERENCE_LENGTH } from "@/lib/domain/sale";
 import { confirmSalePaymentAction } from "@/lib/sales/actions";
-import { formatMoney, timeAgo } from "@/lib/sales/format";
+import { timeAgo } from "@/lib/sales/format";
+import { formatPrice } from "@/lib/public/format";
 import { CancelSalePanel } from "./CancelSalePanel";
 import { LoginLink, SESSION_EXPIRED_TEXT, isSessionExpired } from "./session-expired";
 import { saleButton as btn, saleInput as input } from "./styles";
@@ -14,13 +15,14 @@ type Panel = "confirm" | "cancel" | null;
 type Props = {
   sales: Pending[];
   locationNames: Record<string, string>;
+  namesReady?: boolean;
   canConfirm: boolean;
   canCancel: boolean;
   /** Se llama tras confirmar o anular para recargar el tablero. */
   onChanged: () => void;
 };
 
-function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: Omit<Props, "sales"> & { sale: Pending }) {
+function PendingRow({ sale, locationNames, namesReady = true, canConfirm, canCancel, onChanged }: Omit<Props, "sales"> & { sale: Pending }) {
   const uid = useId();
   const [panel, setPanel] = useState<Panel>(null);
   const [busy, setBusy] = useState(false);
@@ -54,9 +56,9 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-bold text-[#12211F]">
           Venta #{sale.number}
-          <span className="ml-2 font-normal text-[#3A4D4A]">{locationNames[sale.locationId] ?? "Tienda sin nombre"}</span>
+          <span className="ml-2 font-normal text-[#3A4D4A]">{locationNames[sale.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</span>
         </p>
-        <p className="flex-none font-mono text-sm font-bold text-[#12211F]">{formatMoney(sale.total)}</p>
+        <p className="flex-none font-data-mono tabular-nums text-sm font-bold text-[#12211F]">{formatPrice(sale.total)}</p>
       </div>
       {sale.customerAlias && (
         <p className="mt-0.5 break-words text-sm text-[#12211F]">
@@ -72,7 +74,7 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
               type="button"
               aria-expanded={panel === "confirm"}
               onClick={() => open("confirm")}
-              className={`${btn} bg-loloteal text-white hover:bg-[#004f50]`}
+              className={`${btn} bg-loloteal text-white hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:active:scale-100`}
             >
               Confirmar pago
             </button>
@@ -102,8 +104,8 @@ function PendingRow({ sale, locationNames, canConfirm, canCancel, onChanged }: O
             onChange={(e) => setReference(e.target.value)}
             className={input}
           />
-          <button type="button" disabled={busy} onClick={confirm} className={`${btn} bg-loloteal text-white hover:bg-[#004f50]`}>
-            Confirmar
+          <button type="button" disabled={busy} onClick={confirm} className={`${btn} bg-loloteal text-white hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:active:scale-100`}>
+            {busy ? "Confirmando…" : "Confirmar"}
           </button>
         </div>
       )}

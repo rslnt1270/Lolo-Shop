@@ -1,15 +1,28 @@
 import type { DashboardData } from "@/lib/data/sales-source";
-import { CHANNEL_LABEL, METHOD_LABEL, formatMoney, shortDate } from "@/lib/sales/format";
+import { CHANNEL_LABEL, METHOD_LABEL, shortDate } from "@/lib/sales/format";
+import { formatPrice } from "@/lib/public/format";
 
 const card = "rounded-[14px] border border-[rgba(18,33,31,0.12)] bg-white";
 
-function Stat({ label, value, testId, tone }: { label: string; value: string; testId: string; tone?: "teal" }) {
+function Stat({
+  label,
+  value,
+  testId,
+  tone,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  testId: string;
+  tone?: "teal";
+  className?: string;
+}) {
   return (
-    <div className={`${card} p-3`}>
+    <div className={`${card} p-3 ${className}`}>
       <p className="text-xs text-[#3A4D4A]">{label}</p>
       <p
         data-testid={testId}
-        className={`mt-1 break-words text-lg font-extrabold leading-tight ${tone === "teal" ? "text-[#147E7E]" : "text-[#12211F]"}`}
+        className={`mt-1 font-data-mono tabular-nums text-lg font-extrabold leading-tight ${tone === "teal" ? "text-[#147E7E]" : "text-[#12211F]"}`}
       >
         {value}
       </p>
@@ -20,14 +33,15 @@ function Stat({ label, value, testId, tone }: { label: string; value: string; te
 function DayBars({ days }: { days: DashboardData["byDay"] }) {
   if (days.length === 0) return <p className="text-sm text-[#3A4D4A]">Sin ventas en este periodo.</p>;
   const max = Math.max(...days.map((d) => d.total), 0);
+  const best = max > 0 ? days.find((d) => d.total === max) : undefined;
   return (
     <div>
       <ul aria-label="Ventas por día" className="flex h-32 items-end gap-1">
         {days.map((d) => (
           <li
             key={d.date}
-            aria-label={`${shortDate(d.date)}: ${formatMoney(d.total)}, ${d.count} ${d.count === 1 ? "venta" : "ventas"}`}
-            title={`${shortDate(d.date)}: ${formatMoney(d.total)}`}
+            aria-label={`${shortDate(d.date)}: ${formatPrice(d.total)}, ${d.count} ${d.count === 1 ? "venta" : "ventas"}`}
+            title={`${shortDate(d.date)}: ${formatPrice(d.total)}`}
             className="flex h-full min-w-0 max-w-10 flex-1 items-end"
           >
             <span
@@ -38,10 +52,15 @@ function DayBars({ days }: { days: DashboardData["byDay"] }) {
           </li>
         ))}
       </ul>
-      <div className="mt-1 flex justify-between font-mono text-xs text-[#3A4D4A]" aria-hidden="true">
+      <div className="mt-1 flex justify-between font-data-mono tabular-nums text-xs text-[#3A4D4A]" aria-hidden="true">
         <span>{shortDate(days[0].date)}</span>
         {days.length > 1 && <span>{shortDate(days[days.length - 1].date)}</span>}
       </div>
+      {best && (
+        <p className="mt-2 font-data-mono tabular-nums text-xs text-[#3A4D4A]">
+          Mejor día: {shortDate(best.date)} {formatPrice(best.total)}
+        </p>
+      )}
     </div>
   );
 }
@@ -64,7 +83,7 @@ function Breakdown({ title, rows }: { title: string; rows: Row[] }) {
                   {r.label}
                   {r.hint && <span className="ml-1 text-xs text-[#3A4D4A]">{r.hint}</span>}
                 </span>
-                <span className="flex-none font-mono text-xs font-bold text-[#12211F]">{formatMoney(r.total)}</span>
+                <span className="flex-none font-data-mono tabular-nums text-xs font-bold text-[#12211F]">{formatPrice(r.total)}</span>
               </div>
               <div aria-hidden="true" className="mt-1 h-1.5 rounded-full bg-[#E6F2F1]">
                 <div className="h-full rounded-full bg-[#147E7E]" style={{ width: `${max > 0 ? (r.total / max) * 100 : 0}%` }} />
@@ -77,15 +96,15 @@ function Breakdown({ title, rows }: { title: string; rows: Row[] }) {
   );
 }
 
-type Props = { data: DashboardData; locationNames: Record<string, string> };
+type Props = { data: DashboardData; locationNames: Record<string, string>; namesReady?: boolean };
 
-export function DashboardCards({ data, locationNames }: Props) {
+export function DashboardCards({ data, locationNames, namesReady = true }: Props) {
   const units = (n: number) => `${n} ${n === 1 ? "pieza" : "piezas"}`;
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-2.5">
-        <Stat label="Vendido" value={formatMoney(data.soldTotal)} testId="card-vendido" tone="teal" />
-        <Stat label="Cobrado" value={formatMoney(data.collectedTotal)} testId="card-cobrado" />
+      <div className="grid grid-cols-2 gap-2.5">
+        <Stat label="Vendido" value={formatPrice(data.soldTotal)} testId="card-vendido" tone="teal" className="col-span-2" />
+        <Stat label="Cobrado" value={formatPrice(data.collectedTotal)} testId="card-cobrado" />
         <Stat label="Ventas" value={String(data.salesCount)} testId="card-ventas" />
       </div>
 
@@ -99,7 +118,7 @@ export function DashboardCards({ data, locationNames }: Props) {
           title="Por tienda"
           rows={data.byLocation.map((r) => ({
             key: r.locationId,
-            label: locationNames[r.locationId] ?? "Tienda sin nombre",
+            label: locationNames[r.locationId] ?? (namesReady ? "Tienda sin nombre" : "…"),
             total: r.total,
           }))}
         />

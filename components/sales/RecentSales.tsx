@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import type { DashboardData } from "@/lib/data/sales-source";
-import { CHANNEL_LABEL, METHOD_LABEL, formatMoney } from "@/lib/sales/format";
+import { CHANNEL_LABEL, METHOD_LABEL } from "@/lib/sales/format";
+import { formatPrice } from "@/lib/public/format";
 import { CancelSalePanel } from "./CancelSalePanel";
 import { saleButton } from "./styles";
 
@@ -10,6 +11,7 @@ type Recent = NonNullable<DashboardData["recentSales"]>[number];
 type Props = {
   sales: Recent[];
   locationNames: Record<string, string>;
+  namesReady?: boolean;
   /** Tras anular: recargar el tablero. */
   onChanged: () => void;
 };
@@ -21,7 +23,7 @@ const hourFormat = new Intl.DateTimeFormat("es-MX", {
   hour12: false,
 });
 
-function RecentRow({ sale, locationNames, onChanged }: Omit<Props, "sales"> & { sale: Recent }) {
+function RecentRow({ sale, locationNames, namesReady = true, onChanged }: Omit<Props, "sales"> & { sale: Recent }) {
   const [open, setOpen] = useState(false);
   const pending = sale.status === "pending_payment";
   return (
@@ -29,9 +31,9 @@ function RecentRow({ sale, locationNames, onChanged }: Omit<Props, "sales"> & { 
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-bold text-[#12211F]">
           Venta #{sale.number}
-          <span className="ml-2 font-normal text-[#3A4D4A]">{locationNames[sale.locationId] ?? "Tienda sin nombre"}</span>
+          <span className="ml-2 font-normal text-[#3A4D4A]">{locationNames[sale.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</span>
         </p>
-        <p className="flex-none font-mono text-sm font-bold text-[#12211F]">{formatMoney(sale.total)}</p>
+        <p className="flex-none font-data-mono tabular-nums text-sm font-bold text-[#12211F]">{formatPrice(sale.total)}</p>
       </div>
       <p className="mt-0.5 text-xs text-[#3A4D4A]">
         {METHOD_LABEL[sale.paymentMethod]}, {CHANNEL_LABEL[sale.channel]}, {hourFormat.format(new Date(sale.createdAt))}

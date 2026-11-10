@@ -25,7 +25,7 @@ type Props = {
 };
 
 const field =
-  "min-h-11 rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-3 text-sm text-[#12211F]";
+  "min-h-11 rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-3 text-base text-[#12211F]";
 
 export function RangePicker({ preset, from, to, onChange }: Props) {
   const [draftFrom, setDraftFrom] = useState(from);

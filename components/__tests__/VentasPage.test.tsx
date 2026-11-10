@@ -120,7 +120,7 @@ describe("VentasPage", () => {
     await screen.findByTestId("card-vendido");
     expect(screen.getByText("Vendido")).toBeInTheDocument();
     expect(screen.getByTestId("card-vendido")).toHaveTextContent("$1,234.50");
-    expect(screen.getByTestId("card-cobrado")).toHaveTextContent("$1,000.00");
+    expect(screen.getByTestId("card-cobrado")).toHaveTextContent("$1,000");
     expect(screen.getByTestId("card-ventas")).toHaveTextContent("7");
   });
 
@@ -208,7 +208,7 @@ describe("VentasPage", () => {
     render(<VentasPage />);
     const table = await screen.findByRole("table", { name: /stock bajo/i });
     expect(within(table).getByText("Playera")).toBeInTheDocument();
-    expect(screen.getByText(/umbral ≤ 2/)).toBeInTheDocument();
+    expect(screen.getByText(/avisa cuando quedan 2 o menos piezas/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/umbral de stock bajo/i), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar umbral/i }));
     await waitFor(() => expect(actions.setLowStockThresholdAction).toHaveBeenCalledWith(5));
@@ -218,7 +218,7 @@ describe("VentasPage", () => {
     setRole("manager");
     render(<VentasPage />);
     await screen.findByRole("table", { name: /stock bajo/i });
-    expect(screen.getByText(/umbral ≤ 2/)).toBeInTheDocument();
+    expect(screen.getByText(/avisa cuando quedan 2 o menos piezas/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/umbral de stock bajo/i)).not.toBeInTheDocument();
   });
 
@@ -341,5 +341,58 @@ describe("VentasPage", () => {
       fireEvent.click(screen.getByRole("button", { name: /guardar umbral/i }));
       expectExpired(await screen.findByRole("alert"));
     });
+  });
+
+  it("mientras carga: estado de carga accesible, sin cifras", () => {
+    actions.getDashboardAction.mockReturnValue(new Promise(() => {}));
+    render(<VentasPage />);
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando…");
+    expect(screen.queryByTestId("card-vendido")).toBeNull();
+  });
+
+  it("error de red al cargar: avisa y Reintentar vuelve a pedir", async () => {
+    actions.getDashboardAction.mockRejectedValueOnce(new Error("red"));
+    render(<VentasPage />);
+    await screen.findByText("No hay conexión.");
+    fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
+    await screen.findByTestId("card-vendido");
+  });
+
+  it("si la recarga falla con datos ya cargados, avisa que las cifras pueden estar desfasadas", async () => {
+    render(<VentasPage />);
+    await screen.findByTestId("card-vendido");
+    actions.getDashboardAction.mockRejectedValueOnce(new Error("red"));
+    fireEvent.click(screen.getByRole("button", { name: /7 días/i }));
+    await screen.findByText(/pueden estar desfasadas/i);
+    expect(screen.getByTestId("card-vendido")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
+    await waitFor(() => expect(screen.queryByText(/pueden estar desfasadas/i)).toBeNull());
+  });
+
+  it("al cambiar el rango marca el tablero como ocupado hasta que responde", async () => {
+    render(<VentasPage />);
+    const card = await screen.findByTestId("card-vendido");
+    const busyEl = card.closest("[aria-busy]") as HTMLElement;
+    await waitFor(() => expect(busyEl).toHaveAttribute("aria-busy", "false"));
+    let release: (v: unknown) => void = () => {};
+    actions.getDashboardAction.mockReturnValueOnce(new Promise((r) => (release = r)));
+    fireEvent.click(screen.getByRole("button", { name: /7 días/i }));
+    await waitFor(() => expect(busyEl).toHaveAttribute("aria-busy", "true"));
+    release({ query: { from: "2026-11-01", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates" }, data: dashboard() });
+    await waitFor(() => expect(busyEl).toHaveAttribute("aria-busy", "false"));
+  });
+
+  it("mientras no llegan los nombres de tienda no dice 'Tienda sin nombre'", async () => {
+    actions.fetchLocationsAction.mockReturnValue(new Promise(() => {}));
+    render(<VentasPage />);
+    await screen.findByTestId("card-vendido");
+    expect(screen.queryByText("Tienda sin nombre")).toBeNull();
+  });
+
+  it("los importes usan formatPrice: sin centavos si son enteros", async () => {
+    render(<VentasPage />);
+    expect(await screen.findByTestId("card-vendido")).toHaveTextContent("$1,234.50");
+    expect(screen.getByTestId("card-cobrado")).toHaveTextContent("$1,000");
+    expect(screen.getByTestId("card-cobrado")).not.toHaveTextContent("$1,000.00");
   });
 });

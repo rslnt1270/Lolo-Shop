@@ -76,7 +76,7 @@ export function CancelSalePanel({ saleId, onCancelled }: Props) {
         </div>
       </fieldset>
       <button type="button" disabled={busy} onClick={cancel} className={`${saleButton} bg-[#C23A2B] text-white hover:bg-[#9B2C20]`}>
-        Confirmar anulación
+        {busy ? "Anulando…" : "Confirmar anulación"}
       </button>
       {error && (
         <p role="alert" className="text-sm font-bold text-[#9B2C20]">
