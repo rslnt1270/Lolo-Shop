@@ -169,6 +169,11 @@ export default function EscanearPage() {
   // La etiqueta escaneada tiene piezas en otras tiendas pero ninguna fila en la tuya.
   const onlyInOtherStore =
     !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId) && variant.inventory.length > 0;
+  const canTransfer = role === "owner" || role === "manager";
+  // Origen sugerido para traspasar hacia la tienda elegida: la tienda con más piezas de esta etiqueta.
+  const richestOther = onlyInOtherStore
+    ? [...variant!.inventory].sort((a, b) => b.available - a.available)[0]?.locationId
+    : undefined;
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
@@ -314,6 +319,24 @@ export default function EscanearPage() {
                         reset();
                       }}
                     />
+                    {canTransfer && (
+                      <StockMovementPanel
+                        variantId={found.variantId}
+                        locationId={locationId}
+                        role={role as Role}
+                        storeBound={storeBound}
+                        transferOnly
+                        defaultFromId={richestOther}
+                        defaultToId={locationId}
+                        onDone={(available, doneMessage) => {
+                          setIsError(false);
+                          setMessage(
+                            doneMessage ?? `Traspaso registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`,
+                          );
+                          reset();
+                        }}
+                      />
+                    )}
                   </div>
                 ) : (
                   <StockMovementPanel

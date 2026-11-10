@@ -223,6 +223,51 @@ describe("/escanear: flujo de alta por lote", () => {
       expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeTruthy();
     });
 
+    it("owner con ClubAlva elegida y stock solo en Lomas ve 'Traspasar' de Lomas a ClubAlva", async () => {
+      sessionUser = { id: "o1", role: "owner", locationId: null };
+      fetchLocations.mockResolvedValue([
+        { id: "loc-lomas", name: "Lomas", type: "store" },
+        { id: "loc-club", name: "ClubAlva", type: "store" },
+      ]);
+      lookup.mockResolvedValue({
+        found: true,
+        product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-lomas", available: 4 }] }] },
+        variantId: "v1",
+      });
+      transfer.mockResolvedValue({ ok: true, available: 1, replayed: false, message: "Se movió 1 de Lomas a ClubAlva." });
+      render(<EscanearPage />);
+      const sel = (await screen.findByLabelText(/^tienda$/i)) as HTMLSelectElement;
+      await within(sel).findByRole("option", { name: "ClubAlva" });
+      fireEvent.change(sel, { target: { value: "loc-club" } });
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText("Playera X");
+      expect(screen.getByText(/registrada en otra tienda/)).toBeTruthy();
+      expect(screen.getByRole("button", { name: /sumar .* en tu tienda/i })).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
+      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
+      await within(origen).findByRole("option", { name: "Lomas" });
+      expect(origen.value).toBe("loc-lomas");
+      expect((screen.getByLabelText(/^destino$/i) as HTMLSelectElement).value).toBe("loc-club");
+      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
+      await waitFor(() =>
+        expect(transfer).toHaveBeenCalledWith(
+          expect.objectContaining({ variantId: "v1", fromLocationId: "loc-lomas", toLocationId: "loc-club", quantity: 1 }),
+        ),
+      );
+    });
+
+    it("colaborador con stock solo en otra tienda no ve 'Traspasar'", async () => {
+      lookup.mockResolvedValue({
+        found: true,
+        product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-9", available: 4 }] }] },
+        variantId: "v1",
+      });
+      render(<EscanearPage />);
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText(/registrada en otra tienda/);
+      expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();
+    });
+
     it("colaborador no ve 'Traspasar'", async () => {
       await openExisting();
       expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();

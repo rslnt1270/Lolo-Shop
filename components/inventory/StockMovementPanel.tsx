@@ -20,6 +20,11 @@ export interface StockMovementPanelProps {
   role: Role;
   /** Manager con tienda: solo traspasa desde o hacia `locationId` (el servidor lo vuelve a validar). */
   storeBound?: boolean;
+  /** Solo ofrece "Traspasar" (la prenda no tiene fila en `locationId`; la entrada va por "Sumar piezas"). */
+  transferOnly?: boolean;
+  /** Origen y destino preseleccionados al abrir el traspaso (por omisión: origen `locationId`, sin destino). */
+  defaultFromId?: string;
+  defaultToId?: string;
   /** Se llama con el stock resultante al terminar un movimiento (también si fue repetido); `message` solo en traspasos. */
   onDone(available: number, message?: string): void;
 }
@@ -34,7 +39,9 @@ type AdjustType = "damage" | "adjustment";
  * reintentos hasta un resultado definitivo, para que un doble toque o un
  * reintento de red no duplique el movimiento.
  */
-export function StockMovementPanel({ variantId, locationId, role, storeBound = false, onDone }: StockMovementPanelProps) {
+export function StockMovementPanel({
+  variantId, locationId, role, storeBound = false, transferOnly = false, defaultFromId, defaultToId, onDone,
+}: StockMovementPanelProps) {
   const canAdjust = role === "owner" || role === "manager";
   const [mode, setMode] = useState<Mode>("idle");
   const [entryQty, setEntryQty] = useState("1");
@@ -43,7 +50,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
   const [adjustQty, setAdjustQty] = useState("1");
   const [reason, setReason] = useState("");
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
-  const [fromId, setFromId] = useState(locationId);
+  const [fromId, setFromId] = useState(defaultFromId ?? locationId);
   const [toId, setToId] = useState("");
   const [transferQty, setTransferQty] = useState("1");
   const [note, setNote] = useState("");
@@ -131,8 +138,8 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
   const openTransfer = () => {
     setMode("transfer");
     setError("");
-    setFromId(locationId);
-    setToId("");
+    setFromId(defaultFromId ?? locationId);
+    setToId(defaultToId ?? "");
     newRequestId();
   };
   const closeTransfer = () => {
@@ -196,7 +203,12 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
 
   return (
     <div data-testid="stock-panel" className="space-y-3">
-      {mode === "idle" && (
+      {mode === "idle" && transferOnly && canAdjust && (
+        <button type="button" onClick={openTransfer} disabled={pending} className={outline}>
+          Traspasar
+        </button>
+      )}
+      {mode === "idle" && !transferOnly && (
         <>
           <button
             type="button"
