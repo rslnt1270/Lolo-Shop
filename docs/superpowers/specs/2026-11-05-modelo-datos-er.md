@@ -402,6 +402,16 @@ Reglas que **no** son de la base sino de la proyección (deben tener test): un h
 | Tallas por departamento (CH–XG, numérico, edad) | **Fuera de P1**; `Variant.size` sigue como texto | Posterior |
 | Foto de ambiente o trasera | **Fuera de P1**; `ProductImageJob.kind = catalog_back` y, si se aprueba, `backImageUrl` (§2.4) | P3, tras D-10 |
 
+### 2.8 Control de inventario [P] (migración `inventory_controls`)
+
+Migración **aditiva** (solo tablas nuevas y columnas anulables; sin `DROP`, `ALTER COLUMN`, `SET NOT NULL` ni `CHECK`). Sale con las migraciones de ventas en 3.7; antes solo se prueba en la rama de Neon `ventas-prueba`.
+
+**`PriceChange`** (historial de cambios de precio): `id`, `variantId` → `Variant` (Restrict), `oldPrice` y `newPrice` `Decimal(10,2)`, `changedById` → `User` (Restrict), `reason String? @db.VarChar(120)`, `createdAt`. Índice `(variantId, createdAt DESC)`. Propósito: auditar quién cambió un precio, de cuánto a cuánto y por qué (motivo de 3 a 120 caracteres validado en el servidor, sin secuencias de 7 o más dígitos). Inversas: `Variant.priceChanges`, `User.priceChanges`.
+
+**`Movement.requestId String? @unique`**: llave de idempotencia. Un reintento de la misma operación (mismo `requestId`) no duplica el movimiento ni el cambio de stock. Nulo en los movimientos existentes.
+
+**`Product.mergedIntoId`, `mergedAt`, `mergedById`** (todos opcionales): unión de productos duplicados sin borrar historia. `mergedIntoId` es autorrelación `"ProductMerge"` (Restrict, índice propio; inversa `Product.mergedFrom`); `mergedById` → `User` (Restrict; inversa `User.productsMerged`). Un producto con `mergedIntoId` no nulo deja de listarse y queda como rastro. Las reglas de la unión (variantes, stock, ventas) viven en la capa de datos, no en la base.
+
 ---
 
 ## 3. Reglas de integridad [P]

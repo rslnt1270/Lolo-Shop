@@ -38,5 +38,12 @@ export interface Product {
   publicCode?: string | null;
   /** Ausente se trata como activo (fixtures). */
   isActive?: boolean;
+  /** Marca canónica y departamento (ER §2.3); ausentes en datos viejos. */
+  brandId?: string | null;
+  departmentId?: string | null;
+  /** Producto destino si este fue unido a otro (ER §2.8). */
+  mergedIntoId?: string | null;
+  /** Fecha de alta, ISO. */
+  createdAt?: string;
   variants: Variant[];
 }

@@ -8,6 +8,10 @@ export const fixtureLocations: Location[] = [
 export const fixtureProducts: Product[] = [
   {
     id: "prod-1",
+    brandId: "brand-fixture-1",
+    departmentId: "dept-hombre",
+    mergedIntoId: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
     title: "Hoodie NY Yankees",
     category: "Hoodies",
     brand: "NY Yankees",
@@ -43,6 +47,10 @@ export const fixtureProducts: Product[] = [
   },
   {
     id: "prod-2",
+    brandId: "brand-fixture-2",
+    departmentId: "dept-hombre",
+    mergedIntoId: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
     title: "Playera Guess",
     category: "Playeras",
     brand: "Guess",

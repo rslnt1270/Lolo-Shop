@@ -48,21 +48,23 @@ enum SaleStatus {
 }
 
 model User {
-  id                    String       @id @default(uuid())
-  username              String       @unique
+  id                    String        @id @default(uuid())
+  username              String        @unique
   password              String
-  name                  String       @default("")
-  role                  Role         @default(collaborator)
+  name                  String        @default("")
+  role                  Role          @default(collaborator)
   locationId            String?
-  location              Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  location              Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
   movements             Movement[]
   brandsCreated         Brand[]
-  salesCreated          Sale[]       @relation("SaleCreatedBy")
-  salesPaymentConfirmed Sale[]       @relation("SalePaymentConfirmedBy")
-  salesCancelled        Sale[]       @relation("SaleCancelledBy")
+  salesCreated          Sale[]        @relation("SaleCreatedBy")
+  salesPaymentConfirmed Sale[]        @relation("SalePaymentConfirmedBy")
+  salesCancelled        Sale[]        @relation("SaleCancelledBy")
   appSettingsUpdated    AppSetting[]
-  createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @default(now()) @updatedAt
+  priceChanges          PriceChange[]
+  productsMerged        Product[]     @relation("ProductMergedBy")
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @default(now()) @updatedAt
 
   @@index([locationId])
 }
@@ -93,10 +95,17 @@ model Product {
   backImageUrl String?
   description  String?
   isActive     Boolean     @default(true)
+  mergedIntoId String?
+  mergedInto   Product?    @relation("ProductMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedFrom   Product[]   @relation("ProductMerge")
+  mergedAt     DateTime?
+  mergedById   String?
+  mergedBy     User?       @relation("ProductMergedBy", fields: [mergedById], references: [id], onDelete: Restrict)
   variants     Variant[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @default(now()) @updatedAt
 
+  @@index([mergedIntoId])
   @@index([category])
   @@index([brand])
   @@index([brandId])
@@ -140,11 +149,12 @@ model Variant {
   color     String  @default("General")
   isActive  Boolean @default(true)
 
-  inventory InventoryLevel[]
-  movements Movement[]
-  saleLines SaleLine[]
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @default(now()) @updatedAt
+  inventory    InventoryLevel[]
+  movements    Movement[]
+  saleLines    SaleLine[]
+  priceChanges PriceChange[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
 
   @@index([productId])
 }
@@ -174,6 +184,7 @@ model Movement {
   type       MovementType @default(ADJUSTMENT)
   notes      String?
   saleId     String?
+  requestId  String?      @unique
   timestamp  DateTime     @default(now())
 
   variant  Variant  @relation(fields: [variantId], references: [id], onDelete: Restrict)
@@ -250,4 +261,19 @@ model AppSetting {
   updatedById String?
   updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
   updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model PriceChange {
+  id          String   @id @default(uuid())
+  variantId   String
+  oldPrice    Decimal  @db.Decimal(10, 2)
+  newPrice    Decimal  @db.Decimal(10, 2)
+  changedById String
+  reason      String?  @db.VarChar(120)
+  createdAt   DateTime @default(now())
+
+  variant   Variant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  changedBy User    @relation(fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([variantId, createdAt(sort: Desc)])
 }
