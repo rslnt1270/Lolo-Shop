@@ -1,4 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
+import { SALE_TX_OPTIONS } from "./tx-options";
 import prisma from "../prisma";
 import {
   businessDateMx,
@@ -23,17 +24,8 @@ import {
   type SalesDataSource,
 } from "./sales-source";
 
-/**
- * Límites de la transacción interactiva, pensados para una función serverless:
- * `maxWait` es la espera por una conexión del pool y `timeout` la duración
- * máxima de la transacción. Un ticket normal tarda milisegundos; si se pasa,
- * se hace rollback en vez de retener bloqueos de fila mientras la función sigue viva.
- */
-export const SALE_TX_OPTIONS = {
-  isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-  maxWait: 5_000,
-  timeout: 10_000,
-} as const;
+/** Límites de la transacción interactiva: ver `lib/data/tx-options.ts`. */
+export { SALE_TX_OPTIONS };
 
 const VALID_STATUSES: SaleStatus[] = ["paid", "pending_payment"];
 

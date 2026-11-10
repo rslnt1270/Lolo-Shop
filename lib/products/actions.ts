@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { ForbiddenError } from "@/lib/auth/errors";
 import { currentUserOrNull, requireRole } from "@/lib/auth/permissions";
 import { getDataSource } from "@/lib/data/get-source";
-import { InventoryRuleError, ProductNotFoundError } from "@/lib/data/errors";
+import { DB_TIMEOUT_TEXT, InventoryRuleError, ProductNotFoundError, isTransactionTimeout } from "@/lib/data/errors";
 import type { ProductPatch } from "@/lib/data/source";
 import { MAX_PRICE, MAX_TITLE_LENGTH, PRODUCT_CATEGORIES, roundToCents } from "@/lib/domain/new-product";
 import { validateReason } from "@/lib/domain/stock-movement";
@@ -14,7 +14,7 @@ export type UpdateVariantPriceResult =
   | { ok: true; price: number }
   | {
       ok: false;
-      code: "SESSION" | "FORBIDDEN" | "INVALID" | "CONFLICT" | "NOT_FOUND";
+      code: "SESSION" | "FORBIDDEN" | "INVALID" | "CONFLICT" | "NOT_FOUND" | "ERROR";
       message: string;
       /** CONFLICT: el precio que tiene la talla ahora. */
       currentPrice?: number;
@@ -28,7 +28,7 @@ export type ProductAdminResult =
 
 export type MergeResult =
   | { ok: true; movedVariants: number; movedSaleLines: number; alreadyMerged: number }
-  | { ok: false; code: "SESSION" | "FORBIDDEN" | "INVALID"; message: string };
+  | { ok: false; code: "SESSION" | "FORBIDDEN" | "INVALID" | "ERROR"; message: string };
 
 const MAX_BATCH = 100;
 const HISTORY_LIMIT = 5;
@@ -53,6 +53,8 @@ async function gate(roles: readonly Role[] = ROLES): Promise<Gate> {
 
 const invalid = (message: string) => ({ ok: false as const, code: "INVALID" as const, message });
 const notFound = (message: string) => ({ ok: false as const, code: "NOT_FOUND" as const, message });
+/** P2028/P2024: la transacción venció sin escribir nada; el operador puede reintentar. */
+const dbTimeout = () => ({ ok: false as const, code: "ERROR" as const, message: DB_TIMEOUT_TEXT });
 
 function refresh() {
   revalidatePath("/productos");
@@ -100,6 +102,7 @@ export async function updateVariantPriceAction(input: {
     return { ok: true, price: res.price };
   } catch (err) {
     if (err instanceof ProductNotFoundError) return notFound(err.message);
+    if (isTransactionTimeout(err)) return dbTimeout();
     throw err;
   }
 }
@@ -238,6 +241,7 @@ export async function mergeProductsAction(input: { targetId: string; sourceIds: 
     return { ok: true, ...res };
   } catch (err) {
     if (err instanceof InventoryRuleError) return invalid(err.message);
+    if (isTransactionTimeout(err)) return dbTimeout();
     throw err;
   }
 }

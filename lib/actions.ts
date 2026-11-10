@@ -13,7 +13,7 @@ import prisma from "./prisma";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
 import type { InventoryDataSource, ProductSearchHit, VariantMatch } from "./data/source";
 import {
-  InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, uniqueViolationField,
+  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
 } from "./data/errors";
 import {
   MAX_STOCK_QUANTITY, MIN_STOCK_QUANTITY, validateReason, validateStockMovement, type StockMovementKind,
@@ -114,6 +114,7 @@ export async function recordStockMovementAction(input: {
       return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
     }
     console.error("recordStockMovementAction", err);
+    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
     return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
   }
 }
@@ -189,6 +190,7 @@ export async function transferStockAction(input: {
       return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
     }
     console.error("transferStockAction", err);
+    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
     return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
   }
 }
@@ -418,6 +420,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
     }
   } catch (err) {
     console.error("createProductAction", err);
+    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
     return { ok: false, code: "ERROR", message: "No se pudo guardar el producto. Revisa tu conexión e intenta de nuevo." };
   }
 }
@@ -488,6 +491,7 @@ export async function addVariantAction(input: AddVariantInput): Promise<CreatePr
     }
   } catch (err) {
     console.error("addVariantAction", err);
+    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
     return { ok: false, code: "ERROR", message: "No se pudo agregar la talla. Revisa tu conexión e intenta de nuevo." };
   }
 }

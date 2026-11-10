@@ -88,3 +88,15 @@ export class SaleRequestConflictError extends Error {
     this.saleNumber = saleNumber;
   }
 }
+
+/** Texto para el operador cuando la transacción vence o no consigue conexión a tiempo. */
+export const DB_TIMEOUT_TEXT = "La base tardó en responder; reintenta.";
+
+/**
+ * P2028: la transacción interactiva venció (`timeout`) o no arrancó a tiempo (`maxWait`).
+ * P2024: no hubo conexión libre del pool a tiempo. En ambos casos no se escribió nada.
+ */
+export function isTransactionTimeout(err: unknown): boolean {
+  const code = !!err && typeof err === "object" ? (err as { code?: unknown }).code : undefined;
+  return code === "P2028" || code === "P2024";
+}

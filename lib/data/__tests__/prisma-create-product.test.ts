@@ -4,17 +4,18 @@ const create = vi.fn();
 const movementCreateMany = vi.fn();
 const findFirst = vi.fn();
 const tx = { product: { create: (...a: unknown[]) => create(...a) }, movement: { createMany: (...a: unknown[]) => movementCreateMany(...a) } };
-const $transaction = vi.fn(async (fn: (t: typeof tx) => unknown) => fn(tx));
+const $transaction = vi.fn(async (fn: (t: typeof tx) => unknown, _opts?: unknown) => fn(tx));
 
 vi.mock("../../prisma", () => ({
   default: {
     product: { create: (...a: unknown[]) => create(...a) },
     variant: { findFirst: (...a: unknown[]) => findFirst(...a) },
-    $transaction: (fn: (t: typeof tx) => unknown) => $transaction(fn),
+    $transaction: (fn: (t: typeof tx) => unknown, opts?: unknown) => $transaction(fn, opts),
   },
 }));
 
 import { PrismaDataSource } from "../prisma-source";
+import { INVENTORY_TX_OPTIONS, SALE_TX_OPTIONS } from "../tx-options";
 
 describe("PrismaDataSource.createProduct", () => {
   beforeEach(() => {
@@ -39,6 +40,23 @@ describe("PrismaDataSource.createProduct", () => {
   /** Alta de una talla (antes `barcode`, `sku`, `price`, `size` e `initialStock` iban sueltos). */
   const base = (v: Partial<typeof variant> & { initialStock: number }, extra: Record<string, unknown> = {}) =>
     ({ ...product, ...extra, variants: [{ ...variant, ...v }] });
+
+  it("la transacción del alta usa los límites de inventario (no los 2 s / 5 s por omisión)", async () => {
+    await new PrismaDataSource().createProduct(base({ initialStock: 1, size: "M" }));
+    expect($transaction).toHaveBeenCalledWith(expect.any(Function), INVENTORY_TX_OPTIONS);
+    expect(INVENTORY_TX_OPTIONS).toEqual(SALE_TX_OPTIONS);
+    expect(INVENTORY_TX_OPTIONS).toMatchObject({ maxWait: 5_000, timeout: 10_000 });
+  });
+
+  it("todas las transacciones de prisma-source pasan INVENTORY_TX_OPTIONS", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(process.cwd(), "lib/data/prisma-source.ts"), "utf8");
+    const opened = src.match(/\$transaction\(/g)?.length ?? 0;
+    const withOptions = src.match(/\}, INVENTORY_TX_OPTIONS\)/g)?.length ?? 0;
+    expect(opened).toBeGreaterThanOrEqual(6);
+    expect(withOptions).toBe(opened);
+  });
 
   it("persiste categoría, sku, talla y stock inicial dentro de una transacción", async () => {
     await new PrismaDataSource().createProduct(base({ initialStock: 7, size: "M" }));

@@ -14,6 +14,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { canonicalCode, codeCandidates } from "../domain/barcode";
 import { UNIQUE_SIZE, normalizeSize, sortSizes } from "../domain/sizes";
 import { trailingSize } from "../domain/size-duplicates";
+import { INVENTORY_TX_OPTIONS } from "./tx-options";
 import { normalizePublicCode } from "../domain/public-code";
 
 type DbVariant = Prisma.VariantGetPayload<{ include: { inventory: true } }>;
@@ -322,7 +323,7 @@ export class PrismaDataSource implements InventoryDataSource {
           available = await currentAvailable(tx);
         }
         return { available, replayed: false };
-      });
+      }, INVENTORY_TX_OPTIONS);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
@@ -390,7 +391,7 @@ export class PrismaDataSource implements InventoryDataSource {
           data: { variantId, locationId: toLocationId, userId, delta: quantity, type: "TRANSFER", notes: note, requestId: inId },
         });
         return { available: await originAvailable(tx), replayed: false };
-      });
+      }, INVENTORY_TX_OPTIONS);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
@@ -456,7 +457,7 @@ export class PrismaDataSource implements InventoryDataSource {
 
       const variants = ordered.map(toVariant);
       return { product: toProduct(created, variants), variants };
-    });
+    }, INVENTORY_TX_OPTIONS);
   }
 
   async addVariant(data: AddVariantData): Promise<VariantMatch> {
@@ -518,7 +519,7 @@ export class PrismaDataSource implements InventoryDataSource {
       });
       const variants = full.variants.map(toVariant);
       return { product: toProduct(full, variants), variant: variants.find((v) => v.id === created.id)! };
-    });
+    }, INVENTORY_TX_OPTIONS);
   }
 
   async searchProducts(query: string): Promise<ProductSearchHit[]> {
@@ -578,7 +579,7 @@ export class PrismaDataSource implements InventoryDataSource {
         data: { variantId, oldPrice: expectedPrice, newPrice, changedById: userId, reason },
       });
       return { ok: true as const, price: newPrice };
-    });
+    }, INVENTORY_TX_OPTIONS);
   }
 
   async listPriceChanges(variantId: string, limit: number): Promise<PriceChangeEntry[]> {
@@ -713,7 +714,7 @@ export class PrismaDataSource implements InventoryDataSource {
       if (Object.keys(photoData).length > 0) await tx.product.update({ where: { id: targetId }, data: photoData });
 
       return { movedVariants: variants.count, movedSaleLines: lines.count, alreadyMerged };
-    });
+    }, INVENTORY_TX_OPTIONS);
   }
 
   async getProductByPublicCode(code: string): Promise<Product | null> {
