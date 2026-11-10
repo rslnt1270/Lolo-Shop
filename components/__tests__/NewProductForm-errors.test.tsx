@@ -101,6 +101,51 @@ describe("NewProductForm: errores del servidor", () => {
     expect(onSuccess).not.toHaveBeenCalled();
   });
 
+  describe("alta con red lenta (idempotencia)", () => {
+    const dup = {
+      ok: false, code: "DUPLICATE", existingVariantId: "v7", duplicateBarcode: "750123",
+      message: "Este código ya está registrado en Gorra.",
+    };
+
+    it("sin respuesta y luego DUPLICATE con el mismo título: avisa que parece guardado y oculta Sumar piezas", async () => {
+      createProductAction.mockRejectedValueOnce(new Error("Failed to fetch")).mockResolvedValueOnce(dup);
+      await submitValid(vi.fn(), vi.fn());
+      expect(await screen.findByText(/No se pudo dar de alta/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+      expect(await screen.findByText("Parece que ya se guardó: revísalo antes de sumar piezas.")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /^sumar .*en tu tienda/i })).toBeNull();
+      expect(screen.getByRole("button", { name: /registrar entrada/i })).toBeTruthy();
+    });
+
+    it("ERROR del servidor y luego DUPLICATE con el mismo título: mismo aviso", async () => {
+      createProductAction
+        .mockResolvedValueOnce({ ok: false, code: "ERROR", message: "La base tardó en responder; reintenta." })
+        .mockResolvedValueOnce(dup);
+      await submitValid();
+      expect(await screen.findByText("La base tardó en responder; reintenta.")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+      expect(await screen.findByText("Parece que ya se guardó: revísalo antes de sumar piezas.")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /^sumar .*en tu tienda/i })).toBeNull();
+    });
+
+    it("si cambió el título, el DUPLICATE vuelve a ofrecer Sumar piezas", async () => {
+      createProductAction.mockRejectedValueOnce(new Error("Failed to fetch")).mockResolvedValueOnce(dup);
+      await submitValid();
+      await screen.findByText(/No se pudo dar de alta/);
+      fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra roja" } });
+      fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+      expect(await screen.findByRole("button", { name: /^sumar .*en tu tienda/i })).toBeTruthy();
+      expect(screen.queryByText(/Parece que ya se guardó/)).toBeNull();
+    });
+
+    it("DUPLICATE sin un envío fallido antes: ofrece Sumar piezas como siempre", async () => {
+      createProductAction.mockResolvedValueOnce(dup);
+      await submitValid();
+      expect(await screen.findByRole("button", { name: /^sumar .*en tu tienda/i })).toBeTruthy();
+      expect(screen.queryByText(/Parece que ya se guardó/)).toBeNull();
+    });
+  });
+
   it("si la foto falla, da de alta igual sin imageUrl y avisa 'SIN foto'", async () => {
     uploadProductImageAction.mockResolvedValue({ ok: false, message: "Falta el token del almacén" });
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });

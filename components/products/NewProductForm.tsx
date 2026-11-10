@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { createProductAction, uploadProductImageAction } from "@/lib/actions";
 import type { CreateProductInput } from "@/lib/actions";
@@ -39,6 +39,11 @@ interface NewProductFormProps {
   initialMode?: EntryMode;
   onModeChange?: (mode: EntryMode) => void;
 }
+
+/** Aviso cuando un DUPLICATE probablemente es el mismo alta que no recibió respuesta. */
+export const LIKELY_SAVED_TEXT = "Parece que ya se guardó: revísalo antes de sumar piezas.";
+
+const titleKey = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
 
 const MODE_OPTIONS: { value: EntryMode; label: string }[] = [
   { value: "stock", label: "Solo stock" },
@@ -140,6 +145,13 @@ export function NewProductForm({
   const photosHelpId = useId();
   const [catalogError, setCatalogError] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
+  /**
+   * Título del último envío que terminó en ERROR o sin respuesta: el alta pudo
+   * guardarse aunque la respuesta se perdiera. Si el siguiente envío choca por
+   * código con el mismo título, no se ofrece "Sumar N piezas" (duplicaría stock).
+   */
+  const uncertainTitleRef = useRef<string | null>(null);
+  const [likelySaved, setLikelySaved] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     departmentId: "",
@@ -206,6 +218,7 @@ export function NewProductForm({
     setRowErrors({});
     setStockAdded("");
     setSessionExpired(false);
+    setLikelySaved(false);
 
     const input = {
       title: formData.title,
@@ -232,6 +245,8 @@ export function NewProductForm({
     }
 
     setLoading(true);
+    const sentTitle = titleKey(input.title);
+    let sent = false;
     try {
       let effectiveMode = mode;
       let imageUrl: string | null = null;
@@ -256,9 +271,14 @@ export function NewProductForm({
         imageUrl,
         backImageUrl,
       };
+      sent = true;
       const result = withSession(await createProductAction(payload));
+      const previousUncertain = uncertainTitleRef.current;
+      uncertainTitleRef.current = !result.ok && result.code === "ERROR" ? sentTitle : null;
+      const maybeSaved = !result.ok && result.code === "DUPLICATE" && previousUncertain === sentTitle;
 
       if (!result.ok && result.code === "SESSION") {
+        uncertainTitleRef.current = previousUncertain;
         setSessionExpired(true);
         return;
       }
@@ -270,12 +290,15 @@ export function NewProductForm({
           // El mensaje va en la fila del código repetido; arriba solo las acciones.
           setRowErrors({ [dupRow.key]: result.message });
           setDuplicateRowKey(dupRow.key);
-          setError(rows.length > 1
-            ? "No se guardó ninguna talla. Quita la fila marcada o suma sus piezas al producto que ya tiene ese código."
-            : "No se guardó. Puedes sumar las piezas al producto que ya tiene ese código.");
+          setError(maybeSaved
+            ? LIKELY_SAVED_TEXT
+            : rows.length > 1
+              ? "No se guardó ninguna talla. Quita la fila marcada o suma sus piezas al producto que ya tiene ese código."
+              : "No se guardó. Puedes sumar las piezas al producto que ya tiene ese código.");
         } else {
-          setError(result.message);
+          setError(maybeSaved ? `${LIKELY_SAVED_TEXT} ${result.message}` : result.message);
         }
+        setLikelySaved(maybeSaved);
         if (result.code === "DUPLICATE" && result.existingVariantId) {
           setDuplicateId(result.existingVariantId);
         }
@@ -297,6 +320,8 @@ export function NewProductForm({
       });
     } catch (err) {
       console.error(err);
+      // Sin respuesta del servidor: el alta pudo guardarse igual.
+      if (sent) uncertainTitleRef.current = sentTitle;
       setError("No se pudo dar de alta el producto. Revisa tu conexión e inténtalo de nuevo.");
     } finally {
       setLoading(false);
@@ -538,7 +563,7 @@ export function NewProductForm({
       {error && (
         <div role="alert" className="space-y-2 rounded-md bg-red-50 p-3 text-sm font-medium text-[#9A3B2E]">
           <p>{error}</p>
-          {duplicateId && (
+          {duplicateId && !likelySaved && (
             <SumToMyStore
               key={`${duplicateId}-${duplicateRowKey ?? ""}`}
               variantId={duplicateId}
