@@ -113,7 +113,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
     let cancelled = false;
     fetchLocationsAction()
       .then((res) => {
-        if (!cancelled) setStores((res ?? []).filter((l) => l.type === "store").map((l) => ({ id: l.id, name: l.name })));
+        if (!cancelled) setStores((res ?? []).map((l) => ({ id: l.id, name: l.type === "warehouse" ? `${l.name} (bodega)` : l.name })));
       })
       .catch(() => {
         if (!cancelled) setError("No se pudieron cargar las tiendas. Intenta de nuevo.");

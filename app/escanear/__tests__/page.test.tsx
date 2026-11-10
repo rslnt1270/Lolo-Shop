@@ -229,6 +229,39 @@ describe("/escanear: flujo de alta por lote", () => {
       expect(await screen.findByText("Se movieron 2 de Lomas a ClubAlva.")).toBeTruthy();
     });
 
+    it("el almacén aparece como origen y como destino, y se etiqueta como bodega", async () => {
+      sessionUser = { id: "o1", role: "owner", locationId: null };
+      fetchLocations.mockResolvedValue([
+        { id: "loc-1", name: "Lomas", type: "store" },
+        { id: "loc-w", name: "Almacén", type: "warehouse" },
+      ]);
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
+      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
+      const destino = screen.getByLabelText(/^destino$/i) as HTMLSelectElement;
+      await within(origen).findByRole("option", { name: "Almacén (bodega)" });
+      expect(within(destino).getByRole("option", { name: "Almacén (bodega)" })).toBeTruthy();
+    });
+
+    it("si la ubicación actual es el almacén, el origen preseleccionado es el almacén y se envía", async () => {
+      sessionUser = { id: "o1", role: "owner", locationId: null };
+      fetchLocations.mockResolvedValue([
+        { id: "loc-w", name: "Almacén", type: "warehouse" },
+        { id: "loc-1", name: "Lomas", type: "store" },
+      ]);
+      transfer.mockResolvedValue({ ok: true, available: 0, replayed: false, message: "ok" });
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
+      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
+      await within(origen).findByRole("option", { name: "Lomas" });
+      expect(origen.value).toBe("loc-w");
+      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-1" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
+      await waitFor(() =>
+        expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ fromLocationId: "loc-w", toLocationId: "loc-1" })),
+      );
+    });
+
     it("origen = destino muestra el error sin llamar a la acción", async () => {
       sessionUser = { id: "o1", role: "owner", locationId: null };
       fetchLocations.mockResolvedValue([

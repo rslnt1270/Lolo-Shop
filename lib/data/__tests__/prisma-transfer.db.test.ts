@@ -125,11 +125,16 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.transferStock", () => {
     const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
     expect(rejected.reason).toBeInstanceOf(InsufficientStockError);
     expect(await available(w.v1, w.lomas)).toBe(0);
-    const club = (await available(w.v1, w.club)) ?? 0;
-    expect(club).toBeGreaterThanOrEqual(0);
-    // La pieza se vendió o se movió, nunca ambas.
-    const fulfilled = results.find((r) => r.status === "fulfilled");
-    expect(fulfilled).toBeDefined();
+    const transfers = await testPrisma.movement.count({ where: { type: "TRANSFER" } });
+    if (results[0].status === "fulfilled") {
+      // Ganó el traspaso: la pieza está en ClubAlva y hay el par de Movement.
+      expect(await available(w.v1, w.club)).toBe(1);
+      expect(transfers).toBe(2);
+    } else {
+      // Ganó la venta: nada llegó a ClubAlva y no hay TRANSFER.
+      expect((await available(w.v1, w.club)) ?? 0).toBe(0);
+      expect(transfers).toBe(0);
+    }
   });
 
   it("dos traspasos opuestos en paralelo terminan los dos (sin interbloqueo)", async () => {
