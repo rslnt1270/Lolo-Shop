@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBigPriceDrop, parsePriceInput } from "@/lib/products/price-input";
+import { isBigPriceDrop, isBigPriceRise, parsePriceInput } from "@/lib/products/price-input";
 
 describe("parsePriceInput (es-MX: la coma separa miles)", () => {
   it("'1,250' es 1250, no 1.25", () => {
@@ -25,5 +25,21 @@ describe("isBigPriceDrop", () => {
     expect(isBigPriceDrop(899, 400)).toBe(true);
     expect(isBigPriceDrop(899, 449.5)).toBe(false);
     expect(isBigPriceDrop(899, 1000)).toBe(false);
+  });
+});
+
+describe("residual 2: coma con centavos", () => {
+  it("'350,50' se rechaza; '1,250' y '1,250.50' siguen válidos", () => {
+    expect(parsePriceInput("350,50")).toBeNull();
+    expect(parsePriceInput("1,250")).toBe(1250);
+    expect(parsePriceInput("1,250.50")).toBe(1250.5);
+  });
+});
+
+describe("isBigPriceRise", () => {
+  it("es true solo si el nuevo supera el doble del vigente", () => {
+    expect(isBigPriceRise(350, 900)).toBe(true);
+    expect(isBigPriceRise(350, 700)).toBe(false);
+    expect(isBigPriceRise(0, 900)).toBe(false);
   });
 });

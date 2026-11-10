@@ -167,6 +167,25 @@ describe("ProductAdminSheet", () => {
     expect(products.updateVariantPriceAction.mock.calls[0][0]).toMatchObject({ newPrice: 125, expectedPrice: 899 });
   });
 
+  it("'350,50' muestra el aviso del punto y no se manda", async () => {
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "350,50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    expect(await screen.findByText("Usa punto para los centavos: 350.50")).toBeInTheDocument();
+    expect(products.updateVariantPriceAction).not.toHaveBeenCalled();
+  });
+
+  it("subir a más del doble pide confirmación antes de guardar", async () => {
+    products.updateVariantPriceAction.mockResolvedValue({ ok: true, price: 2000 });
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "2000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    expect(await screen.findByText("¿Subir de $899 a $2,000?")).toBeInTheDocument();
+    expect(products.updateVariantPriceAction).not.toHaveBeenCalled();
+  });
+
   it("sesión vencida al guardar precio: avisa con enlace y no lanza", async () => {
     products.updateVariantPriceAction.mockResolvedValue(undefined);
     open();

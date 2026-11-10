@@ -10,11 +10,11 @@ export interface DuplicateGroup {
 /** Tallas que se reconocen al final de un título: letras, números o "unitalla". */
 const SIZE_TOKEN = "(?:xxs|xs|s|m|l|xl|xxl|xxxl|ch|g|xg|u|unitalla|\\d{1,3}(?:[.,]\\d)?)";
 /**
- * Con un solo espacio ("Polo Nautica M") solo cuentan tallas de letras o numéricas de
- * 1–2 dígitos (con medio punto opcional): "U" y "unitalla" exigen " - " o " talla ",
- * y tres dígitos sueltos ("Levi's 501") son modelo, no talla.
+ * Con un solo espacio ("Polo Nautica M") solo cuentan tallas de letras: "U" y "unitalla"
+ * exigen " - " o " talla ", y los números sueltos ("Air Max 90", "Jordan 1", "Pack de 3",
+ * "Levi's 501") son modelo o cantidad, no talla: las numéricas piden " - " o " talla ".
  */
-const SPACE_SIZE_TOKEN = "(?:xxs|xs|s|m|l|xl|xxl|xxxl|ch|g|xg|\\d{1,2}(?:[.,]\\d)?)";
+const SPACE_SIZE_TOKEN = "(?:xxs|xs|s|m|l|xl|xxl|xxxl|ch|g|xg)";
 const TRAILING_SIZE = new RegExp(
   `(?:(?:\\s+-\\s+|\\s+talla\\s+)(${SIZE_TOKEN})|\\s+(${SPACE_SIZE_TOKEN}))$`,
 );
@@ -42,6 +42,17 @@ export function trailingSize(title: string): string | null {
   const raw = m ? (m[1] ?? m[2]) : undefined;
   if (!raw || raw === "u" || raw === "unitalla") return null;
   return normalizeSize(raw);
+}
+
+/**
+ * Título sin la talla final reconocida ("Polo - M" → "Polo"), conservando mayúsculas y acentos.
+ * Si no hay talla reconocible o es la talla única, lo devuelve igual (recortado).
+ */
+export function stripTrailingSize(title: string): string {
+  const t = String(title ?? "").trim().replace(/\s+/g, " ");
+  if (trailingSize(t) === null) return t;
+  const stripped = t.replace(new RegExp(TRAILING_SIZE.source, "i"), "").trim();
+  return stripped || t;
 }
 
 const hasBothPhotos = (p: Product) => !!p.imageUrl && !!p.backImageUrl;

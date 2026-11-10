@@ -13,7 +13,7 @@ import {
   type PriceChangeRow,
 } from "@/lib/products/actions";
 import { formatPriceChange, formatPriceShort } from "@/lib/products/format";
-import { isBigPriceDrop, parsePriceInput } from "@/lib/products/price-input";
+import { COMMA_CENTS_MESSAGE, hasCommaCents, isBigPriceDrop, isBigPriceRise, parsePriceInput } from "@/lib/products/price-input";
 import { ProductPhotoButton } from "./ProductPhotoButton";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
@@ -117,10 +117,10 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
     const st = prices[v.id];
     const n = parsePriceInput(st.text);
     if (n === null) {
-      patchPrice(v.id, { error: "Escribe un precio válido.", conflict: undefined, saved: false, confirmDrop: undefined });
+      patchPrice(v.id, { error: hasCommaCents(st.text) ? COMMA_CENTS_MESSAGE : "Escribe un precio válido.", conflict: undefined, saved: false, confirmDrop: undefined });
       return;
     }
-    if (!confirmed && isBigPriceDrop(st.baseline, n)) {
+    if (!confirmed && (isBigPriceDrop(st.baseline, n) || isBigPriceRise(st.baseline, n))) {
       patchPrice(v.id, { confirmDrop: n, error: undefined, saved: false });
       return;
     }
@@ -436,7 +436,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                         style={{ borderColor: `${DANGER}66` }}
                       >
                         <p id={`bajar-${v.id}`} className="text-sm font-semibold" style={{ color: DANGER }}>
-                          ¿Bajar de {formatPriceShort(st.baseline)} a {formatPriceShort(st.confirmDrop)}?
+                          ¿{st.confirmDrop < st.baseline ? "Bajar" : "Subir"} de {formatPriceShort(st.baseline)} a {formatPriceShort(st.confirmDrop)}?
                         </p>
                         <div className="grid grid-cols-2 gap-2">
                           <button
@@ -453,7 +453,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                             className="min-h-[44px] rounded-xl px-3 text-xs font-semibold text-white disabled:opacity-60"
                             style={{ backgroundColor: DANGER }}
                           >
-                            Sí, bajar
+                            {`Sí, ${st.confirmDrop < st.baseline ? "bajar" : "subir"}`}
                           </button>
                         </div>
                       </div>

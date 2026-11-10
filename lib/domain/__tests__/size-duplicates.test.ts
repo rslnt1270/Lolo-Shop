@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { findSizeDuplicateGroups, normalizeTitleKey, trailingSize } from "../size-duplicates";
+import { findSizeDuplicateGroups, normalizeTitleKey, stripTrailingSize, trailingSize } from "../size-duplicates";
 import type { Product } from "../types";
 
 const p = (id: string, title: string, over: Partial<Product> = {}): Product => ({
@@ -32,8 +32,17 @@ describe("normalizeTitleKey", () => {
     expect(normalizeTitleKey("Polo Nautica M")).toBe("polo nautica");
     expect(normalizeTitleKey("Polo Nautica XXL")).toBe("polo nautica");
     expect(normalizeTitleKey("Blusa Guess CH")).toBe("blusa guess");
-    expect(normalizeTitleKey("Jeans Levis 32")).toBe("jeans levis");
-    expect(normalizeTitleKey("Tenis Puma 26.5")).toBe("tenis puma");
+  });
+  it("con un solo espacio un número es modelo, no talla (residual 3)", () => {
+    for (const t of ["Nike Air Max 90", "Nike Chuck 70", "Jordan 1", "Pack de 3", "Jeans Levis 32", "Tenis Puma 26.5"]) {
+      expect(normalizeTitleKey(t), t).toBe(t.toLowerCase());
+      expect(trailingSize(t), t).toBeNull();
+    }
+  });
+  it("las numéricas cuentan con ' - ' o ' talla '", () => {
+    expect(normalizeTitleKey("Jeans Levis - 30")).toBe("jeans levis");
+    expect(normalizeTitleKey("Jeans Levis talla 32")).toBe("jeans levis");
+    expect(normalizeTitleKey("Tenis Puma - 26.5")).toBe("tenis puma");
   });
 });
 
@@ -114,5 +123,28 @@ describe("findSizeDuplicateGroups", () => {
       p("c", "Polo - XL", { createdAt: "2026-04-01T00:00:00.000Z" }),
     ]);
     expect(groups[0].suggestedTargetId).toBe("b");
+  });
+});
+
+describe("residual 3: modelos numéricos no forman grupo", () => {
+  it("'Nike Air Max 90' y 'Nike Air Max 95' no forman grupo", () => {
+    expect(findSizeDuplicateGroups([p("a", "Nike Air Max 90"), p("b", "Nike Air Max 95")])).toEqual([]);
+  });
+  it("'Polo Nautica M' y 'Polo Nautica L' sí; 'Jeans Levis - 30' y 'Jeans Levis talla 32' sí", () => {
+    expect(findSizeDuplicateGroups([p("a", "Polo Nautica M"), p("b", "Polo Nautica L")])).toHaveLength(1);
+    expect(findSizeDuplicateGroups([p("a", "Jeans Levis - 30"), p("b", "Jeans Levis talla 32")])).toHaveLength(1);
+  });
+});
+
+describe("stripTrailingSize", () => {
+  it("quita la talla final conservando mayúsculas y acentos", () => {
+    expect(stripTrailingSize("Polo Náutica - M")).toBe("Polo Náutica");
+    expect(stripTrailingSize("Polo talla XL")).toBe("Polo");
+    expect(stripTrailingSize("Polo M")).toBe("Polo");
+  });
+  it("no toca modelos numéricos, tallas únicas ni títulos sin talla", () => {
+    expect(stripTrailingSize("Nike Air Max 90")).toBe("Nike Air Max 90");
+    expect(stripTrailingSize("Gorra - U")).toBe("Gorra - U");
+    expect(stripTrailingSize("Polo")).toBe("Polo");
   });
 });
