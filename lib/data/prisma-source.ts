@@ -12,7 +12,8 @@ import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { canonicalCode, codeCandidates } from "../domain/barcode";
-import { normalizeSize, sortSizes } from "../domain/sizes";
+import { UNIQUE_SIZE, normalizeSize, sortSizes } from "../domain/sizes";
+import { trailingSize } from "../domain/size-duplicates";
 import { normalizePublicCode } from "../domain/public-code";
 
 type DbVariant = Prisma.VariantGetPayload<{ include: { inventory: true } }>;
@@ -659,7 +660,7 @@ export class PrismaDataSource implements InventoryDataSource {
       await tx.$queryRaw`SELECT "id" FROM "Product" WHERE "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`;
       const rows = await tx.product.findMany({
         where: { id: { in: ids } },
-        select: { id: true, brandId: true, isActive: true, mergedIntoId: true, imageUrl: true, backImageUrl: true },
+        select: { id: true, title: true, brandId: true, isActive: true, mergedIntoId: true, imageUrl: true, backImageUrl: true },
       });
       const byId = new Map(rows.map((r) => [r.id, r]));
       if (rows.length !== ids.length) throw new InventoryRuleError("Alguno de los productos ya no existe. Actualiza la pantalla.");
@@ -684,6 +685,12 @@ export class PrismaDataSource implements InventoryDataSource {
       }
       if (toMove.length === 0) return { movedVariants: 0, movedSaleLines: 0, alreadyMerged };
 
+      // Datos viejos: la talla quedó en el título ("Polo - M") y la variante en "U". Antes de mover,
+      // cada variante "U" toma la talla del título de su producto (el destino incluido).
+      for (const id of [targetId, ...toMove]) {
+        const size = trailingSize(byId.get(id)!.title);
+        if (size) await tx.variant.updateMany({ where: { productId: id, size: UNIQUE_SIZE }, data: { size, title: size } });
+      }
       const variants = await tx.variant.updateMany({ where: { productId: { in: toMove } }, data: { productId: targetId } });
       // SaleLine.departmentId no se toca: es el departamento de la venta, histórico.
       const lines = await tx.saleLine.updateMany({ where: { productId: { in: toMove } }, data: { productId: targetId } });

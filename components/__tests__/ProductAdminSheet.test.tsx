@@ -121,6 +121,52 @@ describe("ProductAdminSheet", () => {
     expect(products.updateVariantPriceAction.mock.calls[1][0]).toMatchObject({ expectedPrice: 850, newPrice: 799 });
   });
 
+  it("'1,250' guarda 1250 (la coma separa miles)", async () => {
+    products.updateVariantPriceAction.mockResolvedValue({ ok: true, price: 1250 });
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "1,250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    await waitFor(() => expect(products.updateVariantPriceAction).toHaveBeenCalledTimes(1));
+    expect(products.updateVariantPriceAction.mock.calls[0][0]).toMatchObject({ variantId: "v1", newPrice: 1250, expectedPrice: 899 });
+  });
+
+  it("'1,234.50' guarda 1234.5", async () => {
+    products.updateVariantPriceAction.mockResolvedValue({ ok: true, price: 1234.5 });
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "1,234.50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    await waitFor(() => expect(products.updateVariantPriceAction).toHaveBeenCalledTimes(1));
+    expect(products.updateVariantPriceAction.mock.calls[0][0]).toMatchObject({ newPrice: 1234.5 });
+  });
+
+  it("un precio con tres decimales no se manda", async () => {
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "1.250" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    expect(await screen.findByText("Escribe un precio válido.")).toBeInTheDocument();
+    expect(products.updateVariantPriceAction).not.toHaveBeenCalled();
+  });
+
+  it("bajar a menos de la mitad pide confirmación antes de guardar", async () => {
+    products.updateVariantPriceAction.mockResolvedValue({ ok: true, price: 125 });
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "125" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    expect(await screen.findByText("¿Bajar de $899 a $125?")).toBeInTheDocument();
+    expect(products.updateVariantPriceAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "No, revisar" }));
+    expect(screen.queryByText("¿Bajar de $899 a $125?")).toBeNull();
+    expect(products.updateVariantPriceAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sí, bajar" }));
+    await waitFor(() => expect(products.updateVariantPriceAction).toHaveBeenCalledTimes(1));
+    expect(products.updateVariantPriceAction.mock.calls[0][0]).toMatchObject({ newPrice: 125, expectedPrice: 899 });
+  });
+
   it("INVALID del servidor aparece bajo el campo", async () => {
     products.updateVariantPriceAction.mockResolvedValue({ ok: false, code: "INVALID", message: "Ese ya es el precio actual." });
     open();

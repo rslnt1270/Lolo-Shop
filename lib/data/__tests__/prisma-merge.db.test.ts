@@ -106,6 +106,29 @@ describe.skipIf(!hasTestDb)("unir productos duplicados por talla", () => {
     expect(await dashboard()).toEqual(dashBefore);
   });
 
+  it("tallas viejas: A 'Polo - M' (talla U) + B 'Polo - L' (talla U) → A queda con tallas M y L", async () => {
+    const VU1 = "00000000-0000-4000-8000-0000000000d1";
+    const VU2 = "00000000-0000-4000-8000-0000000000d2";
+    const OA = await mk("Polo - M", VU1, "U", "DDDDD", { departmentId: null });
+    const OB = await mk("Polo - L", VU2, "U", "EEEEE", { departmentId: null });
+    const res = await ds.mergeProducts(OA, [OB], owner);
+    expect(res.movedVariants).toBe(1);
+    const variants = await testPrisma.variant.findMany({ where: { productId: OA }, orderBy: { size: "asc" } });
+    expect(variants.map((v) => [v.id, v.size, v.title])).toEqual([
+      [VU2, "L", "L"],
+      [VU1, "M", "M"],
+    ]);
+    // Los productos con talla real (A, B y C del beforeEach) siguen igual.
+    expect((await testPrisma.variant.findUniqueOrThrow({ where: { id: VA } })).size).toBe("M");
+  });
+
+  it("tallas viejas: una variante con talla real no se reescribe con la del título", async () => {
+    const res = await ds.mergeProducts(A, [C], owner);
+    expect(res.movedVariants).toBe(1);
+    const sizes = (await testPrisma.variant.findMany({ where: { productId: A } })).map((v) => v.size).sort();
+    expect(sizes).toEqual(["M", "XL"]);
+  });
+
   it("repetir la unión devuelve alreadyMerged sin cambiar nada", async () => {
     await ds.mergeProducts(A, [B], owner);
     const before = await testPrisma.product.findUniqueOrThrow({ where: { id: B } });

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DuplicateGroup } from "@/lib/domain/size-duplicates";
+import { sizeClashes, type DuplicateGroup } from "@/lib/domain/size-duplicates";
 import type { Product } from "@/lib/domain/types";
 import { sortSizes } from "@/lib/domain/sizes";
 import { mergeProductsAction } from "@/lib/products/actions";
@@ -15,6 +15,8 @@ interface Props {
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const NUM_WORD: Record<number, string> = { 2: "dos", 3: "tres", 4: "cuatro", 5: "cinco" };
+const clashText = (c: { size: string; count: number }) => `${NUM_WORD[c.count] ?? c.count} tallas ${c.size}`;
 
 function sizesOf(p: Product): string[] {
   return sortSizes([...new Set(p.variants.filter((v) => v.isActive !== false).map((v) => v.size))]);
@@ -39,7 +41,8 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
 
   const target = group.products.find((p) => p.id === targetId) ?? group.products[0];
   const sources = group.products.filter((p) => p.id !== target.id);
-  const movingVariants = sources.reduce((n, p) => n + p.variants.length, 0);
+  const movingVariants = sources.reduce((n, p) => n + p.variants.filter((v) => v.isActive !== false).length, 0);
+  const clashes = sizeClashes(group.products);
   const movingSales = sources.reduce((n, p) => n + (saleCounts[p.id] ?? 0), 0);
 
   const confirm = async () => {
@@ -134,6 +137,11 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
           <p className="text-sm text-gray-900">
             Se moverán {plural(movingVariants, "talla", "tallas")} y {plural(movingSales, "venta", "ventas")} a «{target.title}». Las demás fichas se desactivan y su código sigue funcionando.
           </p>
+          {clashes.length > 0 && (
+            <p role="alert" className="rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+              Quedarán {clashes.map(clashText).join(" y ")}.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"

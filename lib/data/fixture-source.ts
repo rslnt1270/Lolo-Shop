@@ -10,7 +10,8 @@ import { MOVEMENT_TYPE_LABEL } from "@/lib/domain/types";
 import { mexicoRangeToUtc } from "@/lib/domain/movement-scope";
 import { FIXTURE_DEPARTMENTS, fixtureLocations, fixtureProducts } from "./fixtures";
 import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
-import { normalizeSize, sortSizes } from "@/lib/domain/sizes";
+import { UNIQUE_SIZE, normalizeSize, sortSizes } from "@/lib/domain/sizes";
+import { trailingSize } from "@/lib/domain/size-duplicates";
 import { normalizePublicCode } from "@/lib/domain/public-code";
 import {
   InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, UniqueConstraintError,
@@ -416,6 +417,19 @@ export class FixtureDataSource implements InventoryDataSource {
     }
     for (const p of this.products) {
       if (p.mergedIntoId && moveIds.has(p.mergedIntoId)) p.mergedIntoId = targetId;
+    }
+    if (toMove.length > 0) {
+      // Igual que Prisma: las variantes "U" toman la talla escrita al final del título de su producto.
+      for (const p of [target, ...toMove]) {
+        const size = trailingSize(p.title);
+        if (!size) continue;
+        for (const v of p.variants) {
+          if (v.size === UNIQUE_SIZE) {
+            v.size = size;
+            v.title = size;
+          }
+        }
+      }
     }
     for (const src of toMove) {
       movedVariants += src.variants.length;

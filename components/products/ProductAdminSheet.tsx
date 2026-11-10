@@ -13,6 +13,7 @@ import {
   type PriceChangeRow,
 } from "@/lib/products/actions";
 import { formatPriceChange, formatPriceShort } from "@/lib/products/format";
+import { isBigPriceDrop, parsePriceInput } from "@/lib/products/price-input";
 import { ProductPhotoButton } from "./ProductPhotoButton";
 
 interface Props {
@@ -26,7 +27,17 @@ interface Props {
 }
 
 type Confirm = { kind: "product" } | { kind: "variant"; variantId: string };
-type PriceState = { text: string; reason: string; baseline: number; error?: string; conflict?: number; saved?: boolean; saving?: boolean };
+type PriceState = {
+  text: string;
+  reason: string;
+  baseline: number;
+  error?: string;
+  conflict?: number;
+  saved?: boolean;
+  saving?: boolean;
+  /** Precio nuevo pendiente de confirmar porque baja a menos de la mitad del vigente. */
+  confirmDrop?: number;
+};
 
 const field =
   "block min-h-[44px] w-full rounded-xl border border-[#7F9392] bg-white px-3 text-base text-[#16302F] focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal";
@@ -98,14 +109,18 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   const patchPrice = (id: string, p: Partial<PriceState>) =>
     setPrices((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }));
 
-  const savePrice = async (v: Variant) => {
+  const savePrice = async (v: Variant, confirmed = false) => {
     const st = prices[v.id];
-    const n = Number(st.text.trim().replace(",", "."));
-    if (st.text.trim() === "" || !Number.isFinite(n)) {
-      patchPrice(v.id, { error: "Escribe un precio válido.", conflict: undefined, saved: false });
+    const n = parsePriceInput(st.text);
+    if (n === null) {
+      patchPrice(v.id, { error: "Escribe un precio válido.", conflict: undefined, saved: false, confirmDrop: undefined });
       return;
     }
-    patchPrice(v.id, { saving: true, error: undefined, conflict: undefined, saved: false });
+    if (!confirmed && isBigPriceDrop(st.baseline, n)) {
+      patchPrice(v.id, { confirmDrop: n, error: undefined, saved: false });
+      return;
+    }
+    patchPrice(v.id, { saving: true, error: undefined, conflict: undefined, saved: false, confirmDrop: undefined });
     try {
       const res = await updateVariantPriceAction({
         variantId: v.id,
@@ -380,7 +395,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                           autoComplete="off"
                           value={st.text}
                           aria-invalid={bad ? true : undefined}
-                          onChange={(e) => patchPrice(v.id, { text: e.target.value, error: undefined, saved: false })}
+                          onChange={(e) => patchPrice(v.id, { text: e.target.value, error: undefined, saved: false, confirmDrop: undefined })}
                           className={`${field} font-mono font-semibold`}
                         />
                       </div>
@@ -405,6 +420,36 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                       </p>
                     )}
                     {st.saved && <p role="status" className="text-xs font-semibold text-[#1F7A4A]">Precio guardado.</p>}
+                    {st.confirmDrop !== undefined && (
+                      <div
+                        role="alertdialog"
+                        aria-labelledby={`bajar-${v.id}`}
+                        className="space-y-2 rounded-lg border p-2.5"
+                        style={{ borderColor: `${DANGER}66` }}
+                      >
+                        <p id={`bajar-${v.id}`} className="text-sm font-semibold" style={{ color: DANGER }}>
+                          ¿Bajar de {formatPriceShort(st.baseline)} a {formatPriceShort(st.confirmDrop)}?
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => patchPrice(v.id, { confirmDrop: undefined })}
+                            className="min-h-[44px] rounded-xl border border-[#7F9392] px-3 text-xs font-semibold text-[#16302F] active:bg-[#F3F7F7]"
+                          >
+                            No, revisar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void savePrice(v, true)}
+                            disabled={st.saving}
+                            className="min-h-[44px] rounded-xl px-3 text-xs font-semibold text-white disabled:opacity-60"
+                            style={{ backgroundColor: DANGER }}
+                          >
+                            Sí, bajar
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <button
                       type="button"
                       aria-label={`Guardar precio de la talla ${v.size || v.title}`}

@@ -57,6 +57,49 @@ describe("MergeGroups", () => {
     expect(mergeProductsAction).not.toHaveBeenCalled();
   });
 
+  it("'Se moverán N tallas' cuenta solo las tallas activas", () => {
+    const withInactive: DuplicateGroup = {
+      key: "k2",
+      products: [
+        prod("a", "M"),
+        prod("b", "L", {
+          variants: [
+            { id: "v-b1", sku: "S1", title: "L", size: "L", color: "", price: 300, barcode: null, inventory: [] },
+            { id: "v-b2", sku: "S2", title: "XL", size: "XL", color: "", price: 300, barcode: null, inventory: [], isActive: false },
+          ],
+        }),
+      ],
+      suggestedTargetId: "a",
+    };
+    setup({ groups: [withInactive] });
+    fireEvent.click(screen.getByRole("button", { name: /Unir 2 productos/ }));
+    expect(screen.getByText(/Se moverán 1 talla y 2 ventas/)).toBeTruthy();
+  });
+
+  it("avisa 'Quedarán dos tallas M' cuando chocan las tallas", () => {
+    const clash: DuplicateGroup = { key: "k3", products: [prod("a", "M"), prod("b", "M"), prod("c", "L")], suggestedTargetId: "a" };
+    setup({ groups: [clash] });
+    fireEvent.click(screen.getByRole("button", { name: /Unir 3 productos/ }));
+    expect(screen.getByText("Quedarán dos tallas M.")).toBeTruthy();
+  });
+
+  it("el choque también cuenta las tallas viejas escritas en el título (talla U)", () => {
+    const old: DuplicateGroup = {
+      key: "k4",
+      products: [prod("a", "U", { title: "Polo - M" }), prod("b", "M", { title: "Polo M" })],
+      suggestedTargetId: "a",
+    };
+    setup({ groups: [old] });
+    fireEvent.click(screen.getByRole("button", { name: /Unir 2 productos/ }));
+    expect(screen.getByText("Quedarán dos tallas M.")).toBeTruthy();
+  });
+
+  it("sin choque no hay aviso", () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: /Unir 3 productos/ }));
+    expect(screen.queryByText(/Quedarán/)).toBeNull();
+  });
+
   it("confirmar llama a la acción con el destino y los demás como origen", async () => {
     setup();
     fireEvent.click(screen.getByRole("button", { name: /Unir 3 productos/ }));

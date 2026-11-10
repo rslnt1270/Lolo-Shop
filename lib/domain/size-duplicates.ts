@@ -1,4 +1,5 @@
 import type { Product } from "./types";
+import { UNIQUE_SIZE, normalizeSize, sortSizes } from "./sizes";
 
 export interface DuplicateGroup {
   key: string;
@@ -8,17 +9,39 @@ export interface DuplicateGroup {
 
 /** Tallas que se reconocen al final de un título: letras, números o "unitalla". */
 const SIZE_TOKEN = "(?:xxs|xs|s|m|l|xl|xxl|xxxl|ch|g|xg|u|unitalla|\\d{1,3}(?:[.,]\\d)?)";
-const TRAILING_SIZE = new RegExp(`(?:\\s+-\\s+|\\s+talla\\s+)${SIZE_TOKEN}$`);
+/**
+ * Con un solo espacio ("Polo Nautica M") solo cuentan tallas de letras o numéricas de
+ * 1–2 dígitos (con medio punto opcional): "U" y "unitalla" exigen " - " o " talla ",
+ * y tres dígitos sueltos ("Levi's 501") son modelo, no talla.
+ */
+const SPACE_SIZE_TOKEN = "(?:xxs|xs|s|m|l|xl|xxl|xxxl|ch|g|xg|\\d{1,2}(?:[.,]\\d)?)";
+const TRAILING_SIZE = new RegExp(
+  `(?:(?:\\s+-\\s+|\\s+talla\\s+)(${SIZE_TOKEN})|\\s+(${SPACE_SIZE_TOKEN}))$`,
+);
 
-/** Minúsculas, sin acentos, espacios colapsados y sin la talla final (" - M", " talla M"). */
-export function normalizeTitleKey(title: string): string {
-  const base = String(title ?? "")
+function baseTitle(title: string): string {
+  return String(title ?? "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
-  return base.replace(TRAILING_SIZE, "").trim();
+}
+
+/** Minúsculas, sin acentos, espacios colapsados y sin la talla final (" - M", " talla M", " M"). */
+export function normalizeTitleKey(title: string): string {
+  return baseTitle(title).replace(TRAILING_SIZE, "").trim();
+}
+
+/**
+ * Talla escrita al final del título ("Polo - M" → "M"), ya normalizada. `null` si no hay
+ * una talla reconocible o si es la talla única ("- U", "unitalla"): no aporta nada.
+ */
+export function trailingSize(title: string): string | null {
+  const m = baseTitle(title).match(TRAILING_SIZE);
+  const raw = m ? (m[1] ?? m[2]) : undefined;
+  if (!raw || raw === "u" || raw === "unitalla") return null;
+  return normalizeSize(raw);
 }
 
 const hasBothPhotos = (p: Product) => !!p.imageUrl && !!p.backImageUrl;
@@ -36,20 +59,39 @@ function suggest(products: Product[]): string {
 }
 
 /**
- * Posibles duplicados por talla: misma marca, mismo departamento y mismo título sin la talla.
+ * Posibles duplicados por talla: misma marca, mismo departamento (o ambos sin él) y mismo título sin la talla.
  * Solo grupos de 2 o más productos activos y sin unir.
  */
 export function findSizeDuplicateGroups(products: Product[]): DuplicateGroup[] {
   const byKey = new Map<string, Product[]>();
   for (const p of products) {
     if (p.isActive === false || p.mergedIntoId) continue;
-    if (!p.brandId || !p.departmentId) continue;
+    if (!p.brandId) continue;
     const title = normalizeTitleKey(p.title);
     if (!title) continue;
-    const key = `${p.brandId}|${title}|${p.departmentId}`;
+    // Datos viejos sin departamento: se agrupan entre sí, nunca con los que sí tienen.
+    const key = `${p.brandId}|${title}|${p.departmentId ?? "sin-departamento"}`;
     byKey.set(key, [...(byKey.get(key) ?? []), p]);
   }
   return [...byKey]
     .filter(([, list]) => list.length >= 2)
     .map(([key, list]) => ({ key, products: list, suggestedTargetId: suggest(list) }));
+}
+
+/** Talla con la que queda una variante al unir: si es "U" y el título trae talla, la del título. */
+export function sizeAfterMerge(variantSize: string, productTitle: string): string {
+  return variantSize === UNIQUE_SIZE ? (trailingSize(productTitle) ?? variantSize) : variantSize;
+}
+
+/** Tallas activas que quedarían repetidas al unir estos productos, con cuántas veces (orden de exhibición). */
+export function sizeClashes(products: Product[]): { size: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const p of products) {
+    for (const v of p.variants) {
+      if (v.isActive === false) continue;
+      const size = sizeAfterMerge(v.size, p.title);
+      counts.set(size, (counts.get(size) ?? 0) + 1);
+    }
+  }
+  return sortSizes([...counts].filter(([, n]) => n > 1).map(([s]) => s)).map((size) => ({ size, count: counts.get(size)! }));
 }
