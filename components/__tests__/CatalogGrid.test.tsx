@@ -24,8 +24,8 @@ const make = (i: number): PublicProduct => ({
   imageUrl: `https://example.invalid/f${i}.jpg`,
   backImageUrl: `https://example.invalid/a${i}.jpg`,
   sizes: [
-    { size: "M", available: true },
-    { size: "L", available: true },
+    { size: "M", available: true, price: 100 + i },
+    { size: "L", available: true, price: 100 + i },
   ],
   price: 100 + i,
 });
@@ -58,6 +58,59 @@ describe("CatalogGrid", () => {
     expect(screen.getByText("Prenda de prueba 2")).toBeInTheDocument();
     expect(screen.getByText("$102")).toBeInTheDocument();
     expect(screen.queryByText("$0")).not.toBeInTheDocument();
+  });
+});
+
+const sz = (size: string, available: boolean, price: number) => ({ size, available, price });
+const withSizes = (sizes: PublicProduct["sizes"], price: number | null = null): PublicProduct => ({
+  ...make(1),
+  sizes,
+  price: price ?? Math.min(...sizes.map((s) => s.price)),
+});
+
+describe("CatalogGrid: tallas y precio por producto", () => {
+  it("precios distintos: 'Desde $X' y la talla agotada con nombre accesible", () => {
+    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", true, 350)])]} onSelect={() => {}} />);
+    expect(screen.getByText("Desde $300")).toBeInTheDocument();
+    const card = within(screen.getByRole("listitem"));
+    expect(card.getByLabelText("S, agotada")).toBeInTheDocument();
+    expect(card.getByText("M")).toBeInTheDocument();
+  });
+
+  it("precio único: solo '$X', sin 'Desde'", () => {
+    render(<CatalogGrid products={[withSizes([sz("S", true, 300), sz("M", true, 300)])]} onSelect={() => {}} />);
+    expect(screen.getByText("$300")).toBeInTheDocument();
+    expect(screen.queryByText(/Desde/)).not.toBeInTheDocument();
+  });
+
+  it("8 tallas: 6 chips y '+2'", () => {
+    const eight = ["XS", "S", "M", "L", "XL", "XXL", "28", "30"].map((s) => sz(s, true, 100));
+    render(<CatalogGrid products={[withSizes(eight)]} onSelect={() => {}} />);
+    const chips = screen.getAllByTestId("size-chip");
+    expect(chips).toHaveLength(6);
+    expect(screen.getByText("+2")).toBeInTheDocument();
+  });
+
+  it("6 tallas: sin '+N'", () => {
+    const six = ["XS", "S", "M", "L", "XL", "XXL"].map((s) => sz(s, true, 100));
+    render(<CatalogGrid products={[withSizes(six)]} onSelect={() => {}} />);
+    expect(screen.getAllByTestId("size-chip")).toHaveLength(6);
+    expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument();
+  });
+
+  it("todas agotadas: 'Agotado'", () => {
+    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", false, 300)])]} onSelect={() => {}} />);
+    expect(screen.getByText("Agotado")).toBeInTheDocument();
+  });
+
+  it("con alguna disponible no dice 'Agotado'", () => {
+    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", true, 300)])]} onSelect={() => {}} />);
+    expect(screen.queryByText("Agotado")).not.toBeInTheDocument();
+  });
+
+  it("usa un solo formato de precio MXN, con miles y centavos solo si hacen falta", () => {
+    render(<CatalogGrid products={[withSizes([sz("M", true, 1250.5)])]} onSelect={() => {}} />);
+    expect(screen.getByText("$1,250.50")).toBeInTheDocument();
   });
 });
 
@@ -105,5 +158,30 @@ describe("VirtualStoreCatalog sin bandera de recorrido", () => {
     fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
     expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
     expect(screen.getByText(NO_WHATSAPP_TEXT)).toBeInTheDocument();
+  });
+});
+
+describe("Modal: precio por talla", () => {
+  it("elegir M muestra $350 y el mensaje lleva 'talla M'; el precio del modal usa el mismo formato", () => {
+    vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
+    vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", NUM);
+    const product = withSizes([sz("S", true, 300), sz("M", true, 350)]);
+    render(<VirtualStoreCatalog initialProducts={[product]} isLoggedIn={false} />);
+    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button"));
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText("$300")).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole("button", { name: "M" }));
+    expect(dialog.getByText("$350")).toBeInTheDocument();
+    expect(dialog.queryByText("$300")).not.toBeInTheDocument();
+    const href = dialog.getByRole("link", { name: /Consultar por WhatsApp/ }).getAttribute("href") ?? "";
+    expect(decodeURIComponent(href.split("?text=")[1])).toContain("talla M");
+  });
+
+  it("la talla agotada tiene nombre accesible '{talla}, agotada'", () => {
+    vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
+    const product = withSizes([sz("S", false, 300), sz("M", true, 350)]);
+    render(<VirtualStoreCatalog initialProducts={[product]} isLoggedIn={false} />);
+    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button"));
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: "S, agotada" })).toBeInTheDocument();
   });
 });

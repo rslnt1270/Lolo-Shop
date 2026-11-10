@@ -103,6 +103,12 @@ export class FixtureDataSource implements InventoryDataSource {
     return this.products;
   }
 
+  async getCatalogProducts(): Promise<Product[]> {
+    return this.products
+      .filter((p) => p.isActive !== false && !p.mergedIntoId && !!p.imageUrl && !!p.backImageUrl)
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }
+
   async getProductByVariantId(variantId: string): Promise<VariantMatch | null> {
     for (const product of this.products) {
       const variant = product.variants.find((v) => v.id === variantId);

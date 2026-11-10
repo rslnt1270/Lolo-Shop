@@ -2,6 +2,17 @@
 
 import type { PublicProduct } from "@/lib/data/public-projection";
 
+import { formatPrice } from "@/lib/public/format";
+
+const MAX_CHIPS = 6;
+
+/** Precio de la tarjeta: "Desde $X" si las tallas difieren; null si no hay precio (nunca se inventa). */
+function priceLabel(p: PublicProduct): string | null {
+  if (p.price === null) return null;
+  const prices = new Set(p.sizes.map((s) => s.price));
+  return prices.size > 1 ? `Desde ${formatPrice(p.price)}` : formatPrice(p.price);
+}
+
 interface Props {
   products: PublicProduct[];
   onSelect: (p: PublicProduct) => void;
@@ -31,8 +42,35 @@ export function CatalogGrid({ products, onSelect }: Props) {
                 {p.brand}
               </span>
               <span className="line-clamp-2 block text-sm font-semibold leading-snug text-gray-900">{p.title}</span>
-              {p.price !== null && (
-                <span className="mt-1.5 block text-sm font-bold text-gray-900">${p.price}</span>
+              {priceLabel(p) && (
+                <span className="mt-1.5 block text-sm font-bold text-gray-900">{priceLabel(p)}</span>
+              )}
+              {p.sizes.length > 0 && p.sizes.every((s) => !s.available) ? (
+                <span className="mt-1.5 block text-xs font-semibold text-[#9A3B2E]">Agotado</span>
+              ) : (
+                <span className="mt-1.5 flex flex-wrap gap-1">
+                  {p.sizes.slice(0, MAX_CHIPS).map((s) => (
+                    // Informativos: el objetivo táctil es toda la tarjeta.
+                    <span
+                      key={s.size}
+                      data-testid="size-chip"
+                      role="img"
+                      aria-label={s.available ? s.size : `${s.size}, agotada`}
+                      className={`rounded-md border px-1.5 py-0.5 font-mono text-[11px] leading-none ${
+                        s.available
+                          ? "border-gray-300 text-gray-700"
+                          : "border-gray-200 text-gray-400 line-through decoration-2"
+                      }`}
+                    >
+                      {s.size}
+                    </span>
+                  ))}
+                  {p.sizes.length > MAX_CHIPS && (
+                    <span className="px-1 py-0.5 font-mono text-[11px] leading-none text-gray-500">
+                      +{p.sizes.length - MAX_CHIPS}
+                    </span>
+                  )}
+                </span>
               )}
             </span>
           </button>

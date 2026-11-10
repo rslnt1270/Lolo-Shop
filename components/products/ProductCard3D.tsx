@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate, useReducedMotion } from "framer-motion";
 import { NO_WHATSAPP_TEXT } from "@/lib/public/whatsapp";
+import { formatPrice } from "@/lib/public/format";
 
 interface Props {
   title: string;
@@ -112,7 +113,7 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
           )}
 
           <div className="mt-auto flex flex-col gap-3 border-t border-gray-50 pt-4" style={{ transform: "translateZ(40px)" }}>
-            {price !== null && <p className="text-2xl font-black text-gray-900">${price.toFixed(2)}</p>}
+            {price !== null && <p className="text-2xl font-black text-gray-900">{formatPrice(price)}</p>}
 
             {waLink ? (
               <a

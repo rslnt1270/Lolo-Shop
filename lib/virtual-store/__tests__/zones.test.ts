@@ -28,7 +28,7 @@ describe("Virtual Store Zones & Hotspots", () => {
     category: "Outerwear",
     imageUrl: "https://example.com/chamarra.jpg",
     backImageUrl: "https://example.com/chamarra-atras.jpg",
-    sizes: [{ size: "M", available: true }],
+    sizes: [{ size: "M", available: true, price: 1200 }],
     price: 1200,
   };
 

@@ -29,8 +29,8 @@ describe("Virtual Store Components", () => {
       imageUrl: "https://example.com/frente.jpg",
       backImageUrl: "https://example.com/atras.jpg",
       sizes: [
-        { size: "M", available: true },
-        { size: "L", available: false },
+        { size: "M", available: true, price: 350 },
+        { size: "L", available: false, price: 350 },
       ],
       price: 350,
     },
@@ -92,7 +92,7 @@ describe("Virtual Store Components", () => {
     expect(screen.queryByText(/SKU/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/disponibles/i)).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "L" }));
+    fireEvent.click(screen.getByRole("button", { name: "L, agotada" }));
     expect(screen.getByText("Agotado en tienda")).toBeInTheDocument();
 
     const wa = screen.getByRole("link", { name: /Consultar por WhatsApp/i });

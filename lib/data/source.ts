@@ -180,6 +180,8 @@ export interface InventoryDataSource {
   getLocations(): Promise<Location[]>;
   createLocation(data: CreateLocationData): Promise<Location>;
   getProducts(): Promise<Product[]>;
+  /** Base del catálogo público: activos, sin unir, con frente y atrás; `createdAt` desc, `id` asc. */
+  getCatalogProducts(): Promise<Product[]>;
   getProductByVariantId(variantId: string): Promise<VariantMatch | null>;
   /**
    * Busca una variante cuyo barcode O sku coincida con alguno de los

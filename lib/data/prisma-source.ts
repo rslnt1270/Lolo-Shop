@@ -135,6 +135,15 @@ export class PrismaDataSource implements InventoryDataSource {
     }));
   }
 
+  async getCatalogProducts(): Promise<Product[]> {
+    const prods = await this.db.product.findMany({
+      where: { isActive: true, mergedIntoId: null, imageUrl: { not: null }, backImageUrl: { not: null } },
+      orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+      include: { variants: { include: { inventory: true } } },
+    });
+    return prods.map((p) => toProduct(p, p.variants.map(toVariant)));
+  }
+
   async getProductByBarcode(code: string): Promise<VariantMatch | null> {
     const candidates = codeCandidates(code);
     if (candidates.length === 0) return null;

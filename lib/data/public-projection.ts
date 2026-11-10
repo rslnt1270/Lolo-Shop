@@ -1,4 +1,5 @@
 import type { Product } from "@/lib/domain/types";
+import { sortSizes } from "@/lib/domain/sizes";
 import type { InventoryDataSource } from "./source";
 
 /** Lo único que el catálogo público y el bot pueden ver (ER §2.7): sin SKU, barcode ni conteos. */
@@ -10,7 +11,7 @@ export interface PublicProduct {
   category: string;
   imageUrl: string | null;
   backImageUrl: string | null;
-  sizes: { size: string; available: boolean }[];
+  sizes: { size: string; available: boolean; price: number }[];
   price: number | null;
 }
 
@@ -23,14 +24,18 @@ export function toPublicProduct(
   p: Product & { publicCode: string | null },
   storeLocationIds: ReadonlySet<string>,
 ): PublicProduct {
-  const bySize = new Map<string, boolean>();
-  const prices: number[] = [];
+  // Misma talla en dos variantes activas: precio menor y disponible si alguna lo está.
+  const bySize = new Map<string, { available: boolean; price: number }>();
   for (const v of p.variants) {
     if (v.isActive === false) continue;
     const inStore = v.inventory.some((l) => storeLocationIds.has(l.locationId) && l.available > 0);
-    bySize.set(v.size, (bySize.get(v.size) ?? false) || inStore);
-    prices.push(v.price);
+    const prev = bySize.get(v.size);
+    bySize.set(v.size, {
+      available: (prev?.available ?? false) || inStore,
+      price: prev ? Math.min(prev.price, v.price) : v.price,
+    });
   }
+  const sizes = sortSizes([...bySize.keys()]).map((size) => ({ size, ...bySize.get(size)! }));
   return {
     id: p.id,
     publicCode: p.publicCode,
@@ -39,17 +44,16 @@ export function toPublicProduct(
     category: p.category,
     imageUrl: p.imageUrl,
     backImageUrl: p.backImageUrl ?? null,
-    sizes: [...bySize].map(([size, available]) => ({ size, available })),
-    price: prices.length ? Math.min(...prices) : null,
+    sizes,
+    price: sizes.length ? Math.min(...sizes.map((x) => x.price)) : null,
   };
 }
 
-/** Catálogo público: productos activos con las dos fotos (frente y atrás) y al menos una variante activa. */
+/** Catálogo público: la fuente ya filtra (activos, sin unir, con frente y atrás); aquí se exige alguna variante activa. */
 export async function getPublicCatalog(ds: InventoryDataSource): Promise<PublicProduct[]> {
-  const [products, locations] = await Promise.all([ds.getProducts(), ds.getLocations()]);
+  const [products, locations] = await Promise.all([ds.getCatalogProducts(), ds.getLocations()]);
   const storeIds = new Set(locations.filter((l) => l.type === "store").map((l) => l.id));
   return products
-    .filter((p) => p.isActive !== false && !!p.imageUrl && !!p.backImageUrl)
     .map((p) => toPublicProduct({ ...p, publicCode: p.publicCode ?? null }, storeIds))
     .filter((p) => p.sizes.length > 0);
 }

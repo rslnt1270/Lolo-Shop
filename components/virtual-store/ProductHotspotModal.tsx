@@ -69,7 +69,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
             brand={product.brand}
             imageUrl={product.imageUrl}
             publicCode={product.publicCode}
-            price={product.price}
+            price={currentSize?.price ?? product.price}
             waLink={waLink}
           />
         </div>
@@ -83,6 +83,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
                   key={sz.size}
                   onClick={() => setSelectedSizeIdx(i)}
                   aria-pressed={i === selectedSizeIdx}
+                  aria-label={sz.available ? sz.size : `${sz.size}, agotada`}
                   className={`min-h-[48px] min-w-[48px] rounded-xl border px-3 py-1.5 font-mono text-sm font-medium transition-all ${
                     i === selectedSizeIdx
                       ? "border-loloteal bg-loloteal text-white shadow-sm"

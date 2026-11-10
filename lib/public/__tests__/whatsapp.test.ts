@@ -18,7 +18,7 @@ const product: PublicProduct = {
   category: "Playeras",
   imageUrl: "https://example.invalid/f.jpg",
   backImageUrl: "https://example.invalid/a.jpg",
-  sizes: [{ size: "M", available: true }],
+  sizes: [{ size: "M", available: true, price: 350 }],
   price: 350,
 };
 

@@ -24,7 +24,7 @@ describe("proyección pública (B1)", () => {
       expect(json).not.toContain(k);
     }
     const [p] = (await getPublicCatalog(ds)).filter((x) => x.publicCode === "K7Q2M");
-    expect(p.sizes).toEqual([{ size: "U", available: true }]);
+    expect(p.sizes).toEqual([{ size: "U", available: true, price: 250 }]);
     expect(p.price).toBe(250);
   });
 
@@ -34,10 +34,10 @@ describe("proyección pública (B1)", () => {
       variants: [{ id: "v", sku: "s", title: "t", size: "M", color: "x", price: 1, barcode: null,
         inventory: [{ locationId: "wh", available: 9 }, { locationId: "st", available: 0 }] }],
     };
-    expect(toPublicProduct(p, new Set(["st"])).sizes).toEqual([{ size: "M", available: false }]);
+    expect(toPublicProduct(p, new Set(["st"])).sizes).toEqual([{ size: "M", available: false, price: 1 }]);
   });
 
-  it("excluye productos y variantes inactivos", async () => {
+  it("excluye variantes inactivas y productos sin variantes activas (los productos inactivos los filtra la fuente)", async () => {
     const variant = (id: string, size: string, isActive?: boolean) => ({
       id, sku: `S-${id}`, title: size, size, color: "x", price: 100, barcode: null,
       ...(isActive === undefined ? {} : { isActive }),
@@ -49,18 +49,50 @@ describe("proyección pública (B1)", () => {
     });
     const products: Product[] = [
       product("activo", "AAAAA", [variant("a1", "M", true), variant("a2", "L", false)]),
-      product("inactivo", "BBBBB", [variant("b1", "M", true)], false),
       product("sin-variantes-activas", "CCCCC", [variant("c1", "M", false)], true),
     ];
     const ds = {
-      getProducts: async () => products,
+      getCatalogProducts: async () => products,
       getLocations: async () => [{ id: "st", name: "Tienda", type: "store" as const }],
     } as unknown as InventoryDataSource;
 
     const catalog = await getPublicCatalog(ds);
     expect(catalog.map((p) => p.publicCode)).toEqual(["AAAAA"]);
     // La variante inactiva (L) no aparece aunque tenga stock.
-    expect(catalog[0].sizes).toEqual([{ size: "M", available: true }]);
+    expect(catalog[0].sizes).toEqual([{ size: "M", available: true, price: 100 }]);
+  });
+});
+
+describe("tallas públicas: orden y precio", () => {
+  const v = (id: string, size: string, price: number, available: number, isActive = true) => ({
+    id, sku: `S-${id}`, title: size, size, color: "x", price, barcode: null, isActive,
+    inventory: [{ locationId: "st", available }],
+  });
+  const prod = (variants: ReturnType<typeof v>[]) => ({
+    id: "p", title: "t", brand: "b", category: "c", imageUrl: "f", backImageUrl: "b", publicCode: "AAAAA", variants,
+  });
+  const stores = new Set(["st"]);
+
+  it("ordena con sortSizes y trae el precio de cada talla", () => {
+    const p = toPublicProduct(prod([v("1", "XL", 400, 1), v("2", "S", 300, 0), v("3", "M", 350, 2)]), stores);
+    expect(p.sizes).toEqual([
+      { size: "S", available: false, price: 300 },
+      { size: "M", available: true, price: 350 },
+      { size: "XL", available: true, price: 400 },
+    ]);
+    expect(p.price).toBe(300);
+  });
+
+  it("dos variantes activas con la misma talla: precio menor y disponible si alguna lo está", () => {
+    const p = toPublicProduct(prod([v("1", "M", 350, 0), v("2", "M", 320, 1)]), stores);
+    expect(p.sizes).toEqual([{ size: "M", available: true, price: 320 }]);
+    const q = toPublicProduct(prod([v("1", "M", 350, 0), v("2", "M", 320, 0)]), stores);
+    expect(q.sizes).toEqual([{ size: "M", available: false, price: 320 }]);
+  });
+
+  it("el precio del producto ignora las variantes inactivas", () => {
+    const p = toPublicProduct(prod([v("1", "M", 350, 1), v("2", "L", 100, 1, false)]), stores);
+    expect(p.price).toBe(350);
   });
 });
 
