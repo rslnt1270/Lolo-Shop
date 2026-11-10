@@ -11,6 +11,7 @@ import { createSaleAction } from "@/lib/sales/actions";
 import { isValidGtin } from "@/lib/domain/barcode";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
+import { formatPriceShort } from "@/lib/products/format";
 
 type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
@@ -157,6 +158,16 @@ export default function POSPage() {
         setNotice({ kind: "ok", text: `Venta #${result.sale.number} registrada` });
         setAlias("");
         draft.reset();
+      } else if (result.code === "PRICE_CHANGED" && result.lines?.length) {
+        // El precio cambió con el carrito abierto: se cobra al vigente. El carrito cambió, así que es otro cobro.
+        const notes: string[] = [];
+        for (const l of result.lines) {
+          draft.setPrice(l.variantId, l.price);
+          const title = lines.find((x) => x.variantId === l.variantId)?.productTitle ?? "la prenda";
+          notes.push(`El precio de ${title} cambió a ${formatPriceShort(l.price)}.`);
+        }
+        draft.renewRequestId();
+        setNotice({ kind: "error", text: `${notes.join(" ")} Revisa el total y cobra de nuevo.` });
       } else if (result.reason === "request_conflict") {
         // Ese identificador ya es otra venta: el siguiente Cobrar registra una nueva con este carrito.
         draft.renewRequestId();

@@ -89,6 +89,28 @@ export interface RecordStockMovementData {
   userId: string;
 }
 
+/** Una entrada del historial de precios de una talla. */
+export interface PriceChangeEntry {
+  oldPrice: number;
+  newPrice: number;
+  /** Nombre del usuario que cambió el precio (o su usuario si no tiene nombre). */
+  userName: string;
+  /** ISO. */
+  createdAt: string;
+}
+
+export type UpdateVariantPriceResult = { ok: true; price: number } | { ok: false; currentPrice: number };
+
+/** Campos editables de un producto; `publicCode` no se puede cambiar. */
+export interface ProductPatch {
+  title?: string;
+  /** Con `brandId`, el nombre canónico (se sigue guardando en `Product.brand`). */
+  brandId?: string;
+  brand?: string;
+  departmentId?: string;
+  category?: string;
+}
+
 export interface InventoryDataSource {
   getLocations(): Promise<Location[]>;
   createLocation(data: CreateLocationData): Promise<Location>;
@@ -126,6 +148,34 @@ export interface InventoryDataSource {
    * activos y sin unir; máximo `MAX_SEARCH_RESULTS`.
    */
   searchProducts(query: string): Promise<ProductSearchHit[]>;
+  /**
+   * Cambia el precio de una talla solo si sigue valiendo `expectedPrice`
+   * (`updateMany` condicionado): si otra persona lo cambió antes devuelve
+   * `{ ok: false, currentPrice }` sin escribir nada. Si no, escribe un
+   * `PriceChange` con el precio viejo, el nuevo, el usuario y el motivo.
+   * Lanza `ProductNotFoundError` si la talla no existe.
+   */
+  updateVariantPrice(
+    variantId: string,
+    expectedPrice: number,
+    newPrice: number,
+    userId: string,
+    reason: string | null,
+  ): Promise<UpdateVariantPriceResult>;
+  /** Últimos `limit` cambios de precio de la talla, el más nuevo primero. */
+  listPriceChanges(variantId: string, limit: number): Promise<PriceChangeEntry[]>;
+  /** Lanza `ProductNotFoundError` si no existe. No toca `publicCode`. */
+  updateProduct(productId: string, patch: ProductPatch): Promise<void>;
+  /**
+   * Baja lógica (nunca se borra). Un producto desactivado sale del catálogo y no
+   * se vende; su historial queda. Reactivar uno unido a otro lanza
+   * `InventoryRuleError`. Lanza `ProductNotFoundError` si no existe.
+   */
+  setProductActive(productId: string, active: boolean): Promise<void>;
+  /** Igual que `setProductActive`, para una talla. */
+  setVariantActive(variantId: string, active: boolean): Promise<void>;
+  /** Asigna el departamento a varios productos; devuelve cuántos existían. */
+  assignDepartment(productIds: string[], departmentId: string): Promise<number>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
   updateProductBackImage(productId: string, backImageUrl: string): Promise<void>;
 }

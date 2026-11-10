@@ -13,10 +13,12 @@ export type SaleActionResult =
   | {
       ok: false;
       /** `UNAVAILABLE`: el servidor no terminó; se reintenta con el mismo identificador. */
-      code: "INVALID" | "FORBIDDEN" | "NO_STOCK" | "NOT_FOUND" | "UNAVAILABLE";
+      code: "INVALID" | "FORBIDDEN" | "NO_STOCK" | "NOT_FOUND" | "UNAVAILABLE" | "PRICE_CHANGED";
       message: string;
       /** NO_STOCK: la prenda que no alcanzó. */
       variantId?: string;
+      /** PRICE_CHANGED: el precio vigente de cada renglón que ya no coincide. */
+      lines?: { variantId: string; price: number }[];
       /**
        * `request_conflict`: el identificador ya se usó en otra venta; el cliente
        * cobra con uno nuevo. `session_expired`: hay que volver a iniciar sesión.
@@ -103,13 +105,18 @@ export async function createSaleAction(input: unknown): Promise<SaleActionResult
         where: { id: { in: sale.lines.map((l) => l.variantId) } },
         select: { id: true, price: true },
       });
-      const prices = new Map(variants.map((v) => [v.id, toCents(Number(v.price))]));
-      const changed = sale.lines.some((l) => {
+      const prices = new Map(variants.map((v) => [v.id, Number(v.price)]));
+      const changed = sale.lines.flatMap((l) => {
         const current = prices.get(l.variantId);
-        return current !== undefined && current !== toCents(l.unitPrice);
+        return current !== undefined && toCents(current) !== toCents(l.unitPrice)
+          ? [{ variantId: l.variantId, price: current }]
+          : [];
       });
-      if (changed) {
-        return fail("INVALID", "Solo el dueño o el encargado pueden cambiar el precio.");
+      if (changed.length > 0) {
+        // El precio cambió desde que se escaneó: el colaborador cobra al vigente (el carrito se actualiza).
+        return fail("PRICE_CHANGED", "Cambió el precio de una prenda. Revisa el total y cobra de nuevo.", {
+          lines: changed,
+        });
       }
     }
 

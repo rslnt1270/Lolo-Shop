@@ -1,9 +1,10 @@
 import {
   MAX_SEARCH_RESULTS,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource,
-  type ProductSearchHit, type RecordStockMovementData, type VariantMatch,
+  type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
+  type UpdateVariantPriceResult, type VariantMatch,
 } from "./source";
-import { InsufficientStockError, InventoryRuleError, StockTargetNotFoundError } from "./errors";
+import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError } from "./errors";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -408,6 +409,91 @@ export class PrismaDataSource implements InventoryDataSource {
       imageUrl: p.imageUrl,
       sizes: sortSizes([...new Set(p.variants.map((v) => v.size))]),
     }));
+  }
+
+  async updateVariantPrice(
+    variantId: string,
+    expectedPrice: number,
+    newPrice: number,
+    userId: string,
+    reason: string | null,
+  ): Promise<UpdateVariantPriceResult> {
+    return await this.db.$transaction(async (tx) => {
+      // Condicionado al precio que vio quien edita: de dos ediciones con el mismo
+      // precio esperado, la segunda espera el candado de fila y ya no encuentra coincidencia.
+      const res = await tx.variant.updateMany({
+        where: { id: variantId, price: expectedPrice },
+        data: { price: newPrice },
+      });
+      if (res.count === 0) {
+        const current = await tx.variant.findUnique({ where: { id: variantId }, select: { price: true } });
+        if (!current) throw new ProductNotFoundError("La talla ya no existe.");
+        return { ok: false as const, currentPrice: Number(current.price) };
+      }
+      await tx.priceChange.create({
+        data: { variantId, oldPrice: expectedPrice, newPrice, changedById: userId, reason },
+      });
+      return { ok: true as const, price: newPrice };
+    });
+  }
+
+  async listPriceChanges(variantId: string, limit: number): Promise<PriceChangeEntry[]> {
+    const rows = await this.db.priceChange.findMany({
+      where: { variantId },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit,
+      select: {
+        oldPrice: true,
+        newPrice: true,
+        createdAt: true,
+        changedBy: { select: { name: true, username: true } },
+      },
+    });
+    return rows.map((r) => ({
+      oldPrice: Number(r.oldPrice),
+      newPrice: Number(r.newPrice),
+      userName: r.changedBy.name.trim() || r.changedBy.username,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  async updateProduct(productId: string, patch: ProductPatch): Promise<void> {
+    const data: Prisma.ProductUpdateInput = {};
+    if (patch.title !== undefined) data.title = patch.title;
+    if (patch.category !== undefined) data.category = patch.category;
+    if (patch.brandId !== undefined) {
+      data.brandRef = { connect: { id: patch.brandId } };
+      if (patch.brand !== undefined) data.brand = patch.brand;
+    }
+    if (patch.departmentId !== undefined) data.department = { connect: { id: patch.departmentId } };
+    try {
+      await this.db.product.update({ where: { id: productId }, data });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") throw new ProductNotFoundError();
+      throw err;
+    }
+  }
+
+  async setProductActive(productId: string, active: boolean): Promise<void> {
+    const p = await this.db.product.findUnique({ where: { id: productId }, select: { mergedIntoId: true } });
+    if (!p) throw new ProductNotFoundError();
+    if (active && p.mergedIntoId) {
+      throw new InventoryRuleError("Este producto se unió con otro y no se puede reactivar.");
+    }
+    await this.db.product.update({ where: { id: productId }, data: { isActive: active } });
+  }
+
+  async setVariantActive(variantId: string, active: boolean): Promise<void> {
+    const res = await this.db.variant.updateMany({ where: { id: variantId }, data: { isActive: active } });
+    if (res.count === 0) throw new ProductNotFoundError("La talla ya no existe.");
+  }
+
+  async assignDepartment(productIds: string[], departmentId: string): Promise<number> {
+    const res = await this.db.product.updateMany({
+      where: { id: { in: productIds } },
+      data: { departmentId },
+    });
+    return res.count;
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {

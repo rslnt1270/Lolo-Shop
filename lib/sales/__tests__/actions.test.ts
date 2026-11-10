@@ -149,15 +149,28 @@ describe("createSaleAction", () => {
     source.createSale.mockRejectedValue(prismaError("P1001"));
     await expect(createSaleAction(input())).rejects.toThrow("prisma P1001");
   });
-  it("collaborator con precio distinto: INVALID", async () => {
+  it("collaborator con precio distinto: PRICE_CHANGED con el precio vigente", async () => {
     as("collaborator", "B");
-    const r = await createSaleAction(input({ lines: [{ variantId: "v1", quantity: 1, unitPrice: 90 }] }));
+    variantFindMany.mockResolvedValue([{ id: "v1", price: "120.00" }]);
+    const r = await createSaleAction(input({ lines: [{ variantId: "v1", quantity: 1, unitPrice: 100 }] }));
     expect(r).toEqual({
       ok: false,
-      code: "INVALID",
-      message: "Solo el dueño o el encargado pueden cambiar el precio.",
+      code: "PRICE_CHANGED",
+      message: "Cambió el precio de una prenda. Revisa el total y cobra de nuevo.",
+      lines: [{ variantId: "v1", price: 120 }],
     });
     expect(source.createSale).not.toHaveBeenCalled();
+  });
+  it("collaborator: PRICE_CHANGED solo lista los renglones que cambiaron", async () => {
+    as("collaborator", "B");
+    variantFindMany.mockResolvedValue([
+      { id: "v1", price: "100.00" },
+      { id: "v2", price: "55.50" },
+    ]);
+    const r = await createSaleAction(
+      input({ lines: [{ variantId: "v1", quantity: 1, unitPrice: 100 }, { variantId: "v2", quantity: 2, unitPrice: 50 }] }),
+    );
+    expect(r).toMatchObject({ ok: false, code: "PRICE_CHANGED", lines: [{ variantId: "v2", price: 55.5 }] });
   });
   it("collaborator con precio vigente: ok", async () => {
     as("collaborator", "B");

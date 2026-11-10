@@ -2,13 +2,16 @@ import type { Location, Product, Variant } from "@/lib/domain/types";
 import {
   MAX_SEARCH_RESULTS,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource,
-  type ProductSearchHit, type RecordStockMovementData, type VariantMatch,
+  type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
+  type UpdateVariantPriceResult, type VariantMatch,
 } from "./source";
 import { fixtureLocations, fixtureProducts } from "./fixtures";
 import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
 import { normalizeSize, sortSizes } from "@/lib/domain/sizes";
 import { normalizePublicCode } from "@/lib/domain/public-code";
-import { InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, UniqueConstraintError } from "./errors";
+import {
+  InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, UniqueConstraintError,
+} from "./errors";
 
 function cloneProducts(products: Product[]): Product[] {
   return products.map((p) => ({
@@ -27,6 +30,8 @@ export class FixtureDataSource implements InventoryDataSource {
   private publicCodes = new Set<string>();
   /** Registro en memoria de los movimientos de stock (lo reutilizan las pruebas de otras tareas). */
   readonly movements: RecordStockMovementData[] = [];
+  /** Historial de precios en memoria; `userName` es el id del usuario (el doble no tiene usuarios). */
+  private readonly priceChanges: (PriceChangeEntry & { variantId: string })[] = [];
 
   async getLocations(): Promise<Location[]> {
     return this.locations;
@@ -202,6 +207,71 @@ export class FixtureDataSource implements InventoryDataSource {
       imageUrl: p.imageUrl,
       sizes: sortSizes([...new Set(p.variants.filter((v) => v.isActive !== false).map((v) => v.size))]),
     }));
+  }
+
+  async updateVariantPrice(
+    variantId: string,
+    expectedPrice: number,
+    newPrice: number,
+    userId: string,
+    reason: string | null,
+  ): Promise<UpdateVariantPriceResult> {
+    void reason;
+    const match = await this.getProductByVariantId(variantId);
+    if (!match) throw new ProductNotFoundError("La talla ya no existe.");
+    if (Math.round(match.variant.price * 100) !== Math.round(expectedPrice * 100)) {
+      return { ok: false, currentPrice: match.variant.price };
+    }
+    const oldPrice = match.variant.price;
+    match.variant.price = newPrice;
+    this.priceChanges.push({ variantId, oldPrice, newPrice, userName: userId, createdAt: new Date().toISOString() });
+    return { ok: true, price: newPrice };
+  }
+
+  async listPriceChanges(variantId: string, limit: number): Promise<PriceChangeEntry[]> {
+    return this.priceChanges
+      .filter((c) => c.variantId === variantId)
+      .reverse()
+      .slice(0, limit)
+      .map(({ oldPrice, newPrice, userName, createdAt }) => ({ oldPrice, newPrice, userName, createdAt }));
+  }
+
+  async updateProduct(productId: string, patch: ProductPatch): Promise<void> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) throw new ProductNotFoundError();
+    if (patch.title !== undefined) product.title = patch.title;
+    if (patch.category !== undefined) product.category = patch.category;
+    if (patch.brandId !== undefined) {
+      product.brandId = patch.brandId;
+      if (patch.brand !== undefined) product.brand = patch.brand;
+    }
+    if (patch.departmentId !== undefined) product.departmentId = patch.departmentId;
+  }
+
+  async setProductActive(productId: string, active: boolean): Promise<void> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) throw new ProductNotFoundError();
+    if (active && product.mergedIntoId) {
+      throw new InventoryRuleError("Este producto se unió con otro y no se puede reactivar.");
+    }
+    product.isActive = active;
+  }
+
+  async setVariantActive(variantId: string, active: boolean): Promise<void> {
+    const match = await this.getProductByVariantId(variantId);
+    if (!match) throw new ProductNotFoundError("La talla ya no existe.");
+    match.variant.isActive = active;
+  }
+
+  async assignDepartment(productIds: string[], departmentId: string): Promise<number> {
+    const ids = new Set(productIds);
+    let count = 0;
+    for (const p of this.products) {
+      if (!ids.has(p.id)) continue;
+      p.departmentId = departmentId;
+      count++;
+    }
+    return count;
   }
 
   async updateProductImage(productId: string, imageUrl: string): Promise<void> {

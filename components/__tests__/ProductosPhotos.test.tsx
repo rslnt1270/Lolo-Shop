@@ -8,6 +8,10 @@ vi.mock("@/lib/actions", () => ({
   uploadProductImageAction: vi.fn(),
   setProductBackImageAction: vi.fn().mockResolvedValue({ ok: true }),
 }));
+// La lista también ofrece la ficha y la selección a owner y manager; estas pruebas son de fotos y no hay sesión.
+vi.mock("next-auth/react", () => ({ useSession: () => ({ data: null, status: "unauthenticated" }) }));
+vi.mock("@/lib/products/actions", () => ({}));
+vi.mock("@/lib/catalog/actions", () => ({}));
 vi.mock("../products/ProductPhotoCapture", () => ({
   ProductPhotoCapture: ({ onCapture }: { onCapture: (f: File) => void }) => (
     <button type="button" onClick={() => onCapture(new File(["x"], "p.jpg", { type: "image/jpeg" }))}>capturar</button>

@@ -48,6 +48,14 @@ export class InventoryRuleError extends Error {
   }
 }
 
+/** El producto o la talla que se quiere editar ya no existe. */
+export class ProductNotFoundError extends Error {
+  constructor(message = "El producto o la talla ya no existe.") {
+    super(message);
+    this.name = "ProductNotFoundError";
+  }
+}
+
 /** La variante o la tienda de un movimiento de stock no existe. */
 export class StockTargetNotFoundError extends Error {
   constructor(message = "La prenda o la tienda no existe.") {
