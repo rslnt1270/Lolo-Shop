@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import { StaffLoadState, useStaffData } from "@/components/layout/StaffLoadState";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import type { Location, Product } from "@/lib/domain/types";
@@ -16,7 +17,8 @@ import { PRODUCT_CATEGORIES } from "@/lib/domain/new-product";
 const CATEGORIES = [...PRODUCT_CATEGORIES];
 
 export default function ProductosPage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const { state, data, retry, setData } = useStaffData<Product[]>(() => fetchProductsAction());
+  const products = useMemo(() => data ?? [], [data]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const { data: session } = useSession();
@@ -31,11 +33,7 @@ export default function ProductosPage() {
   const [assignMsg, setAssignMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
 
-  const reload = () => fetchProductsAction().then((r) => setProducts(r ?? []));
-
-  useEffect(() => {
-    fetchProductsAction().then((r) => setProducts(r ?? []));
-  }, []);
+  const reload = () => fetchProductsAction().then((r) => r && setData(r));
 
   useEffect(() => {
     if (!isStaff) return;
@@ -75,6 +73,8 @@ export default function ProductosPage() {
     () => filterProducts(products, query, category),
     [products, query, category]
   );
+
+  if (state !== "ready") return <StaffLoadState state={state} retry={retry} />;
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 p-4">

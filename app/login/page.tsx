@@ -16,13 +16,18 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setIsLoading(true);
-    const res = await signIn("credentials", { username, password, redirect: false });
-    if (res?.error) {
-      setError("Usuario o contraseña incorrectos");
+    try {
+      const res = await signIn("credentials", { username: username.trim(), password, redirect: false });
+      if (res?.error) {
+        setError("Usuario o contraseña incorrectos");
+        setIsLoading(false);
+      } else {
+        router.refresh(); // Fuerza a Next.js a leer las nuevas cookies de sesión
+        router.push("/");
+      }
+    } catch {
+      setError("No hay conexión. Revisa tu internet e intenta de nuevo.");
       setIsLoading(false);
-    } else {
-      router.refresh(); // Fuerza a Next.js a leer las nuevas cookies de sesión
-      router.push("/");
     }
   }
 
@@ -63,9 +68,15 @@ export default function LoginPage() {
         <form onSubmit={onSubmit} className="space-y-5">
           <motion.div variants={itemVariants} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#71717A]">Usuario</label>
+              <label htmlFor="login-usuario" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#71717A]">Usuario</label>
               <input 
                 className="w-full rounded-xl border border-[rgba(226,232,240,0.5)] bg-[#F9FAFB] p-3.5 text-sm text-[#18181B] transition-colors focus:border-[#2DD4BF] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#2DD4BF]" 
+                id="login-usuario"
+                name="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder="Ingresa tu usuario"
                 value={username} 
                 onChange={(e) => setUsername(e.target.value)} 
@@ -73,9 +84,12 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#71717A]">Contraseña</label>
+              <label htmlFor="login-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#71717A]">Contraseña</label>
               <input 
                 className="w-full rounded-xl border border-[rgba(226,232,240,0.5)] bg-[#F9FAFB] p-3.5 text-sm text-[#18181B] transition-colors focus:border-[#2DD4BF] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#2DD4BF]" 
+                id="login-password"
+                name="password"
+                autoComplete="current-password"
                 type="password" 
                 placeholder="••••••••"
                 value={password} 
@@ -87,12 +101,12 @@ export default function LoginPage() {
           
           <motion.div variants={itemVariants}>
             {error && (
-              <p className="mb-3 text-center text-sm font-medium text-red-500">{error}</p>
+              <p role="alert" className="mb-3 text-center text-sm font-medium text-red-700">{error}</p>
             )}
             <motion.button 
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="relative flex w-full items-center justify-center overflow-hidden rounded-xl bg-[#2DD4BF] p-3.5 font-semibold text-white shadow-sm transition-all hover:bg-[#25B5A3] disabled:opacity-70 disabled:hover:bg-[#2DD4BF]" 
+              className="relative flex min-h-[44px] w-full items-center justify-center overflow-hidden rounded-xl bg-[#2DD4BF] p-3.5 font-semibold text-white shadow-sm transition-all hover:bg-[#25B5A3] disabled:opacity-70 disabled:hover:bg-[#2DD4BF]" 
               type="submit"
               disabled={isLoading}
             >

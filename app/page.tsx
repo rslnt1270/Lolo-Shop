@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { StaffLoadState, useStaffData } from "@/components/layout/StaffLoadState";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { KeyRound, ShoppingCart } from "lucide-react";
@@ -12,20 +13,24 @@ import { LowStockList } from "@/components/inventory/LowStockList";
 import { AddLocationForm } from "@/components/inventory/AddLocationForm";
 
 export default function Home() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
+  const { state, data, retry, setData } = useStaffData<{ products: Product[]; locations: Location[] }>(async () => {
+    const [p, l] = await Promise.all([fetchProductsAction(), fetchLocationsAction()]);
+    return p && l ? { products: p, locations: l } : null;
+  });
+  const products = data?.products ?? [];
+  const locations = data?.locations ?? [];
   const [threshold, setThreshold] = useState(1);
   const { data: session } = useSession();
 
   useEffect(() => {
-    fetchProductsAction().then((r) => setProducts(r ?? []));
-    fetchLocationsAction().then((r) => setLocations(r ?? []));
     getLowStockThresholdAction().then((n) => typeof n === "number" && setThreshold(n)).catch(() => undefined);
   }, []);
 
   const stockTotal = products.reduce((sum, p) => sum + productStock(p), 0);
   const enAlerta = lowStockVariants(products, threshold).length;
   const role = session?.user?.role;
+
+  if (state !== "ready") return <StaffLoadState state={state} retry={retry} />;
 
   return (
     <main className="mx-auto max-w-2xl">
@@ -99,7 +104,7 @@ export default function Home() {
               {role === "owner" && (
                 <AddLocationForm
                   onCreate={createLocationAction}
-                  onCreated={(loc) => setLocations((prev) => [...prev, loc])}
+                  onCreated={(loc) => setData((d) => (d ? { ...d, locations: [...d.locations, loc] } : d))}
                 />
               )}
             </div>

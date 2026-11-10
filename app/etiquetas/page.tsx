@@ -1,15 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
 import Barcode from "react-barcode";
 import { fetchProductsAction } from "@/lib/actions";
+import { StaffLoadState, useStaffData } from "@/components/layout/StaffLoadState";
 import type { Product } from "@/lib/domain/types";
 
 export default function EtiquetasPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-
-  useEffect(() => {
-    fetchProductsAction().then((r) => setProducts(r ?? []));
-  }, []);
+  const { state, data, retry } = useStaffData<Product[]>(() => fetchProductsAction());
+  if (state !== "ready") return <StaffLoadState state={state} retry={retry} />;
+  const products = data ?? [];
 
   const variantsToPrint = products.flatMap(p => 
     p.variants.map(v => ({ product: p, variant: v }))
