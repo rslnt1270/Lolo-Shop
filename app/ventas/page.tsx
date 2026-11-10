@@ -53,7 +53,7 @@ export default function VentasPage() {
   useEffect(() => {
     load();
     fetchLocationsAction()
-      .then((locs) => setLocationNames(Object.fromEntries(locs.map((l) => [l.id, l.name]))))
+      .then((locs) => setLocationNames(Object.fromEntries((locs ?? []).map((l) => [l.id, l.name]))))
       .catch(() => undefined);
   }, [load]);
 

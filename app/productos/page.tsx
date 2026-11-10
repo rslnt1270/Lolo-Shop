@@ -16,7 +16,7 @@ export default function ProductosPage() {
   const [category, setCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchProductsAction().then(setProducts);
+    fetchProductsAction().then((r) => setProducts(r ?? []));
   }, []);
 
   const visible = useMemo(
@@ -37,14 +37,14 @@ export default function ProductosPage() {
                 productId={p.id}
                 productTitle={p.title}
                 hasImage={!!p.imageUrl}
-                onUpdated={() => fetchProductsAction().then(setProducts)}
+                onUpdated={() => fetchProductsAction().then((r) => setProducts(r ?? []))}
               />
               <ProductPhotoButton
                 productId={p.id}
                 productTitle={p.title}
                 side="back"
                 hasImage={!!p.backImageUrl}
-                onUpdated={() => fetchProductsAction().then(setProducts)}
+                onUpdated={() => fetchProductsAction().then((r) => setProducts(r ?? []))}
               />
               {!(p.imageUrl && p.backImageUrl) && (
                 <span className="text-xs text-gray-600">

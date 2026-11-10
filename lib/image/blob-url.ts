@@ -13,13 +13,17 @@ export function isProductBlobUrl(value: unknown): value is string {
   } catch {
     return false;
   }
+  // Si se configura el host exacto del store, se exige ese (leído en cada llamada).
+  const exactHost = process.env.BLOB_PUBLIC_HOST;
+  const hostOk = exactHost
+    ? url.hostname === exactHost
+    : url.hostname.endsWith(BLOB_HOST_SUFFIX) && url.hostname.length > BLOB_HOST_SUFFIX.length;
   return (
     url.protocol === "https:" &&
     url.username === "" &&
     url.password === "" &&
     url.port === "" &&
-    url.hostname.endsWith(BLOB_HOST_SUFFIX) &&
-    url.hostname.length > BLOB_HOST_SUFFIX.length &&
+    hostOk &&
     url.pathname.startsWith("/productos/")
   );
 }

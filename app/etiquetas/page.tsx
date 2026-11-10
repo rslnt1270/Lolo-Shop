@@ -8,7 +8,7 @@ export default function EtiquetasPage() {
   const [products, setProducts] = useState<Product[]>([]);
 
   useEffect(() => {
-    fetchProductsAction().then(setProducts);
+    fetchProductsAction().then((r) => setProducts(r ?? []));
   }, []);
 
   const variantsToPrint = products.flatMap(p => 

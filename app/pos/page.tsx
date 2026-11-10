@@ -46,8 +46,9 @@ export default function POSPage() {
     if (status !== "authenticated" || isCollaborator) return;
     let cancelled = false;
     fetchLocationsAction()
-      .then((list) => {
+      .then((res) => {
         if (cancelled) return;
+        const list = res ?? [];
         setLocations(list.map((l) => ({ id: l.id, name: l.name })));
         let saved = "";
         try {

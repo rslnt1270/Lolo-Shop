@@ -4,9 +4,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 const fetchProductsAction = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/actions", () => ({
   fetchProductsAction,
-  updateProductImageAction: vi.fn().mockResolvedValue(undefined),
+  updateProductImageAction: vi.fn().mockResolvedValue({ ok: true }),
   uploadProductImageAction: vi.fn(),
-  setProductBackImageAction: vi.fn(),
+  setProductBackImageAction: vi.fn().mockResolvedValue({ ok: true }),
 }));
 vi.mock("../products/ProductPhotoCapture", () => ({
   ProductPhotoCapture: ({ onCapture }: { onCapture: (f: File) => void }) => (
@@ -64,7 +64,7 @@ describe("/productos: fotos de frente y atrás", () => {
   it('"Guardando…" se anuncia en la región en vivo', async () => {
     let finish!: () => void;
     const actions = await import("@/lib/actions");
-    vi.mocked(actions.updateProductImageAction).mockReturnValueOnce(new Promise<void>((r) => (finish = r)) as never);
+    vi.mocked(actions.updateProductImageAction).mockReturnValueOnce(new Promise<{ ok: true }>((r) => (finish = () => r({ ok: true }))) as never);
     fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: null, backImageUrl: null }]);
     render(<ProductosPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Agregar foto de frente de Gorra" }));

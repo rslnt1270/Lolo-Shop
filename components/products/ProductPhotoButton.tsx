@@ -34,9 +34,17 @@ export function ProductPhotoButton({
       if (side === "back") {
         const up = await uploadProductImageAction(fd);
         if (!up.ok) throw new Error(up.message);
-        await setProductBackImageAction(productId, up.url);
+        const r = await setProductBackImageAction(productId, up.url);
+        if (!r.ok) {
+          setMsg(r.message);
+          return;
+        }
       } else {
-        await updateProductImageAction(productId, fd);
+        const r = await updateProductImageAction(productId, fd);
+        if (!r.ok) {
+          setMsg(r.message);
+          return;
+        }
       }
       setMsg(`Foto de ${sideWord} actualizada.`);
       setOpen(false);

@@ -1,8 +1,9 @@
 "use server";
 import { isProductBlobUrl } from "./image/blob-url";
-import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
-import { authOptions } from "./auth/options";
+import { getCurrentUser } from "./auth/current-user";
+import { ForbiddenError } from "./auth/errors";
+import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
@@ -15,28 +16,22 @@ import { uniqueViolationField } from "./data/errors";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
 
-async function requireSession() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    throw new Error("No autorizado: inicia sesión.");
-  }
-  return session;
-}
-
-export async function fetchProductsAction(): Promise<Product[]> {
-  await requireSession();
+export async function fetchProductsAction(): Promise<Product[] | null> {
+  const user = await currentUserOrNull();
+  if (!user) return null;
   return await getDataSource().getProducts();
 }
 
-export async function fetchLocationsAction(): Promise<Location[]> {
-  await requireSession();
+export async function fetchLocationsAction(): Promise<Location[] | null> {
+  const user = await currentUserOrNull();
+  if (!user) return null;
   return await getDataSource().getLocations();
 }
 
 export async function createLocationAction(data: { name: string; type?: LocationType }): Promise<Location> {
-  const session = await requireSession();
-  if (session.user.role !== "owner") {
-    throw new Error("Solo el dueño puede crear tiendas.");
+  const user = await getCurrentUser();
+  if (user.role !== "owner") {
+    throw new ForbiddenError("Solo el dueño puede crear tiendas.");
   }
   const location = await getDataSource().createLocation(data);
   revalidatePath("/");
@@ -44,27 +39,25 @@ export async function createLocationAction(data: { name: string; type?: Location
 }
 
 export async function getProductByBarcodeAction(code: string): Promise<VariantMatch | null> {
-  await requireSession();
+  if (!(await currentUserOrNull())) return null;
   return await getDataSource().getProductByBarcode(code);
 }
 
 export async function getProductByVariantIdAction(id: string): Promise<VariantMatch | null> {
-  await requireSession();
+  if (!(await currentUserOrNull())) return null;
   return await getDataSource().getProductByVariantId(id);
 }
 
 export async function adjustInventoryAction(variantId: string, locationId: string, delta: number): Promise<void> {
-  const session = await requireSession();
+  const user = await getCurrentUser();
 
   if (!Number.isInteger(delta) || delta === 0) {
     throw new Error("El ajuste de inventario debe ser un entero distinto de cero.");
   }
   // Un colaborador solo puede mover inventario de su propia tienda.
-  if (session.user.role === "collaborator" && session.user.locationId !== locationId) {
-    throw new Error("No autorizado: solo puedes mover inventario de tu tienda asignada.");
-  }
+  assertCanOperate(user, locationId);
 
-  await getDataSource().adjustInventory(variantId, locationId, delta, session.user.id);
+  await getDataSource().adjustInventory(variantId, locationId, delta, user.id);
   revalidatePath("/catalogo");
 }
 
@@ -80,8 +73,7 @@ export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
   const code = normalizeCode(typeof raw === "string" ? raw : "");
   if (!code) return { found: false, code, error: "El código está vacío. Vuelve a escanear." };
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!(await currentUserOrNull())) {
       return { found: false, code, error: "Tu sesión expiró: inicia sesión de nuevo." };
     }
     const match = await getDataSource().getProductByBarcode(code);
@@ -153,8 +145,8 @@ function duplicateResult(match: VariantMatch): CreateProductResult {
 // de la demo; limpiar con `del()` de @vercel/blob o un barrido periódico.
 export async function createProductAction(input: CreateProductInput): Promise<CreateProductResult> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const user = await currentUserOrNull();
+    if (!user) {
       return { ok: false, code: "FORBIDDEN", message: "Tu sesión expiró: inicia sesión de nuevo." };
     }
     if (!input || typeof input !== "object") {
@@ -188,13 +180,13 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
     }
 
     const locationId = typeof input.locationId === "string" ? input.locationId : "";
-    if (session.user.role === "collaborator") {
-      if (!session.user.locationId) {
-        return { ok: false, code: "FORBIDDEN", message: "No tienes tienda asignada. Pide al dueño que te asigne una." };
+    try {
+      assertCanOperate(user, locationId);
+    } catch (err) {
+      if (err instanceof ForbiddenError) {
+        return { ok: false, code: "FORBIDDEN", message: err.message };
       }
-      if (session.user.locationId !== locationId) {
-        return { ok: false, code: "FORBIDDEN", message: "Solo puedes dar de alta productos en tu tienda asignada." };
-      }
+      throw err;
     }
 
     const [brand, department] = await Promise.all([
@@ -231,7 +223,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           barcode,
           sku,
           locationId,
-          userId: session.user.id,
+          userId: user.id,
         });
         try {
           revalidatePath("/catalogo");
@@ -268,8 +260,7 @@ export type UploadImageResult = { ok: true; url: string } | { ok: false; message
 /** Sube la foto del alta (campo `image` del FormData). Nunca lanza. */
 export async function uploadProductImageAction(formData: FormData): Promise<UploadImageResult> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    if (!(await currentUserOrNull())) {
       return { ok: false, message: "Tu sesión expiró: inicia sesión de nuevo." };
     }
     const file = formData?.get("image");
@@ -284,30 +275,70 @@ export async function uploadProductImageAction(formData: FormData): Promise<Uplo
   }
 }
 
-/** Fija la foto de atrás (URL ya subida con uploadProductImageAction). Misma autorización que la de frente. */
-export async function setProductBackImageAction(productId: string, url: string): Promise<void> {
-  await requireSession();
-  if (!isProductBlobUrl(url)) {
-    throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
+export type PhotoActionResult =
+  | { ok: true }
+  | { ok: false; code: "SESSION" | "FORBIDDEN" | "NOT_FOUND" | "INVALID" | "ERROR"; message: string };
+
+const SESSION_EXPIRED: PhotoActionResult = { ok: false, code: "SESSION", message: "Tu sesión expiró: inicia sesión de nuevo." };
+
+/**
+ * Verifica sesión, que el producto exista y esté activo, y que reemplazar una
+ * foto existente lo haga solo owner o manager (poner la primera, cualquiera).
+ */
+async function checkPhotoAccess(productId: string, side: "front" | "back"): Promise<PhotoActionResult> {
+  const user = await currentUserOrNull();
+  if (!user) return SESSION_EXPIRED;
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { isActive: true, imageUrl: true, backImageUrl: true },
+  });
+  if (!product || !product.isActive) {
+    return { ok: false, code: "NOT_FOUND", message: "El producto ya no existe." };
   }
-  await getDataSource().updateProductBackImage(productId, url);
-  revalidatePath("/catalogo");
-  revalidatePath("/productos");
+  const existing = side === "back" ? product.backImageUrl : product.imageUrl;
+  if (existing && user.role !== "owner" && user.role !== "manager") {
+    return { ok: false, code: "FORBIDDEN", message: "Solo el dueño o el encargado pueden cambiar una foto ya puesta." };
+  }
+  return { ok: true };
 }
 
-export async function updateProductImageAction(
-  productId: string,
-  formData: FormData
-): Promise<void> {
-  await requireSession();
-  const file = formData.get("image");
-  if (!(file instanceof File) || file.size === 0) {
-    throw new Error("No se recibió una imagen válida.");
+/** Fija la foto de atrás (URL ya subida con uploadProductImageAction). Nunca lanza. */
+export async function setProductBackImageAction(productId: string, url: string): Promise<PhotoActionResult> {
+  try {
+    const access = await checkPhotoAccess(productId, "back");
+    if (!access.ok) return access;
+    if (!isProductBlobUrl(url)) {
+      return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
+    }
+    await getDataSource().updateProductBackImage(productId, url);
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return { ok: true };
+  } catch (err) {
+    console.error("setProductBackImageAction", err);
+    return { ok: false, code: "ERROR", message: "No se pudo guardar la foto. Intenta de nuevo." };
   }
-  const url = await uploadImage(file);
-  await getDataSource().updateProductImage(productId, url);
-  revalidatePath("/catalogo");
-  revalidatePath("/productos");
+}
+
+/** Foto de frente: sube el archivo y la fija. Nunca lanza. */
+export async function updateProductImageAction(productId: string, formData: FormData): Promise<PhotoActionResult> {
+  try {
+    const access = await checkPhotoAccess(productId, "front");
+    if (!access.ok) return access;
+    const file = formData?.get("image");
+    if (!(file instanceof File) || file.size === 0) {
+      return { ok: false, code: "INVALID", message: "No se recibió una imagen válida." };
+    }
+    const url = await uploadImage(file);
+    await getDataSource().updateProductImage(productId, url);
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ImageUploadError) return { ok: false, code: "INVALID", message: err.message };
+    console.error("updateProductImageAction", err);
+    return { ok: false, code: "ERROR", message: "No se pudo guardar la foto. Intenta de nuevo." };
+  }
 }
 
 /** Pública (sin sesión) a propósito: devuelve solo la proyección sin SKU, barcode ni conteos (B1). */
@@ -319,6 +350,7 @@ export async function changePasswordAction(
   currentPassword: string,
   newPassword: string,
 ): Promise<ChangePasswordResult> {
-  const session = await requireSession();
-  return await changePassword(session.user.id, currentPassword, newPassword);
+  const user = await currentUserOrNull();
+  if (!user) return { ok: false, error: "Tu sesión expiró: inicia sesión de nuevo." };
+  return await changePassword(user.id, currentPassword, newPassword);
 }

@@ -18,8 +18,8 @@ export default function Home() {
   const { data: session } = useSession();
 
   useEffect(() => {
-    fetchProductsAction().then(setProducts);
-    fetchLocationsAction().then(setLocations);
+    fetchProductsAction().then((r) => setProducts(r ?? []));
+    fetchLocationsAction().then((r) => setLocations(r ?? []));
     getLowStockThresholdAction().then((n) => typeof n === "number" && setThreshold(n)).catch(() => undefined);
   }, []);
 

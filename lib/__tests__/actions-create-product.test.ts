@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const getServerSession = vi.fn();
+const getCurrentUser = vi.fn();
 const createProduct = vi.fn();
 const getProductByBarcode = vi.fn();
 const getLocations = vi.fn();
@@ -14,9 +14,8 @@ vi.mock("../prisma", () => ({
     department: { findUnique: (...a: unknown[]) => departmentFindUnique(...a) },
   },
 }));
-vi.mock("next-auth", () => ({ getServerSession: (...a: unknown[]) => getServerSession(...a) }));
+vi.mock("../auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: (...a: unknown[]) => revalidatePath(...a) }));
-vi.mock("../auth/options", () => ({ authOptions: {} }));
 vi.mock("../image/upload", async (orig) => ({
   ...(await orig<typeof import("../image/upload")>()),
   uploadImage: (...a: unknown[]) => uploadImage(...a),
@@ -26,19 +25,20 @@ vi.mock("../data/get-source", () => ({ getDataSource: () => ({ createProduct, ge
 
 import { createProductAction, lookupCodeAction, uploadProductImageAction, type CreateProductInput } from "../actions";
 import { ImageUploadError } from "../image/upload";
+import { UnauthenticatedError } from "../auth/errors";
 import { isValidInternalSku } from "../domain/barcode";
 
 const input: CreateProductInput = {
   barcode: "4006381333931", title: "Gorra", brandId: "brand-1", departmentId: "dep-1", price: 10, category: "Accesorios", initialStock: 2, locationId: "loc-1",
 };
-const session = (role: string, locationId: string | null) => ({ user: { id: "u1", role, locationId } });
+const session = (role: string, locationId: string | null) => ({ id: "u1", role, locationId });
 const product = { id: "p1", title: "Gorra", brand: "Lolo", category: "Accesorios", imageUrl: null, variants: [] };
 const variant = (sku: string) => ({ id: "v1", sku, title: "Gorra", size: "U", color: "General", price: 10, barcode: "4006381333931", inventory: [{ locationId: "loc-1", available: 2 }] });
 const p2002 = (field: string) => Object.assign(new Error("Unique"), { code: "P2002", meta: { target: [field] } });
 
 describe("createProductAction", () => {
   beforeEach(() => {
-    getServerSession.mockReset();
+    getCurrentUser.mockReset();
     getProductByBarcode.mockReset().mockResolvedValue(null);
     getLocations.mockReset().mockResolvedValue([{ id: "loc-1", name: "Tienda 1" }, { id: "loc-2", name: "Tienda 2" }]);
     createProduct.mockReset().mockImplementation(async (d: { sku: string }) => ({ product, variant: variant(d.sku) }));
@@ -49,7 +49,7 @@ describe("createProductAction", () => {
   });
 
   it("sin sesión → FORBIDDEN, sin lanzar", async () => {
-    getServerSession.mockResolvedValue(null);
+    getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     const r = await createProductAction(input);
     expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
     expect(!r.ok && r.message).toMatch(/inicia sesión/i);
@@ -57,7 +57,7 @@ describe("createProductAction", () => {
   });
 
   it("colaborador no da de alta en otra tienda → FORBIDDEN", async () => {
-    getServerSession.mockResolvedValue(session("collaborator", "loc-2"));
+    getCurrentUser.mockResolvedValue(session("collaborator", "loc-2"));
     const r = await createProductAction(input);
     expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
     expect(!r.ok && r.message).toMatch(/tu tienda/);
@@ -65,17 +65,17 @@ describe("createProductAction", () => {
   });
 
   it("colaborador sin tienda asignada → FORBIDDEN", async () => {
-    getServerSession.mockResolvedValue(session("collaborator", null));
+    getCurrentUser.mockResolvedValue(session("collaborator", null));
     expect(await createProductAction(input)).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
 
   it("colaborador en su tienda sí puede", async () => {
-    getServerSession.mockResolvedValue(session("collaborator", "loc-1"));
+    getCurrentUser.mockResolvedValue(session("collaborator", "loc-1"));
     expect(await createProductAction(input)).toMatchObject({ ok: true });
   });
 
   it.each(["owner", "manager"])("%s (locationId null) da de alta en cualquier tienda existente y revalida", async (role) => {
-    getServerSession.mockResolvedValue(session(role, null));
+    getCurrentUser.mockResolvedValue(session(role, null));
     const r = await createProductAction({ ...input, locationId: "loc-2" });
     expect(r.ok).toBe(true);
     expect(createProduct.mock.calls[0][0]).toMatchObject({ locationId: "loc-2", userId: "u1" });
@@ -84,7 +84,7 @@ describe("createProductAction", () => {
   });
 
   it("modo catálogo pasa al data source frente, atrás y descripción", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
     const back = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
     const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, backImageUrl: back, description: "  Algodón  " });
@@ -93,14 +93,14 @@ describe("createProductAction", () => {
   });
 
   it("tienda inexistente → LOCATION", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     const r = await createProductAction({ ...input, locationId: "loc-x" });
     expect(r).toMatchObject({ ok: false, code: "LOCATION" });
     expect(createProduct).not.toHaveBeenCalled();
   });
 
   it("valida en el servidor → INVALID con mensaje", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     expect(await createProductAction({ ...input, category: "" })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/categoría/i) });
     expect(await createProductAction({ ...input, initialStock: -1 })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/stock/i) });
     expect(await createProductAction({ ...input, price: 0 })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/precio/i) });
@@ -108,14 +108,14 @@ describe("createProductAction", () => {
   });
 
   it("alta sin departamento → INVALID «Elige el departamento.»", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     const r = await createProductAction({ ...input, departmentId: "" });
     expect(r).toEqual({ ok: false, code: "INVALID", message: "Elige el departamento." });
     expect(createProduct).not.toHaveBeenCalled();
   });
 
   it("departamento inexistente o inactivo → INVALID", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     departmentFindUnique.mockResolvedValue(null);
     expect(await createProductAction(input)).toMatchObject({ ok: false, code: "INVALID", message: "Elige el departamento." });
     departmentFindUnique.mockResolvedValue({ isActive: false });
@@ -124,7 +124,7 @@ describe("createProductAction", () => {
   });
 
   it("marca inexistente o inactiva → INVALID", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     brandFindUnique.mockResolvedValue({ name: "Vieja", isActive: false });
     expect(await createProductAction(input)).toMatchObject({ ok: false, code: "INVALID" });
     brandFindUnique.mockResolvedValue(null);
@@ -133,7 +133,7 @@ describe("createProductAction", () => {
   });
 
   it("manda al data source brandId, departmentId, el nombre canónico y un publicCode válido", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     await createProductAction({ ...input, brand: "HACK" } as CreateProductInput);
     const sent = createProduct.mock.calls[0][0];
     expect(sent).toMatchObject({ brandId: "brand-1", departmentId: "dep-1", brand: "Lolo" });
@@ -141,7 +141,7 @@ describe("createProductAction", () => {
   });
 
   it("P2002 en publicCode → reintenta con otro código (hasta 5 intentos)", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     createProduct.mockRejectedValueOnce(p2002("Product_publicCode_key")).mockRejectedValueOnce(p2002("publicCode"));
     expect(await createProductAction(input)).toMatchObject({ ok: true });
     expect(createProduct).toHaveBeenCalledTimes(3);
@@ -151,18 +151,18 @@ describe("createProductAction", () => {
   });
 
   it("GTIN con dígito verificador incorrecto → INVALID", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     const r = await createProductAction({ ...input, barcode: "4006381333932" });
     expect(r).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/verificador/) });
   });
 
   it("sin código y sin marcar 'sin código' → INVALID", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     expect(await createProductAction({ ...input, barcode: "  " })).toMatchObject({ ok: false, code: "INVALID" });
   });
 
   it("noBarcode → barcode null aunque venga texto", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     const r = await createProductAction({ ...input, barcode: "999", noBarcode: true });
     expect(r.ok).toBe(true);
     expect(createProduct.mock.calls[0][0].barcode).toBeNull();
@@ -170,7 +170,7 @@ describe("createProductAction", () => {
   });
 
   it("normaliza el barcode y genera el SKU en el servidor (ignora sku del cliente)", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     const r = await createProductAction({ ...input, barcode: " 4006381333931\n", sku: "HACK" } as CreateProductInput);
     const sent = createProduct.mock.calls[0][0];
     expect(sent.barcode).toBe("4006381333931");
@@ -179,13 +179,13 @@ describe("createProductAction", () => {
   });
 
   it("talla, precio redondeado y textos recortados llegan al data source", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     await createProductAction({ ...input, title: " Gorra ", price: 10.005, size: "M" });
     expect(createProduct.mock.calls[0][0]).toMatchObject({ title: "Gorra", price: 10.01, size: "M" });
   });
 
   it("alfanumérico se guarda en MAYÚSCULAS y busca duplicado con esa forma; EAN no cambia", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     await createProductAction({ ...input, barcode: " abc-1 " });
     expect(getProductByBarcode).toHaveBeenCalledWith("ABC-1");
     expect(createProduct.mock.calls[0][0].barcode).toBe("ABC-1");
@@ -194,14 +194,14 @@ describe("createProductAction", () => {
   });
 
   it("existe 'abc-1' y se da de alta 'ABC-1' → DUPLICATE", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     getProductByBarcode.mockImplementation(async (c: string) =>
       c.toLowerCase() === "abc-1" ? { product, variant: { ...variant("LS-X"), id: "v-abc", barcode: "abc-1" } } : null);
     expect(await createProductAction({ ...input, barcode: "ABC-1" })).toMatchObject({ ok: false, code: "DUPLICATE", existingVariantId: "v-abc" });
   });
 
   it("código ya registrado (lookup) → DUPLICATE con existingVariantId", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     getProductByBarcode.mockResolvedValue({ product, variant: { ...variant("LS-X"), id: "v-old" } });
     const r = await createProductAction(input);
     expect(r).toMatchObject({ ok: false, code: "DUPLICATE", existingVariantId: "v-old" });
@@ -209,14 +209,14 @@ describe("createProductAction", () => {
   });
 
   it("P2002 en barcode (carrera) → DUPLICATE con existingVariantId", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     getProductByBarcode.mockResolvedValueOnce(null).mockResolvedValueOnce({ product, variant: { ...variant("LS-X"), id: "v-race" } });
     createProduct.mockRejectedValueOnce(p2002("barcode"));
     expect(await createProductAction(input)).toMatchObject({ ok: false, code: "DUPLICATE", existingVariantId: "v-race" });
   });
 
   it("P2002 en sku → reintenta con otro SKU", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     createProduct.mockRejectedValueOnce(p2002("sku")).mockRejectedValueOnce(p2002("sku"));
     const r = await createProductAction(input);
     expect(r.ok).toBe(true);
@@ -224,7 +224,7 @@ describe("createProductAction", () => {
   });
 
   it("P2002 en sku más de 3 reintentos → ERROR", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     createProduct.mockReset().mockRejectedValue(p2002("sku"));
     const r = await createProductAction(input);
     expect(r).toMatchObject({ ok: false, code: "ERROR" });
@@ -232,7 +232,7 @@ describe("createProductAction", () => {
   });
 
   it("error inesperado → ERROR legible, sin lanzar ni filtrar detalles", async () => {
-    getServerSession.mockResolvedValue(session("owner", null));
+    getCurrentUser.mockResolvedValue(session("owner", null));
     createProduct.mockRejectedValue(new Error("connection refused 10.0.0.1"));
     const r = await createProductAction(input);
     expect(r).toMatchObject({ ok: false, code: "ERROR" });
@@ -242,7 +242,7 @@ describe("createProductAction", () => {
 
 describe("lookupCodeAction", () => {
   beforeEach(() => {
-    getServerSession.mockReset().mockResolvedValue(session("collaborator", "loc-1"));
+    getCurrentUser.mockReset().mockResolvedValue(session("collaborator", "loc-1"));
     getProductByBarcode.mockReset().mockResolvedValue(null);
   });
 
@@ -259,7 +259,7 @@ describe("lookupCodeAction", () => {
   });
 
   it("sin sesión no lanza: devuelve error", async () => {
-    getServerSession.mockResolvedValue(null);
+    getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     const r = await lookupCodeAction("750123");
     expect(r).toMatchObject({ found: false, code: "750123", error: expect.stringMatching(/sesión/) });
   });
@@ -287,7 +287,7 @@ describe("uploadProductImageAction", () => {
   const jpg = new File([new Uint8Array([1, 2])], "a.jpg", { type: "image/jpeg" });
 
   beforeEach(() => {
-    getServerSession.mockReset().mockResolvedValue(session("owner", null));
+    getCurrentUser.mockReset().mockResolvedValue(session("owner", null));
     uploadImage.mockReset().mockResolvedValue("https://blob.example/a.jpg");
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -302,7 +302,7 @@ describe("uploadProductImageAction", () => {
   });
 
   it("sin sesión → ok:false", async () => {
-    getServerSession.mockResolvedValue(null);
+    getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     expect(await uploadProductImageAction(fd(jpg))).toMatchObject({ ok: false, message: expect.stringMatching(/sesión/) });
   });
 
