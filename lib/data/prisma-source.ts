@@ -170,6 +170,14 @@ export class PrismaDataSource implements InventoryDataSource {
         const existing = await tx.movement.findUnique({ where: { requestId }, select: { id: true } });
         if (existing) return { available: await currentAvailable(tx), replayed: true };
 
+        // El Movement va primero: su índice único sobre requestId serializa los
+        // intentos repetidos (el perdedor recibe P2002 -> replayed) antes de que
+        // el updateMany pueda dar INSUFFICIENT por haber visto ya el descuento del ganador.
+        // Si el stock no alcanza, el error revierte también este Movement.
+        await tx.movement.create({
+          data: { variantId, locationId, userId, delta, type, notes, requestId },
+        });
+
         let available: number;
         if (delta > 0) {
           const level = await tx.inventoryLevel.upsert({
@@ -190,10 +198,6 @@ export class PrismaDataSource implements InventoryDataSource {
           }
           available = await currentAvailable(tx);
         }
-
-        await tx.movement.create({
-          data: { variantId, locationId, userId, delta, type, notes, requestId },
-        });
         return { available, replayed: false };
       });
     } catch (err) {

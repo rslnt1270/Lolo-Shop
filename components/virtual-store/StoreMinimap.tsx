@@ -120,7 +120,7 @@ export function StoreMinimap({
                 height="22"
                 rx="3"
                 fill="rgba(0, 106, 106, 0.1)"
-                stroke="#006a6a"
+                stroke="#007272"
                 strokeWidth="0.8"
               />
               <text x="46" y="48" fontSize="4.5" fill="#004f50" textAnchor="middle" fontWeight="bold">
@@ -135,7 +135,7 @@ export function StoreMinimap({
                 height="30"
                 rx="2"
                 fill="rgba(92, 217, 216, 0.15)"
-                stroke="#006a6a"
+                stroke="#007272"
                 strokeWidth="0.8"
               />
               <text x="81" y="44" fontSize="4.2" fill="#004949" textAnchor="middle" fontWeight="bold">
@@ -186,7 +186,7 @@ export function StoreMinimap({
                           cx={zone.mapCoords.x}
                           cy={zone.mapCoords.y}
                           r="4"
-                          fill="#006a6a"
+                          fill="#007272"
                           stroke="#ffffff"
                           strokeWidth="1.2"
                         />

@@ -7,13 +7,14 @@ const config: Config = {
         theme: {
           extend: {
             "colors": {
-              "loloteal": "#006a6a",
+              "loloteal": "#007272",
+              "loloteal-dark": "#005F5F",
               "surface-container": "#edeeef",
               "inverse-primary": "#5cd9d8",
               "background": "#f8f9fa",
               "surface-container-low": "#f3f4f5",
               "on-secondary-container": "#636262",
-              "primary": "#006a6a",
+              "primary": "#007272",
               "on-tertiary-fixed-variant": "#773205",
               "on-primary-fixed-variant": "#004f50",
               "surface-bright": "#f8f9fa",
@@ -48,7 +49,7 @@ const config: Config = {
               "tertiary-fixed": "#ffdbcb",
               "outline": "#6c7a79",
               "on-tertiary-fixed": "#341100",
-              "surface-tint": "#006a6a",
+              "surface-tint": "#007272",
               "surface-container-highest": "#e1e3e4",
               "surface-container-high": "#e7e8e9",
               "tertiary-fixed-dim": "#ffb692",

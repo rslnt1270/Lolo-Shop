@@ -101,7 +101,7 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
 
   const adjustLabel = adjustType === "damage" ? "Registrar merma" : "Registrar corrección";
   const primary =
-    "min-h-[44px] w-full rounded-lg bg-loloteal px-4 py-2 font-semibold text-white active:bg-[#005F5F] disabled:opacity-60";
+    "min-h-[44px] w-full rounded-lg bg-loloteal px-4 py-2 font-semibold text-white active:bg-loloteal-dark disabled:opacity-60";
   const outline =
     "min-h-[44px] w-full rounded-lg border border-loloteal px-4 py-2 font-semibold text-loloteal active:bg-loloteal/10 disabled:opacity-60";
   const field = "min-h-[44px] rounded-md border border-gray-300 bg-white px-3 text-sm";
@@ -136,6 +136,7 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
                 touch();
                 setEntryQty(e.target.value);
               }}
+              disabled={pending}
               className={`${field} w-24`}
             />
           </div>
@@ -167,6 +168,7 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
                   type="radio"
                   name="tipo"
                   className="sr-only"
+                  disabled={pending}
                   checked={adjustType === t}
                   onChange={() => {
                     touch();
@@ -191,6 +193,7 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
                     type="radio"
                     name="direccion"
                     className="sr-only"
+                    disabled={pending}
                     checked={direction === d}
                     onChange={() => {
                       touch();
@@ -217,6 +220,7 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
                 touch();
                 setAdjustQty(e.target.value);
               }}
+              disabled={pending}
               className={`${field} w-24`}
             />
           </div>
@@ -234,6 +238,7 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
                 setReason(e.target.value);
               }}
               placeholder="Por ejemplo: prenda manchada"
+              disabled={pending}
               className={`${field} mt-1 w-full py-2`}
             />
           </div>

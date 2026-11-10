@@ -38,7 +38,7 @@ export const STORE_ZONES: StoreZone[] = [
     initialPitch: -4,
     mapCoords: { x: 35, y: 48 },
     ambientGlow: "rgba(0, 106, 106, 0.22)",
-    accentColor: "#006a6a",
+    accentColor: "#007272",
     connections: [
       {
         targetZoneId: "entrada",

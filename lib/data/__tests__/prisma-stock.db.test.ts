@@ -126,6 +126,20 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.recordStockMovement", () => {
     expect(await available(w.v1, w.store)).toBe(3);
   });
 
+  it("merma con el mismo requestId en paralelo y stock exacto: un ok, un replayed, nunca INSUFFICIENT", async () => {
+    await setStock(w.v1, w.store, 1);
+    const requestId = randomUUID();
+    const results = await Promise.allSettled([
+      dsA.recordStockMovement(move("DAMAGE", -1, { requestId, notes: "Manchada" })),
+      dsB.recordStockMovement(move("DAMAGE", -1, { requestId, notes: "Manchada" })),
+    ]);
+    expect(results.every((r) => r.status === "fulfilled")).toBe(true);
+    const vals = results.map((r) => (r as PromiseFulfilledResult<{ available: number; replayed: boolean }>).value);
+    expect(vals.map((v) => v.replayed).sort()).toEqual([false, true]);
+    expect(await available(w.v1, w.store)).toBe(0);
+    expect(await testPrisma.movement.count({ where: { requestId } })).toBe(1);
+  });
+
   it("mismo requestId en serie: la segunda es replayed y no cambia el stock", async () => {
     const requestId = randomUUID();
     expect(await ds.recordStockMovement(move("RESTOCK", 2, { requestId }))).toEqual({ available: 2, replayed: false });

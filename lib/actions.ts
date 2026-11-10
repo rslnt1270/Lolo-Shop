@@ -73,14 +73,14 @@ export async function recordStockMovementAction(input: {
   reason?: string;
   requestId: string;
 }): Promise<StockMovementResult> {
-  const user = await currentUserOrNull();
-  if (!user) return { ok: false, code: "SESSION", message: "Tu sesión venció. Vuelve a iniciar sesión." };
-
-  const parsed = validateStockMovement(input);
-  if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
-  const v = parsed.value;
-
   try {
+    const user = await currentUserOrNull();
+    if (!user) return { ok: false, code: "SESSION", message: "Tu sesión venció. Vuelve a iniciar sesión." };
+
+    const parsed = validateStockMovement(input);
+    if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
+    const v = parsed.value;
+
     if (v.kind !== "restock") requireRole(user, ["owner", "manager"]);
     assertCanOperate(user, v.locationId);
 

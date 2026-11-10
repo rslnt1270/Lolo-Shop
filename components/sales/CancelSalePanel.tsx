@@ -68,7 +68,7 @@ export function CancelSalePanel({ saleId, onCancelled }: Props) {
                 name={`${uid}-returned`}
                 checked={returned === v}
                 onChange={() => setReturned(v)}
-                className="h-4 w-4 accent-[#006a6a]"
+                className="h-4 w-4 accent-[#007272]"
               />
               {v === "yes" ? "Sí" : "No"}
             </label>
