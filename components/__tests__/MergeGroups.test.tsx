@@ -125,6 +125,15 @@ describe("MergeGroups", () => {
     expect(mergeProductsAction).not.toHaveBeenCalled();
   });
 
+  it("sesión vencida: la unión que resuelve undefined avisa con enlace", async () => {
+    mergeProductsAction.mockResolvedValue(undefined);
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: /Unir 3 productos/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar unión" }));
+    expect(await screen.findByText(/Tu sesión terminó/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeTruthy();
+  });
+
   it("un error de la acción se muestra", async () => {
     mergeProductsAction.mockResolvedValue({ ok: false, code: "INVALID", message: "Las marcas no coinciden." });
     setup();

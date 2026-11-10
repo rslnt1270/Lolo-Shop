@@ -15,6 +15,8 @@ import {
 import { formatPriceChange, formatPriceShort } from "@/lib/products/format";
 import { isBigPriceDrop, parsePriceInput } from "@/lib/products/price-input";
 import { ProductPhotoButton } from "./ProductPhotoButton";
+import { withSession } from "@/lib/client/with-session";
+import { ActionErrorText } from "@/components/sales/session-expired";
 
 interface Props {
   product: Product;
@@ -35,6 +37,8 @@ type PriceState = {
   conflict?: number;
   saved?: boolean;
   saving?: boolean;
+  /** El error es de sesión vencida: se muestra con el enlace a /login. */
+  session?: boolean;
   /** Precio nuevo pendiente de confirmar porque baja a menos de la mitad del vigente. */
   confirmDrop?: number;
 };
@@ -59,7 +63,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   const [brandId, setBrandId] = useState(product.brandId ?? "");
   const [departmentId, setDepartmentId] = useState(product.departmentId ?? "");
   const [category, setCategory] = useState(product.category);
-  const [dataMsg, setDataMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [dataMsg, setDataMsg] = useState<{ ok: boolean; text: string; session?: boolean } | null>(null);
   const [savingData, setSavingData] = useState(false);
 
   const [prices, setPrices] = useState<Record<string, PriceState>>(() =>
@@ -70,7 +74,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   const [history, setHistory] = useState<Record<string, PriceChangeRow[]>>({});
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [busy, setBusy] = useState(false);
-  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ text: string; session?: boolean } | null>(null);
 
   const loadHistory = useCallback(
     async (variantId: string) => {
@@ -120,14 +124,16 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
       patchPrice(v.id, { confirmDrop: n, error: undefined, saved: false });
       return;
     }
-    patchPrice(v.id, { saving: true, error: undefined, conflict: undefined, saved: false, confirmDrop: undefined });
+    patchPrice(v.id, { saving: true, error: undefined, session: false, conflict: undefined, saved: false, confirmDrop: undefined });
     try {
-      const res = await updateVariantPriceAction({
-        variantId: v.id,
-        newPrice: n,
-        expectedPrice: st.baseline,
-        ...(st.reason.trim() ? { reason: st.reason.trim() } : {}),
-      });
+      const res = withSession(
+        await updateVariantPriceAction({
+          variantId: v.id,
+          newPrice: n,
+          expectedPrice: st.baseline,
+          ...(st.reason.trim() ? { reason: st.reason.trim() } : {}),
+        }),
+      );
       if (res.ok) {
         patchPrice(v.id, { saving: false, baseline: res.price, text: String(res.price), reason: "", saved: true });
         onChanged();
@@ -135,7 +141,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
       } else if (res.code === "CONFLICT" && res.currentPrice !== undefined) {
         patchPrice(v.id, { saving: false, conflict: res.currentPrice, baseline: res.currentPrice });
       } else {
-        patchPrice(v.id, { saving: false, error: res.message });
+        patchPrice(v.id, { saving: false, error: res.message, session: res.code === "SESSION" });
       }
     } catch {
       patchPrice(v.id, { saving: false, error: "No se pudo guardar. Revisa tu conexión e intenta de nuevo." });
@@ -157,12 +163,12 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
     setSavingData(true);
     setDataMsg(null);
     try {
-      const res = await updateProductAction(patch);
+      const res = withSession(await updateProductAction(patch));
       if (res.ok) {
         setDataMsg({ ok: true, text: "Cambios guardados." });
         onChanged();
       } else {
-        setDataMsg({ ok: false, text: res.message });
+        setDataMsg({ ok: false, text: res.message, session: res.code === "SESSION" });
       }
     } catch {
       setDataMsg({ ok: false, text: "No se pudo guardar. Revisa tu conexión e intenta de nuevo." });
@@ -176,20 +182,21 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
     setBusy(true);
     setActionMsg(null);
     try {
-      const res =
+      const res = withSession(
         confirm.kind === "product"
           ? await setProductActiveAction(product.id, false)
-          : await setVariantActiveAction(confirm.variantId, false);
+          : await setVariantActiveAction(confirm.variantId, false),
+      );
       if (res.ok) {
         setConfirm(null);
         onChanged();
       } else {
         setConfirm(null);
-        setActionMsg(res.message);
+        setActionMsg({ text: res.message, session: res.code === "SESSION" });
       }
     } catch {
       setConfirm(null);
-      setActionMsg("No se pudo guardar. Revisa tu conexión e intenta de nuevo.");
+      setActionMsg({ text: "No se pudo guardar. Revisa tu conexión e intenta de nuevo." });
     } finally {
       setBusy(false);
     }
@@ -199,14 +206,15 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
     setBusy(true);
     setActionMsg(null);
     try {
-      const res =
+      const res = withSession(
         target.kind === "product"
           ? await setProductActiveAction(product.id, true)
-          : await setVariantActiveAction(target.variantId, true);
+          : await setVariantActiveAction(target.variantId, true),
+      );
       if (res.ok) onChanged();
-      else setActionMsg(res.message);
+      else setActionMsg({ text: res.message, session: res.code === "SESSION" });
     } catch {
-      setActionMsg("No se pudo guardar. Revisa tu conexión e intenta de nuevo.");
+      setActionMsg({ text: "No se pudo guardar. Revisa tu conexión e intenta de nuevo." });
     } finally {
       setBusy(false);
     }
@@ -280,7 +288,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
           <div aria-live="polite">
             {actionMsg && (
               <p role="alert" className="rounded-lg bg-[#FDF2F0] p-3 text-sm font-semibold" style={{ color: DANGER }}>
-                {actionMsg}
+                <ActionErrorText message={actionMsg.text} session={actionMsg.session} />
               </p>
             )}
           </div>
@@ -329,7 +337,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                     className="text-sm font-semibold"
                     style={{ color: dataMsg.ok ? "#1F7A4A" : DANGER }}
                   >
-                    {dataMsg.text}
+                    <ActionErrorText message={dataMsg.text} session={dataMsg.session} />
                   </p>
                 )}
               </div>
@@ -416,7 +424,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                     </div>
                     {st.error && (
                       <p role="alert" className="text-xs font-semibold" style={{ color: DANGER }}>
-                        {st.error}
+                        <ActionErrorText message={st.error} session={st.session} />
                       </p>
                     )}
                     {st.saved && <p role="status" className="text-xs font-semibold text-[#1F7A4A]">Precio guardado.</p>}

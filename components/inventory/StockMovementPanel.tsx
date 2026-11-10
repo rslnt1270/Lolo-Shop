@@ -11,6 +11,8 @@ import {
   validateStockMovement,
   type StockMovementKind,
 } from "@/lib/domain/stock-movement";
+import { withSession } from "@/lib/client/with-session";
+import { ActionErrorText } from "@/components/sales/session-expired";
 
 export interface StockMovementPanelProps {
   variantId: string;
@@ -47,6 +49,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   // Una operación a la vez; el id vive en un ref para que el doble toque lo vea al instante.
   const requestIdRef = useRef<string | null>(null);
   const busyRef = useRef(false);
@@ -61,6 +64,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
   const submit = async (kind: StockMovementKind, quantityText: string) => {
     if (busyRef.current) return;
     setError("");
+    setSessionExpired(false);
     const input = {
       variantId,
       locationId,
@@ -79,7 +83,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
     setPending(true);
     let result: StockMovementResult;
     try {
-      result = await recordStockMovementAction(input);
+      result = withSession(await recordStockMovementAction(input));
     } catch {
       result = { ok: false, code: "ERROR", message: "No se pudo registrar. Revisa tu conexión e intenta de nuevo." };
     }
@@ -93,6 +97,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
     }
     // ERROR y SESSION pueden reintentarse con el mismo id; el resto es definitivo.
     if (result.code !== "ERROR" && result.code !== "SESSION") requestIdRef.current = null;
+    setSessionExpired(result.code === "SESSION");
     setError(result.message);
   };
 
@@ -140,6 +145,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
   const submitTransfer = async () => {
     if (busyRef.current) return;
     setError("");
+    setSessionExpired(false);
     const quantity = Number(transferQty);
     if (!fromId) return setError("Elige la tienda de origen.");
     if (!toId) return setError("Elige la tienda de destino.");
@@ -155,14 +161,16 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
     setPending(true);
     let result: StockMovementResult;
     try {
-      result = await transferStockAction({
-        variantId,
-        fromLocationId: fromId,
-        toLocationId: toId,
-        quantity,
-        requestId: currentRequestId(),
-        ...(trimmed ? { note: trimmed } : {}),
-      });
+      result = withSession(
+        await transferStockAction({
+          variantId,
+          fromLocationId: fromId,
+          toLocationId: toId,
+          quantity,
+          requestId: currentRequestId(),
+          ...(trimmed ? { note: trimmed } : {}),
+        }),
+      );
     } catch {
       result = { ok: false, code: "ERROR", message: "No se pudo registrar. Revisa tu conexión e intenta de nuevo." };
     }
@@ -175,6 +183,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
       return;
     }
     if (result.code !== "ERROR" && result.code !== "SESSION") requestIdRef.current = null;
+    setSessionExpired(result.code === "SESSION");
     setError(result.message);
   };
 
@@ -430,7 +439,7 @@ export function StockMovementPanel({ variantId, locationId, role, storeBound = f
 
       {error && (
         <p role="alert" className="rounded-md bg-red-50 p-2 text-sm text-red-800">
-          {error}
+          <ActionErrorText message={error} session={sessionExpired} />
         </p>
       )}
 

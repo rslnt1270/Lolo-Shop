@@ -13,6 +13,7 @@ import { SizeRows, type SizeRowDraft } from "./SizeRows";
 import { createBrandAction, listBrandsAction, listDepartmentsAction } from "@/lib/catalog/actions";
 import type { BrandOption, DepartmentOption } from "@/lib/catalog/actions";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
+import { withSession } from "@/lib/client/with-session";
 import { BrandCombobox } from "./BrandCombobox";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
 
@@ -204,6 +205,7 @@ export function NewProductForm({
     setDuplicateRowKey(null);
     setRowErrors({});
     setStockAdded("");
+    setSessionExpired(false);
 
     const input = {
       title: formData.title,
@@ -254,8 +256,12 @@ export function NewProductForm({
         imageUrl,
         backImageUrl,
       };
-      const result = await createProductAction(payload);
+      const result = withSession(await createProductAction(payload));
 
+      if (!result.ok && result.code === "SESSION") {
+        setSessionExpired(true);
+        return;
+      }
       if (!result.ok) {
         const dupRow = result.code === "DUPLICATE" && result.duplicateBarcode
           ? rows.find((r) => r.barcode !== null && canonicalCode(r.barcode) === result.duplicateBarcode)

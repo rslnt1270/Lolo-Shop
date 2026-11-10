@@ -81,6 +81,17 @@ describe("/productos: ficha y departamento en lote", () => {
     expect(screen.getByRole("checkbox", { name: "Seleccionar Playera" })).toBeChecked();
   });
 
+  it("sesión vencida al asignar departamento: avisa con enlace y no lanza", async () => {
+    base.assignDepartmentAction.mockResolvedValue(undefined);
+    render(<ProductosPage />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Seleccionar Playera" }));
+    fireEvent.click(screen.getByRole("button", { name: /^asignar departamento/i }));
+    fireEvent.change(await screen.findByLabelText(/^departamento para/i), { target: { value: "d1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Asignar" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Tu sesión terminó");
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+  });
+
   it("el colaborador no ve casillas ni ficha", async () => {
     session.value = { data: { user: { role: "collaborator" } }, status: "authenticated" };
     render(<ProductosPage />);

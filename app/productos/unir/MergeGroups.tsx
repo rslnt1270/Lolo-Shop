@@ -5,6 +5,8 @@ import { sizeClashes, type DuplicateGroup } from "@/lib/domain/size-duplicates";
 import type { Product } from "@/lib/domain/types";
 import { sortSizes } from "@/lib/domain/sizes";
 import { mergeProductsAction } from "@/lib/products/actions";
+import { withSession } from "@/lib/client/with-session";
+import { ActionErrorText } from "@/components/sales/session-expired";
 
 interface Props {
   groups: DuplicateGroup[];
@@ -37,7 +39,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ text: string; session?: boolean } | null>(null);
 
   const target = group.products.find((p) => p.id === targetId) ?? group.products[0];
   const sources = group.products.filter((p) => p.id !== target.id);
@@ -50,16 +52,16 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
     setBusy(true);
     setError(null);
     try {
-      const res = await mergeProductsAction({ targetId: target.id, sourceIds: sources.map((p) => p.id) });
+      const res = withSession(await mergeProductsAction({ targetId: target.id, sourceIds: sources.map((p) => p.id) }));
       if (res.ok) {
         setDone(`Listo: ${plural(res.movedVariants, "talla", "tallas")} y ${plural(res.movedSaleLines, "venta", "ventas")} ahora están en «${target.title}».`);
         setConfirming(false);
         router.refresh();
       } else {
-        setError(res.message);
+        setError({ text: res.message, session: res.code === "SESSION" });
       }
     } catch {
-      setError("No se pudo unir. Revisa tu conexión e intenta de nuevo.");
+      setError({ text: "No se pudo unir. Revisa tu conexión e intenta de nuevo." });
     } finally {
       setBusy(false);
     }
@@ -128,7 +130,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
 
       {error && (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-[#9A3B2E]">
-          {error}
+          <ActionErrorText message={error.text} session={error.session} />
         </p>
       )}
 

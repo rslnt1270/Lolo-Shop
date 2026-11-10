@@ -5,6 +5,8 @@ import { addVariantAction } from "@/lib/actions";
 import type { ProductSearchHit } from "@/lib/data/source";
 import { MAX_SIZE_LENGTH, validateSizeRow } from "@/lib/domain/new-product";
 import { normalizeSize } from "@/lib/domain/sizes";
+import { withSession } from "@/lib/client/with-session";
+import { ActionErrorText } from "@/components/sales/session-expired";
 
 interface AddSizeFormProps {
   product: ProductSearchHit;
@@ -30,6 +32,7 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
   const [price, setPrice] = useState("");
   const [pieces, setPieces] = useState("1");
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [pending, setPending] = useState(false);
   const sizeId = useId();
   const priceId = useId();
@@ -47,6 +50,7 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
     e.preventDefault();
     if (pending) return;
     setError("");
+    setSessionExpired(false);
     const input = {
       productId: product.productId,
       size,
@@ -63,10 +67,11 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
     }
     setPending(true);
     try {
-      const r = await addVariantAction(input);
+      const r = withSession(await addVariantAction(input));
       if (r.ok) {
         onDone(`Talla ${normalizeSize(size)} agregada a ${product.title}.`);
       } else {
+        setSessionExpired(r.code === "SESSION");
         setError(r.message);
       }
     } catch {
@@ -156,7 +161,7 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
       {error && (
         <p role="alert" className="flex items-start gap-2 rounded-xl border border-[#9A3B2E]/40 bg-red-50 p-3 text-sm font-medium text-[#9A3B2E]">
           <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
+          <span><ActionErrorText message={error} session={sessionExpired} /></span>
         </p>
       )}
 

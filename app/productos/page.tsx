@@ -12,6 +12,8 @@ import { ProductAdminSheet } from "@/components/products/ProductAdminSheet";
 import { fetchLocationsAction, fetchProductsAction } from "@/lib/actions";
 import { listDepartmentsAction, type DepartmentOption } from "@/lib/catalog/actions";
 import { assignDepartmentAction } from "@/lib/products/actions";
+import { withSession } from "@/lib/client/with-session";
+import { ActionErrorText } from "@/components/sales/session-expired";
 import { PRODUCT_CATEGORIES } from "@/lib/domain/new-product";
 
 const CATEGORIES = [...PRODUCT_CATEGORIES];
@@ -30,7 +32,7 @@ export default function ProductosPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [targetDept, setTargetDept] = useState("");
-  const [assignMsg, setAssignMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [assignMsg, setAssignMsg] = useState<{ ok: boolean; text: string; session?: boolean } | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
 
   const reload = () => fetchProductsAction().then((r) => r && setData(r));
@@ -49,7 +51,7 @@ export default function ProductosPage() {
     setAssignBusy(true);
     setAssignMsg(null);
     try {
-      const res = await assignDepartmentAction(selected, targetDept);
+      const res = withSession(await assignDepartmentAction(selected, targetDept));
       if (res.ok) {
         const name = departments.find((d) => d.id === targetDept)?.name ?? "el departamento";
         setAssignMsg({ ok: true, text: `${res.updated ?? selected.length} productos pasaron a ${name}.` });
@@ -58,7 +60,7 @@ export default function ProductosPage() {
         setTargetDept("");
         await reload();
       } else {
-        setAssignMsg({ ok: false, text: res.message });
+        setAssignMsg({ ok: false, text: res.message, session: res.code === "SESSION" });
       }
     } catch {
       setAssignMsg({ ok: false, text: "No se pudo asignar. Revisa tu conexión e intenta de nuevo." });
@@ -150,7 +152,7 @@ export default function ProductosPage() {
             role={assignMsg.ok ? "status" : "alert"}
             className={`rounded-lg p-3 text-sm font-semibold ${assignMsg.ok ? "bg-loloteal/10 text-loloteal" : "bg-red-50 text-[#9A3B2E]"}`}
           >
-            {assignMsg.text}
+            <ActionErrorText message={assignMsg.text} session={assignMsg.session} />
           </p>
         )}
       </div>

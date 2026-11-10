@@ -167,6 +167,37 @@ describe("ProductAdminSheet", () => {
     expect(products.updateVariantPriceAction.mock.calls[0][0]).toMatchObject({ newPrice: 125, expectedPrice: 899 });
   });
 
+  it("sesión vencida al guardar precio: avisa con enlace y no lanza", async () => {
+    products.updateVariantPriceAction.mockResolvedValue(undefined);
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Precio de la talla M"), { target: { value: "799" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar precio de la talla M" }));
+    expect(await screen.findByText(/Tu sesión terminó/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+    expect(screen.queryByText(/No se pudo guardar/)).toBeNull();
+  });
+
+  it("sesión vencida al guardar los datos: avisa con enlace", async () => {
+    products.updateProductAction.mockResolvedValue(undefined);
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Playera nueva" } });
+    fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+    expect(await screen.findByText(/Tu sesión terminó/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeInTheDocument();
+  });
+
+  it("sesión vencida al desactivar: avisa con enlace", async () => {
+    products.setProductActiveAction.mockResolvedValue(undefined);
+    open();
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    fireEvent.click(screen.getByRole("button", { name: "Desactivar producto" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sí, desactivar" }));
+    expect(await screen.findByText(/Tu sesión terminó/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeInTheDocument();
+  });
+
   it("INVALID del servidor aparece bajo el campo", async () => {
     products.updateVariantPriceAction.mockResolvedValue({ ok: false, code: "INVALID", message: "Ese ya es el precio actual." });
     open();

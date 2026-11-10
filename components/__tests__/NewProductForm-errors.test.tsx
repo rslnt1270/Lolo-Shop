@@ -79,6 +79,21 @@ describe("NewProductForm: errores del servidor", () => {
     expect(await screen.findByText(/tu tienda asignada/i)).toBeTruthy();
   });
 
+  it("sesión vencida: el alta que resuelve undefined avisa con enlace y no lanza", async () => {
+    createProductAction.mockResolvedValue(undefined);
+    const onSuccess = await submitValid();
+    expect(await screen.findByText(/Tu sesión terminó/)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+    expect(screen.queryByText(/No se pudo dar de alta/)).toBeNull();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  it("sesión vencida con code SESSION del servidor: mismo aviso", async () => {
+    createProductAction.mockResolvedValue({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
+    await submitValid();
+    expect(await screen.findByRole("link", { name: "Iniciar sesión" })).toBeTruthy();
+  });
+
   it("si la acción lanza, no deja la pantalla colgada", async () => {
     createProductAction.mockRejectedValue(new Error("boom"));
     const onSuccess = await submitValid();

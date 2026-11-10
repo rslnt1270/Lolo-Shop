@@ -2,6 +2,8 @@
 import { useId, useRef, useState } from "react";
 import { recordStockMovementAction, type StockMovementResult } from "@/lib/actions";
 import { MAX_STOCK_QUANTITY } from "@/lib/domain/stock-movement";
+import { withSession } from "@/lib/client/with-session";
+import { ActionErrorText } from "@/components/sales/session-expired";
 
 export interface SumToMyStoreProps {
   variantId: string;
@@ -29,6 +31,7 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
   const [qty, setQty] = useState(defaultQuantity);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const requestIdRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   const qtyId = useId();
@@ -43,14 +46,17 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
       return;
     }
     setError("");
+    setSessionExpired(false);
     busyRef.current = true;
     setPending(true);
     requestIdRef.current ??= crypto.randomUUID();
     let result: StockMovementResult;
     try {
-      result = await recordStockMovementAction({
-        variantId, locationId, kind: "restock", quantity: n, requestId: requestIdRef.current,
-      });
+      result = withSession(
+        await recordStockMovementAction({
+          variantId, locationId, kind: "restock", quantity: n, requestId: requestIdRef.current,
+        }),
+      );
     } catch {
       result = { ok: false, code: "ERROR", message: "No se pudo registrar. Revisa tu conexión e intenta de nuevo." };
     }
@@ -60,6 +66,7 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
       requestIdRef.current = null;
       onDone(result.available);
     } else {
+      setSessionExpired(result.code === "SESSION");
       setError(result.message);
     }
   };
@@ -93,7 +100,7 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
         {pending ? "Sumando…" : sumLabel(shown)}
       </button>
       {error && (
-        <p role="alert" className="text-sm font-medium text-[#9A3B2E]">{error}</p>
+        <p role="alert" className="text-sm font-medium text-[#9A3B2E]"><ActionErrorText message={error} session={sessionExpired} /></p>
       )}
     </div>
   );

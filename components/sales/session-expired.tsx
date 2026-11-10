@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { SESSION_EXPIRED_TEXT } from "@/lib/session-text";
 
-export const SESSION_EXPIRED_TEXT = "Tu sesión terminó. Vuelve a iniciar sesión.";
+export { SESSION_EXPIRED_TEXT };
 
 /** Enlace a /login para los avisos de sesión vencida (sin pedir reintentar). */
 export function LoginLink() {
@@ -17,3 +18,13 @@ export function LoginLink() {
 /** `undefined` es lo que Next entrega cuando el middleware redirige la acción por sesión vencida. */
 export const isSessionExpired = (res: unknown): boolean =>
   res === undefined || res === null || (res as { reason?: string }).reason === "session_expired";
+
+/** Mensaje de error de una acción: si es de sesión vencida, el texto único con el enlace a /login. */
+export function ActionErrorText({ message, session }: { message: string; session?: boolean }) {
+  if (!session) return <>{message}</>;
+  return (
+    <>
+      {SESSION_EXPIRED_TEXT} <LoginLink />
+    </>
+  );
+}

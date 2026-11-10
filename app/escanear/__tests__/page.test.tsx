@@ -198,6 +198,31 @@ describe("/escanear: flujo de alta por lote", () => {
       );
     });
 
+    it("sesión vencida: Entrada que resuelve undefined avisa con enlace a iniciar sesión y no lanza", async () => {
+      await openExisting();
+      record.mockResolvedValue(undefined);
+      fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+      expect(await screen.findByText(/Tu sesión terminó/)).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
+    });
+
+    it("sesión vencida: un traspaso que resuelve undefined también avisa", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      fetchLocations.mockResolvedValue([
+        { id: "loc-1", name: "Lomas", type: "store" },
+        { id: "loc-2", name: "ClubAlva", type: "store" },
+      ]);
+      transfer.mockResolvedValue(undefined);
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
+      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
+      await within(origen).findByRole("option", { name: "ClubAlva" });
+      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-2" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
+      expect(await screen.findByText(/Tu sesión terminó/)).toBeTruthy();
+      expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeTruthy();
+    });
+
     it("colaborador no ve 'Traspasar'", async () => {
       await openExisting();
       expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();
