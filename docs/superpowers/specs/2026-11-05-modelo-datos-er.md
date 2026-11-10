@@ -335,7 +335,7 @@ Restricciones [P]: `@@unique([saleId, variantId])` (una variante una vez por tic
 - La tabla permite que el owner agregue, renombre (`name`), ordene (`sortOrder`) o desactive (`isActive`) sin desplegar. El `slug` queda estable para URLs y filtros.
 - La carga inicial se hace con el seed o un script `tsx`, no con SQL.
 
-Relación con `category` [V/P]: `category` (texto, sin cambio) es el **tipo de prenda** (`Playeras`, `Tenis`) y lo usan los filtros de `/productos` y `ZoneConfig.categories`. `Department` es el **público o la sección comercial**. Con D6, `calzado` y `accesorios` **son departamentos**; que además existan como categoría es aceptable (un tenis es `calzado` + `Tenis`). La relación fina categoría ↔ departamento sigue abierta (SRS D-CAT-2). Convertir `category` en tabla queda fuera de este documento.
+Relación con `category` [V/P]: `category` (texto, sin cambio) es el **tipo de prenda** (`Playeras`, `Tenis`) y lo usan los filtros de `/productos` y `ZoneConfig.categories`. `Department` es el **público o la sección comercial**. Con D6, `calzado` y `accesorios` **son departamentos**; que además existan como categoría es aceptable (un tenis es `calzado` + `Tenis`). La relación fina categoría ↔ departamento sigue abierta (SRS D-CAT-2). Convertir `category` en tabla queda fuera de este documento. **Actualización 2026-11-10:** resuelto por §2.9 (`ProductType` global con la puente `DepartmentProductType`, tarea 3.8); `category` queda como texto de transición.
 
 **Obligatoriedad de `departmentId` [A] (A3, revisable).** En la base es **opcional** para no romper los productos existentes (ninguno tiene departamento hoy). En la action de alta de productos **nuevos** es **obligatorio**: el servidor rechaza un alta sin departamento activo. El owner asigna el departamento a los existentes desde una edición rápida en `/productos` (selección múltiple + departamento). Hacerlo `NOT NULL` en la base es una migración posterior, aparte, cuando no quede ninguno sin asignar.
 
@@ -411,6 +411,58 @@ Migración **aditiva** (solo tablas nuevas y columnas anulables; sin `DROP`, `AL
 **`Movement.requestId String? @unique`**: llave de idempotencia. Un reintento de la misma operación (mismo `requestId`) no duplica el movimiento ni el cambio de stock. Nulo en los movimientos existentes.
 
 **`Product.mergedIntoId`, `mergedAt`, `mergedById`** (todos opcionales): unión de productos duplicados sin borrar historia. `mergedIntoId` es autorrelación `"ProductMerge"` (Restrict, índice propio; inversa `Product.mergedFrom`); `mergedById` → `User` (Restrict; inversa `User.productsMerged`). Un producto con `mergedIntoId` no nulo deja de listarse y queda como rastro. Las reglas de la unión (variantes, stock, ventas) viven en la capa de datos, no en la base.
+
+### 2.9 Tipo de producto: `ProductType` y `DepartmentProductType` [P] (tarea 3.8, migración `add_product_types`)
+
+> Detalle de diseño, reglas y lista inicial: `2026-11-10-taxonomia-productos-design.md`. Decisión del dueño del 2026-11-10 (opción B).
+
+Migración **aditiva** (tablas nuevas, columnas anulables, índices y FK sobre columnas nuevas; sin `DROP`, `ALTER COLUMN`, `SET NOT NULL` ni `CHECK`). Sale a producción con la salida (3.7). El relleno es un script `tsx` idempotente (`prisma/scripts/backfill-product-types.ts`), nunca SQL.
+
+```mermaid
+erDiagram
+    Department ||--o{ DepartmentProductType : "admite"
+    ProductType ||--o{ DepartmentProductType : "aplica en"
+    ProductType |o--o{ Product : "clasifica"
+    Department |o--o{ Product : "agrupa"
+
+    ProductType {
+        String id PK
+        String slug UK
+        String name UK
+        Int sortOrder
+        Boolean isActive
+    }
+    DepartmentProductType {
+        String departmentId PK,FK
+        String productTypeId PK,FK
+        DateTime createdAt
+    }
+    Product {
+        String productTypeId FK "anulable"
+        String style "anulable, VarChar(40)"
+        String audience "anulable, VarChar(20)"
+        String category "= ProductType.name en transición"
+    }
+    SaleLine {
+        String productTypeId "copia sin FK"
+    }
+```
+
+| Tabla o columna | Tipo | Propósito |
+|---|---|---|
+| `ProductType` | tabla: `id` uuid, `slug` único y estable, `name` único (plural: "Playeras"), `sortOrder`, `isActive`, `createdAt`, `updatedAt` | **Tipo de prenda global** (Playeras, Pants, Tenis). Un tipo se repite entre departamentos sin duplicar filas, y "pants en total" se suma por `productTypeId`. Nunca se borra (`Restrict`); se desactiva |
+| `DepartmentProductType` | tabla puente: PK compuesta (`departmentId`, `productTypeId`), ambas FK `Restrict`, `@@index([productTypeId])`, `createdAt` | Qué tipos aplican en cada departamento. El servidor exige el par en el alta, en la edición individual y en el tipo en lote |
+| `Product.productTypeId` | `String?`, FK `Restrict`, `@@index([productTypeId])` | Tipo del producto. Anulable en la base (productos viejos); **obligatorio en el servidor** para altas nuevas. `NOT NULL` es una migración posterior, aparte |
+| `Product.style` | `String? @db.VarChar(40)` | Atributo **estilo** (un slug, p. ej. `polo`), validado contra la lista del tipo en código. Opcional |
+| `Product.audience` | `String? @db.VarChar(20)` | Atributo **"para"**: `dama`, `caballero` o `nino`. Solo en el departamento `calzado`, donde es obligatorio en altas nuevas. Texto validado, no enum (la lista puede crecer sin migración) |
+| `SaleLine.productTypeId` | `String?`, **sin FK**, `@@index([productTypeId])` | Copia al vender, como `departmentId` (§2.2): el reporte histórico no cambia si se reclasifica o se une el producto |
+
+Reglas:
+- **Invariante de transición:** con `productTypeId` no nulo, `Product.category = ProductType.name`. Lo escribe siempre el servidor (alta, edición, lote, relleno); renombrar un tipo actualiza `Product.category` en la misma transacción. `SaleLine.category` nunca se reescribe. `category` se retira en una migración posterior, aparte, cuando nadie lo lea.
+- El relleno mapea texto viejo a tipo (`Playeras`, `Pantalones`, `Hoodies`→Sudaderas, `Tenis`, `Perfumes`, `Raquetas de Padel`); `General`, `Accesorios` y cualquier otro valor quedan sin tipo ("Por revisar"). En `SaleLine` mapea desde su propia copia `category`, nunca desde el producto actual.
+- Cambiar el departamento en lote no toca el tipo; un par que queda fuera de la puente se marca "Por revisar" en la aplicación, no en la base.
+- Lo público (`PublicProduct`) no expone `productTypeId`, `style` ni `audience` en 3.8; `category` sigue siendo el texto público.
+- Stock por tipo y tienda: `InventoryLevel` ⨝ `Variant` (activa) ⨝ `Product` (activo, sin unir) ⟕ `Department` ⟕ `ProductType`, agrupado por departamento, tipo, "para" y tienda (consulta en el addendum §12). Es interna.
 
 ---
 
@@ -523,7 +575,8 @@ Notas: los movimientos anteriores a esta migración son todos `ADJUSTMENT` [V], 
 4. `add_sales`: enums `SaleChannel`, `PaymentMethod`, `SaleStatus`; valor `RETURN` en `MovementType`; tablas `Sale` (con `clientRequestId` único y `customerAlias`, sin campos de contacto) y `SaleLine`; `Movement.saleId` opcional; `InventoryLevel.minStock Int?`; tabla `AppSetting`; índices de §4. El relleno crea `AppSetting.lowStockThreshold = 2`.
 5. `add_store_zones`: enum `ZoneKind`, tablas `StoreZone`, `ZoneConnection`, `StoreHotspot`. Puede adelantarse si la Fase D2 lo necesita antes que las ventas; no depende de 3 ni de 4.
 6. `add_public_catalog_fields` (P3, §2.7): `Product.slug`, `publishedAt`, `description`; `Location.isPublic`, `publicName`, `address`, `openingHours`, `mapUrl`. No bloquea ventas; va después del Buen Fin salvo que el dueño adelante P3.
-7. **Más adelante, no aditiva, con su propia decisión:** hacer `Product.brandId` y `departmentId` obligatorios y retirar `Product.brand` (texto). Solo después de verificar el relleno y de actualizar `InventoryDataSource`, `PrismaDataSource`, `FixtureDataSource` y sus tests en el mismo PR.
+7. `add_product_types` (tarea 3.8, §2.9): tablas `ProductType` y `DepartmentProductType`; `Product.productTypeId`, `style`, `audience` y `SaleLine.productTypeId` anulables con índice. Después, script `tsx` `backfill-product-types.ts` (idempotente). Va antes de la salida (3.7) y sale con ella.
+8. **Más adelante, no aditiva, con su propia decisión:** hacer `Product.brandId` y `departmentId` obligatorios y retirar `Product.brand` (texto). Solo después de verificar el relleno y de actualizar `InventoryDataSource`, `PrismaDataSource`, `FixtureDataSource` y sus tests en el mismo PR.
 
 **Dependencia abierta del dueño:** el alta por lote del worktree `feat/demo-alta-lote` (sin commitear) toca `createProductAction` y el alta; las migraciones 3 y 4 cambian ese mismo contrato. Conviene mergear primero ese worktree (tras `test`, `lint` y `build`) para no rehacer el alta dos veces.
 
