@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LoloShop | Catálogo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#007272',
+            'primary-pressed': '#005F5F',
+            'dark-forest': '#16302F',
+            'border-subtle': '#E1E9E9',
+            'sold-out': '#9A3B2E',
+            'text-muted': '#5C6E6D'
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    /* Hide scrollbars for pill overflow while keeping scrollable */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    /* Diagonal strike through size badge */
+    .size-struck {
+      position: relative;
+      color: #9CA3AF;
+      opacity: 0.6;
+    }
+    .size-struck::after {
+      content: "";
+      position: absolute;
+      left: 15%;
+      top: 50%;
+      width: 70%;
+      height: 1.5px;
+      background-color: #9CA3AF;
+      transform: rotate(-35deg);
+      transform-origin: center;
+    }
+    /* Subtle touch interaction */
+    .active-press:active {
+      transform: scale(0.985);
+      transition: transform 120ms ease;
+    }
+  </style>
+</head>
+<body class="bg-white text-gray-900 font-sans antialiased min-h-screen flex flex-col items-center selection:bg-teal-100">
+
+  <!-- Mobile container 375px max -->
+  <main class="w-full max-w-[375px] min-h-screen bg-white flex flex-col px-4 pt-5 pb-8 relative shadow-sm">
+    
+    <!-- Top Header -->
+    <header class="flex items-start justify-between pb-4 border-b border-border-subtle mb-4">
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight text-primary leading-none">lolo</h1>
+        <p class="text-xs text-text-muted mt-1.5 font-medium leading-tight">Prendas de marca en Lomas y ClubAlva</p>
+      </div>
+      <a href="#equipo" class="text-xs font-semibold text-text-muted hover:text-dark-forest transition-colors py-1 px-1 min-h-[44px] inline-flex items-center">
+        Equipo
+      </a>
+    </header>
+
+    <!-- Department chips row (Horizontal scroll, min 44px touch targets) -->
+    <nav class="mb-5 -mx-4 px-4 overflow-x-auto no-scrollbar flex items-center gap-2" aria-label="Departamentos">
+      <!-- "Todo" selected: filled #16302F with white text -->
+      <button 
+        type="button" 
+        aria-pressed="true"
+        class="h-11 px-5 rounded-full bg-dark-forest text-white text-xs font-semibold shrink-0 shadow-sm transition-transform active:scale-95 flex items-center justify-center">
+        Todo
+      </button>
+
+      <button 
+        type="button" 
+        aria-pressed="false"
+        class="h-11 px-4 rounded-full border border-border-subtle text-text-muted hover:border-gray-400 text-xs font-medium shrink-0 transition-all active:scale-95 flex items-center justify-center">
+        Dama
+      </button>
+
+      <button 
+        type="button" 
+        aria-pressed="false"
+        class="h-11 px-4 rounded-full border border-border-subtle text-text-muted hover:border-gray-400 text-xs font-medium shrink-0 transition-all active:scale-95 flex items-center justify-center">
+        Caballero
+      </button>
+
+      <button 
+        type="button" 
+        aria-pressed="false"
+        class="h-11 px-4 rounded-full border border-border-subtle text-text-muted hover:border-gray-400 text-xs font-medium shrink-0 transition-all active:scale-95 flex items-center justify-center">
+        Niños
+      </button>
+
+      <button 
+        type="button" 
+        aria-pressed="false"
+        class="h-11 px-4 rounded-full border border-border-subtle text-text-muted hover:border-gray-400 text-xs font-medium shrink-0 transition-all active:scale-95 flex items-center justify-center">
+        Calzado
+      </button>
+    </nav>
+
+    <!-- Product Grid: 2 columns, 12px gap, 6 cards -->
+    <section class="grid grid-cols-2 gap-3 mb-6" aria-label="Productos destacados">
+
+      <!-- Card 1: Playera ejemplo -->
+      <article class="flex flex-col group active-press">
+        <!-- Photo Placeholder -->
+        <div class="w-full aspect-square bg-[#F3F4F6] rounded-[14px] border border-border-subtle flex flex-col items-center justify-center p-3 relative overflow-hidden transition-colors group-hover:bg-[#EAEAEA]">
+          <svg class="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span class="text-[11px] font-medium text-gray-500 text-center leading-tight">Foto de frente</span>
+        </div>
+        <!-- Meta -->
+        <div class="pt-2 flex flex-col flex-1 justify-between">
+          <div>
+            <span class="font-mono text-[11px] tracking-wider text-text-muted uppercase block leading-none mb-1">MARCA EJEMPLO</span>
+            <h2 class="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">Playera ejemplo</h2>
+          </div>
+          <div class="mt-1.5">
+            <p class="text-sm font-bold text-gray-900">$000</p>
+            <!-- Size chips row -->
+            <div class="flex items-center gap-1 mt-1 font-mono text-[11px]">
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">S</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">M</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">L</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 2: Pantalón ejemplo (with struck-out size) -->
+      <article class="flex flex-col group active-press">
+        <div class="w-full aspect-square bg-[#F3F4F6] rounded-[14px] border border-border-subtle flex flex-col items-center justify-center p-3 relative overflow-hidden transition-colors group-hover:bg-[#EAEAEA]">
+          <svg class="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span class="text-[11px] font-medium text-gray-500 text-center leading-tight">Foto de frente</span>
+        </div>
+        <div class="pt-2 flex flex-col flex-1 justify-between">
+          <div>
+            <span class="font-mono text-[11px] tracking-wider text-text-muted uppercase block leading-none mb-1">MARCA EJEMPLO</span>
+            <h2 class="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">Pantalón ejemplo</h2>
+          </div>
+          <div class="mt-1.5">
+            <p class="text-sm font-bold text-gray-900">Desde $000</p>
+            <!-- Size chips row with struck out 'S' -->
+            <div class="flex items-center gap-1 mt-1 font-mono text-[11px]">
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center size-struck" title="Agotada">S</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">M</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">L</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">XL</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 3: Chamarra ejemplo -->
+      <article class="flex flex-col group active-press">
+        <div class="w-full aspect-square bg-[#F3F4F6] rounded-[14px] border border-border-subtle flex flex-col items-center justify-center p-3 relative overflow-hidden transition-colors group-hover:bg-[#EAEAEA]">
+          <svg class="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span class="text-[11px] font-medium text-gray-500 text-center leading-tight">Foto de frente</span>
+        </div>
+        <div class="pt-2 flex flex-col flex-1 justify-between">
+          <div>
+            <span class="font-mono text-[11px] tracking-wider text-text-muted uppercase block leading-none mb-1">MARCA EJEMPLO</span>
+            <h2 class="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">Chamarra ejemplo</h2>
+          </div>
+          <div class="mt-1.5">
+            <p class="text-sm font-bold text-gray-900">$000</p>
+            <div class="flex items-center gap-1 mt-1 font-mono text-[11px]">
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">M</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">L</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 4: Sudadera ejemplo (with 6 sizes +2) -->
+      <article class="flex flex-col group active-press">
+        <div class="w-full aspect-square bg-[#F3F4F6] rounded-[14px] border border-border-subtle flex flex-col items-center justify-center p-3 relative overflow-hidden transition-colors group-hover:bg-[#EAEAEA]">
+          <svg class="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span class="text-[11px] font-medium text-gray-500 text-center leading-tight">Foto de frente</span>
+        </div>
+        <div class="pt-2 flex flex-col flex-1 justify-between">
+          <div>
+            <span class="font-mono text-[11px] tracking-wider text-text-muted uppercase block leading-none mb-1">MARCA EJEMPLO</span>
+            <h2 class="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">Sudadera ejemplo</h2>
+          </div>
+          <div class="mt-1.5">
+            <p class="text-sm font-bold text-gray-900">Desde $000</p>
+            <!-- 6 sizes + 2 -->
+            <div class="flex flex-wrap items-center gap-1 mt-1 font-mono text-[11px]">
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">XS</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">S</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">M</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">L</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">XL</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">2X</span>
+              <span class="text-[10px] text-text-muted font-mono font-medium pl-0.5">+2</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 5: Playera ejemplo (Fully sold out card: "Agotado" in #9A3B2E) -->
+      <article class="flex flex-col group active-press opacity-85">
+        <div class="w-full aspect-square bg-[#F3F4F6] rounded-[14px] border border-border-subtle flex flex-col items-center justify-center p-3 relative overflow-hidden">
+          <svg class="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span class="text-[11px] font-medium text-gray-500 text-center leading-tight">Foto de frente</span>
+
+          <!-- Agotado badge -->
+          <div class="absolute bottom-2.5 left-2.5 right-2.5 bg-white/90 backdrop-blur-sm py-1 rounded text-center shadow-xs border border-red-100">
+            <span class="text-xs font-bold text-sold-out tracking-wide uppercase">Agotado</span>
+          </div>
+        </div>
+        <div class="pt-2 flex flex-col flex-1 justify-between">
+          <div>
+            <span class="font-mono text-[11px] tracking-wider text-text-muted uppercase block leading-none mb-1">MARCA EJEMPLO</span>
+            <h2 class="text-sm font-semibold text-gray-500 line-clamp-2 leading-snug">Playera ejemplo</h2>
+          </div>
+          <div class="mt-1.5">
+            <p class="text-sm font-bold text-sold-out">Agotado</p>
+            <div class="flex items-center gap-1 mt-1 font-mono text-[11px]">
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center size-struck">S</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center size-struck">M</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center size-struck">L</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 6: Pantalón ejemplo -->
+      <article class="flex flex-col group active-press">
+        <div class="w-full aspect-square bg-[#F3F4F6] rounded-[14px] border border-border-subtle flex flex-col items-center justify-center p-3 relative overflow-hidden transition-colors group-hover:bg-[#EAEAEA]">
+          <svg class="w-7 h-7 text-gray-400 mb-1" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+          </svg>
+          <span class="text-[11px] font-medium text-gray-500 text-center leading-tight">Foto de frente</span>
+        </div>
+        <div class="pt-2 flex flex-col flex-1 justify-between">
+          <div>
+            <span class="font-mono text-[11px] tracking-wider text-text-muted uppercase block leading-none mb-1">MARCA EJEMPLO</span>
+            <h2 class="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">Pantalón ejemplo</h2>
+          </div>
+          <div class="mt-1.5">
+            <p class="text-sm font-bold text-gray-900">$000</p>
+            <div class="flex items-center gap-1 mt-1 font-mono text-[11px]">
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">M</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">L</span>
+              <span class="w-5 h-5 rounded border border-border-subtle flex items-center justify-center text-gray-700">XL</span>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </section>
+
+    <!-- Outlined Button "Ver más" (full width, 44px+ height) -->
+    <div class="w-full mb-8">
+      <button 
+        type="button" 
+        class="w-full h-12 rounded-xl border border-primary text-primary hover:bg-[#F3F7F7] active:bg-[#E8F2F2] font-semibold text-sm transition-all duration-150 active:scale-[0.985] flex items-center justify-center">
+        Ver más
+      </button>
+    </div>
+
+    <!-- Footer -->
+    <footer class="mt-auto pt-6 border-t border-border-subtle text-center flex flex-col items-center">
+      <p class="text-xs text-text-muted leading-relaxed font-normal">
+        Consulta disponibilidad en tienda.
+      </p>
+      <div class="mt-1.5 flex items-center justify-center gap-2 text-xs font-semibold text-dark-forest">
+        <a href="#lomas" class="hover:text-primary transition-colors py-1">Lomas</a>
+        <span class="text-gray-300 font-normal">·</span>
+        <a href="#clubalva" class="hover:text-primary transition-colors py-1">ClubAlva</a>
+      </div>
+    </footer>
+
+  </main>
+
+</body>
+</html>
+
