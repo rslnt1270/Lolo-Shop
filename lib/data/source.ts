@@ -75,7 +75,7 @@ export interface CreateLocationData {
   type?: LocationType;
 }
 
-export type StockMovementType = "RESTOCK" | "DAMAGE" | "ADJUSTMENT";
+export type StockMovementType = "RESTOCK" | "DAMAGE" | "ADJUSTMENT" | "TRANSFER";
 
 export interface RecordStockMovementData {
   variantId: string;
@@ -86,6 +86,18 @@ export interface RecordStockMovementData {
   notes: string | null;
   /** UUID de idempotencia: repetirlo no duplica el movimiento. */
   requestId: string;
+  userId: string;
+}
+
+export interface TransferStockData {
+  variantId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  /** Entero > 0. */
+  quantity: number;
+  /** UUID de idempotencia; los Movement llevan `<requestId>:out` y `<requestId>:in`. */
+  requestId: string;
+  note: string | null;
   userId: string;
 }
 
@@ -136,6 +148,13 @@ export interface InventoryDataSource {
    * con el stock actual, sin aplicar el cambio otra vez.
    */
   recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }>;
+  /**
+   * Traspaso atómico entre dos tiendas: resta en el origen (sin piezas
+   * suficientes lanza `InsufficientStockError` y no escribe nada), suma en el
+   * destino y escribe dos `Movement` TRANSFER. `available` es el del origen.
+   * Un `requestId` ya aplicado devuelve `replayed: true` sin repetir el cambio.
+   */
+  transferStock(data: TransferStockData): Promise<{ available: number; replayed: boolean }>;
   /**
    * Crea producto + N variantes (`title` = talla) + N filas de inventario en
    * `locationId` + un Movement RESTOCK "alta" por talla con piezas, todo

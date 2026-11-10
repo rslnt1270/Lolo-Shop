@@ -1,8 +1,10 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Role } from "@/lib/domain/types";
-import { recordStockMovementAction, type StockMovementResult } from "@/lib/actions";
+import {
+  fetchLocationsAction, recordStockMovementAction, transferStockAction, type StockMovementResult,
+} from "@/lib/actions";
 import {
   MAX_REASON_LENGTH,
   MAX_STOCK_QUANTITY,
@@ -14,11 +16,13 @@ export interface StockMovementPanelProps {
   variantId: string;
   locationId: string;
   role: Role;
-  /** Se llama con el stock resultante al terminar un movimiento (también si fue repetido). */
-  onDone(available: number): void;
+  /** Manager con tienda: solo traspasa desde o hacia `locationId` (el servidor lo vuelve a validar). */
+  storeBound?: boolean;
+  /** Se llama con el stock resultante al terminar un movimiento (también si fue repetido); `message` solo en traspasos. */
+  onDone(available: number, message?: string): void;
 }
 
-type Mode = "idle" | "adjust";
+type Mode = "idle" | "adjust" | "transfer";
 type AdjustType = "damage" | "adjustment";
 
 /**
@@ -28,7 +32,7 @@ type AdjustType = "damage" | "adjustment";
  * reintentos hasta un resultado definitivo, para que un doble toque o un
  * reintento de red no duplique el movimiento.
  */
-export function StockMovementPanel({ variantId, locationId, role, onDone }: StockMovementPanelProps) {
+export function StockMovementPanel({ variantId, locationId, role, storeBound = false, onDone }: StockMovementPanelProps) {
   const canAdjust = role === "owner" || role === "manager";
   const [mode, setMode] = useState<Mode>("idle");
   const [entryQty, setEntryQty] = useState("1");
@@ -36,6 +40,11 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
   const [direction, setDirection] = useState<"in" | "out">("out");
   const [adjustQty, setAdjustQty] = useState("1");
   const [reason, setReason] = useState("");
+  const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
+  const [fromId, setFromId] = useState(locationId);
+  const [toId, setToId] = useState("");
+  const [transferQty, setTransferQty] = useState("1");
+  const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   // Una operación a la vez; el id vive en un ref para que el doble toque lo vea al instante.
@@ -99,6 +108,76 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
     requestIdRef.current = null;
   };
 
+  useEffect(() => {
+    if (mode !== "transfer") return;
+    let cancelled = false;
+    fetchLocationsAction()
+      .then((res) => {
+        if (!cancelled) setStores((res ?? []).filter((l) => l.type === "store").map((l) => ({ id: l.id, name: l.name })));
+      })
+      .catch(() => {
+        if (!cancelled) setError("No se pudieron cargar las tiendas. Intenta de nuevo.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mode]);
+
+  const openTransfer = () => {
+    setMode("transfer");
+    setError("");
+    setFromId(locationId);
+    setToId("");
+    newRequestId();
+  };
+  const closeTransfer = () => {
+    setMode("idle");
+    setError("");
+    setNote("");
+    requestIdRef.current = null;
+  };
+
+  const submitTransfer = async () => {
+    if (busyRef.current) return;
+    setError("");
+    const quantity = Number(transferQty);
+    if (!fromId) return setError("Elige la tienda de origen.");
+    if (!toId) return setError("Elige la tienda de destino.");
+    if (fromId === toId) return setError("El origen y el destino deben ser distintos.");
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_STOCK_QUANTITY) {
+      return setError(`La cantidad debe ser un entero entre 1 y ${MAX_STOCK_QUANTITY}.`);
+    }
+    if (storeBound && fromId !== locationId && toId !== locationId) {
+      return setError("Solo puedes traspasar desde o hacia tu tienda asignada.");
+    }
+    const trimmed = note.trim();
+    busyRef.current = true;
+    setPending(true);
+    let result: StockMovementResult;
+    try {
+      result = await transferStockAction({
+        variantId,
+        fromLocationId: fromId,
+        toLocationId: toId,
+        quantity,
+        requestId: currentRequestId(),
+        ...(trimmed ? { note: trimmed } : {}),
+      });
+    } catch {
+      result = { ok: false, code: "ERROR", message: "No se pudo registrar. Revisa tu conexión e intenta de nuevo." };
+    }
+    busyRef.current = false;
+    setPending(false);
+
+    if (result.ok) {
+      requestIdRef.current = null;
+      onDone(result.available, result.message);
+      return;
+    }
+    if (result.code !== "ERROR" && result.code !== "SESSION") requestIdRef.current = null;
+    setError(result.message);
+  };
+
   const adjustLabel = adjustType === "damage" ? "Registrar merma" : "Registrar corrección";
   const primary =
     "min-h-[44px] w-full rounded-lg bg-loloteal px-4 py-2 font-semibold text-white active:bg-loloteal-dark disabled:opacity-60";
@@ -145,7 +224,100 @@ export function StockMovementPanel({ variantId, locationId, role, onDone }: Stoc
               Merma o corrección
             </button>
           )}
+          {canAdjust && (
+            <button type="button" onClick={openTransfer} disabled={pending} className={outline}>
+              Traspasar
+            </button>
+          )}
         </>
+      )}
+
+      {mode === "transfer" && (
+        <form
+          className="space-y-3 rounded-lg border border-gray-200 p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitTransfer();
+          }}
+        >
+          {(
+            [
+              ["origen", "Origen", fromId, setFromId],
+              ["destino", "Destino", toId, setToId],
+            ] as const
+          ).map(([id, label, value, set]) => (
+            <div key={id}>
+              <label htmlFor={`traspaso-${id}`} className="block text-sm font-medium">
+                {label}
+              </label>
+              <select
+                id={`traspaso-${id}`}
+                value={value}
+                onChange={(e) => {
+                  touch();
+                  set(e.target.value);
+                }}
+                disabled={pending}
+                className={`${field} mt-1 w-full`}
+              >
+                {id === "destino" && <option value="">Elige una tienda</option>}
+                {stores.length === 0 && id === "origen" && <option value={fromId}>Cargando tiendas…</option>}
+                {stores.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+          <div className="flex items-center gap-2">
+            <label htmlFor="traspaso-cantidad" className="text-sm font-medium">
+              Cantidad
+            </label>
+            <input
+              id="traspaso-cantidad"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={MAX_STOCK_QUANTITY}
+              value={transferQty}
+              onChange={(e) => {
+                touch();
+                setTransferQty(e.target.value);
+              }}
+              disabled={pending}
+              className={`${field} w-24`}
+            />
+          </div>
+          <div>
+            <label htmlFor="traspaso-nota" className="block text-sm font-medium">
+              Nota (opcional)
+            </label>
+            <textarea
+              id="traspaso-nota"
+              rows={2}
+              maxLength={MAX_REASON_LENGTH}
+              value={note}
+              onChange={(e) => {
+                touch();
+                setNote(e.target.value);
+              }}
+              disabled={pending}
+              className={`${field} mt-1 w-full py-2`}
+            />
+          </div>
+          <button type="submit" disabled={pending} className={primary}>
+            Registrar traspaso
+          </button>
+          <button
+            type="button"
+            onClick={closeTransfer}
+            disabled={pending}
+            className="min-h-[44px] w-full text-sm text-gray-600"
+          >
+            Cancelar
+          </button>
+        </form>
       )}
 
       {mode === "adjust" && (

@@ -320,9 +320,13 @@ export default function EscanearPage() {
                     variantId={found.variantId}
                     locationId={locationId}
                     role={role as Role}
-                    onDone={(available) => {
+                    storeBound={storeBound}
+                    onDone={(available, doneMessage) => {
                       setIsError(false);
-                      setMessage(`Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
+                      setMessage(
+                        doneMessage ??
+                          `Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`,
+                      );
                       reset();
                     }}
                   />

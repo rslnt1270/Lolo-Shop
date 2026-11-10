@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 
 const lookup = vi.fn();
 const record = vi.fn();
+const transfer = vi.fn();
 const createProductAction = vi.fn();
 const fetchLocations = vi.fn();
 let sessionUser: Record<string, unknown> = { id: "u1", role: "collaborator", locationId: "loc-1" };
@@ -13,6 +14,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("@/lib/actions", () => ({
   lookupCodeAction: (...a: unknown[]) => lookup(...a),
   recordStockMovementAction: (...a: unknown[]) => record(...a),
+  transferStockAction: (...a: unknown[]) => transfer(...a),
   createProductAction: (...a: unknown[]) => createProductAction(...a),
   searchProductsAction: vi.fn().mockResolvedValue([]),
   addVariantAction: vi.fn(),
@@ -57,7 +59,7 @@ async function fillForm() {
 
 describe("/escanear: flujo de alta por lote", () => {
   beforeEach(() => {
-    [lookup, record, createProductAction, fetchLocations].forEach((m) => m.mockReset());
+    [lookup, record, transfer, createProductAction, fetchLocations].forEach((m) => m.mockReset());
     sessionUser = { id: "u1", role: "collaborator", locationId: "loc-1" };
     lookup.mockResolvedValue({ found: false, code: "750999" });
     record.mockResolvedValue({ ok: true, available: 1, replayed: false });
@@ -194,6 +196,53 @@ describe("/escanear: flujo de alta por lote", () => {
           expect.objectContaining({ variantId: "v1", locationId: "loc-1", kind: "damage", quantity: 1, reason: "Manchada" }),
         ),
       );
+    });
+
+    it("colaborador no ve 'Traspasar'", async () => {
+      await openExisting();
+      expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();
+    });
+
+    it("manager: Traspasar pide origen, destino, cantidad y nota y muestra el mensaje de éxito", async () => {
+      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
+      fetchLocations.mockResolvedValue([
+        { id: "loc-1", name: "Lomas", type: "store" },
+        { id: "loc-2", name: "ClubAlva", type: "store" },
+      ]);
+      transfer.mockResolvedValue({ ok: true, available: 3, replayed: false, message: "Se movieron 2 de Lomas a ClubAlva." });
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
+      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
+      await within(origen).findByRole("option", { name: "ClubAlva" });
+      expect(origen.value).toBe("loc-1");
+      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-2" } });
+      fireEvent.change(screen.getByLabelText(/^cantidad$/i), { target: { value: "2" } });
+      fireEvent.change(screen.getByLabelText(/^nota/i), { target: { value: "Reposición" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
+      await waitFor(() =>
+        expect(transfer).toHaveBeenCalledWith(
+          expect.objectContaining({
+            variantId: "v1", fromLocationId: "loc-1", toLocationId: "loc-2", quantity: 2, note: "Reposición",
+          }),
+        ),
+      );
+      expect(await screen.findByText("Se movieron 2 de Lomas a ClubAlva.")).toBeTruthy();
+    });
+
+    it("origen = destino muestra el error sin llamar a la acción", async () => {
+      sessionUser = { id: "o1", role: "owner", locationId: null };
+      fetchLocations.mockResolvedValue([
+        { id: "loc-1", name: "Lomas", type: "store" },
+        { id: "loc-2", name: "ClubAlva", type: "store" },
+      ]);
+      await openExisting();
+      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
+      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
+      await within(origen).findByRole("option", { name: "ClubAlva" });
+      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-1" } });
+      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
+      expect(await screen.findByText(/origen y el destino/i)).toBeTruthy();
+      expect(transfer).not.toHaveBeenCalled();
     });
 
     it("corrección pide dirección y el botón cambia a 'Registrar corrección'", async () => {
