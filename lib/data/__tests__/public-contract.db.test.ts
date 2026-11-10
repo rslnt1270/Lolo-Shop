@@ -57,7 +57,7 @@ describe.skipIf(!hasTestDb)("contrato público: Prisma y Fixture devuelven la mi
     const fx = new FixtureDataSource();
     const store = (await fx.getLocations()).find((l) => l.type === "store")!;
     await fx.createProduct({
-      title: "Uno", brand: "Marca", brandId: "b", departmentId: "d", category: "Polos", publicCode: code,
+      title: "Uno", brand: "Marca", brandId: "b", departmentId: "dep-dama", category: "Polos", publicCode: code,
       imageUrl: FRONT, backImageUrl: BACK, locationId: store.id, userId: "u",
       variants: sizes.map((s) => ({ size: s.size, price: s.price, initialStock: s.stock, sku: `SKU-${code}-${s.size}`, barcode: `${code}${s.size}` })),
     });
@@ -66,7 +66,8 @@ describe.skipIf(!hasTestDb)("contrato público: Prisma y Fixture devuelven la mi
 
   it("mismas claves exactas (recursivo) y sin sku, barcode, inventory ni available a nivel producto", async () => {
     const sizes = [{ size: "S", price: 300, stock: 0 }, { size: "M", price: 350, stock: 2 }];
-    await seedPrisma("Uno", "AAAA1", new Date("2026-01-01T00:00:00Z"), {}, sizes);
+    const dama = await testPrisma.department.create({ data: { slug: "dama", name: "Dama", sortOrder: 1 } });
+    await seedPrisma("Uno", "AAAA1", new Date("2026-01-01T00:00:00Z"), { departmentId: dama.id }, sizes);
     const fx = await seedFixture("AAAA1", sizes);
 
     const fromDb = await getPublicCatalog(new PrismaDataSource(testPrisma));
@@ -104,5 +105,15 @@ describe.skipIf(!hasTestDb)("contrato público: Prisma y Fixture devuelven la mi
     const ids = (await getPublicCatalog(new PrismaDataSource(testPrisma))).map((p) => p.publicCode);
     const tie = [a, b].sort((x, y) => (x.id < y.id ? -1 : 1)).map((p) => p.publicCode);
     expect(ids).toEqual(["NNNN2", ...tie, "VVVV2"]);
+  });
+
+  it("departamento: activo -> {slug,name,sortOrder}; inactivo o sin departamento -> null (Prisma y Fixture)", async () => {
+    const dama = await testPrisma.department.create({ data: { slug: "dama", name: "Dama", sortOrder: 1 } });
+    const viejo = await testPrisma.department.create({ data: { slug: "viejo", name: "Viejo", sortOrder: 9, isActive: false } });
+    await seedPrisma("Con", "DDDD1", new Date("2026-01-03T00:00:00Z"), { departmentId: dama.id });
+    await seedPrisma("Inactivo", "DDDD2", new Date("2026-01-02T00:00:00Z"), { departmentId: viejo.id });
+    await seedPrisma("Sin", "DDDD3", new Date("2026-01-01T00:00:00Z"));
+    const byCode = Object.fromEntries((await getPublicCatalog(new PrismaDataSource(testPrisma))).map((p) => [p.publicCode, p.department]));
+    expect(byCode).toEqual({ DDDD1: { slug: "dama", name: "Dama", sortOrder: 1 }, DDDD2: null, DDDD3: null });
   });
 });

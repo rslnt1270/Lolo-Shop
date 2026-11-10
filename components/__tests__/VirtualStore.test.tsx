@@ -33,6 +33,7 @@ describe("Virtual Store Components", () => {
         { size: "L", available: false, price: 350 },
       ],
       price: 350,
+      department: null,
     },
   ];
 

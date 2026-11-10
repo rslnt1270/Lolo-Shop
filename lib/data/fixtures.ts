@@ -72,3 +72,12 @@ export const fixtureProducts: Product[] = [
     ],
   },
 ];
+
+/** Departamentos del doble de pruebas; ids `dep-<slug>` (los mismos que sembrará la tarea 3.8). */
+export const FIXTURE_DEPARTMENTS: { id: string; slug: string; name: string; sortOrder: number; isActive: boolean }[] = [
+  { id: "dep-dama", slug: "dama", name: "Dama", sortOrder: 1, isActive: true },
+  { id: "dep-caballero", slug: "caballero", name: "Caballero", sortOrder: 2, isActive: true },
+  { id: "dep-ninos", slug: "ninos", name: "Niños", sortOrder: 3, isActive: true },
+  { id: "dep-calzado", slug: "calzado", name: "Calzado", sortOrder: 4, isActive: true },
+  { id: "dep-accesorios", slug: "accesorios", name: "Accesorios", sortOrder: 5, isActive: true },
+];

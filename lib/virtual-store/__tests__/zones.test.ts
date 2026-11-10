@@ -30,6 +30,7 @@ describe("Virtual Store Zones & Hotspots", () => {
     backImageUrl: "https://example.com/chamarra-atras.jpg",
     sizes: [{ size: "M", available: true, price: 1200 }],
     price: 1200,
+    department: null,
   };
 
   it("vincula cada producto público a un solo punto y omite los puntos sin producto", () => {

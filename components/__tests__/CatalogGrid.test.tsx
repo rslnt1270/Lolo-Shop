@@ -28,6 +28,7 @@ const make = (i: number): PublicProduct => ({
     { size: "L", available: true, price: 100 + i },
   ],
   price: 100 + i,
+  department: null,
 });
 const twelve = Array.from({ length: 12 }, (_, i) => make(i));
 

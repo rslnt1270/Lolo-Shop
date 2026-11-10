@@ -16,7 +16,7 @@ import { normalizeSize, sortSizes } from "../domain/sizes";
 import { normalizePublicCode } from "../domain/public-code";
 
 type DbVariant = Prisma.VariantGetPayload<{ include: { inventory: true } }>;
-type DbProduct = Prisma.ProductGetPayload<object>;
+type DbProduct = Prisma.ProductGetPayload<{ include: { department: true } }> | Prisma.ProductGetPayload<object>;
 
 function toVariant(v: DbVariant): Variant {
   return {
@@ -45,6 +45,9 @@ function toProduct(p: DbProduct, variants: Variant[]): Product {
     isActive: p.isActive,
     brandId: p.brandId,
     departmentId: p.departmentId,
+    ...("department" in p && p.department
+      ? { department: { slug: p.department.slug, name: p.department.name, sortOrder: p.department.sortOrder, isActive: p.department.isActive } }
+      : {}),
     mergedIntoId: p.mergedIntoId,
     createdAt: p.createdAt?.toISOString(),
     variants,
@@ -99,6 +102,7 @@ export class PrismaDataSource implements InventoryDataSource {
   async getProducts(): Promise<Product[]> {
     const prods = await this.db.product.findMany({
       include: { 
+        department: true,
         variants: {
           include: { inventory: true }
         }
@@ -116,6 +120,9 @@ export class PrismaDataSource implements InventoryDataSource {
       isActive: p.isActive,
       brandId: p.brandId,
       departmentId: p.departmentId,
+      department: p.department
+        ? { slug: p.department.slug, name: p.department.name, sortOrder: p.department.sortOrder, isActive: p.department.isActive }
+        : null,
       mergedIntoId: p.mergedIntoId,
       createdAt: p.createdAt.toISOString(),
       variants: p.variants.map(v => ({
@@ -139,7 +146,7 @@ export class PrismaDataSource implements InventoryDataSource {
     const prods = await this.db.product.findMany({
       where: { isActive: true, mergedIntoId: null, imageUrl: { not: null }, backImageUrl: { not: null } },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
-      include: { variants: { include: { inventory: true } } },
+      include: { variants: { include: { inventory: true } }, department: true },
     });
     return prods.map((p) => toProduct(p, p.variants.map(toVariant)));
   }

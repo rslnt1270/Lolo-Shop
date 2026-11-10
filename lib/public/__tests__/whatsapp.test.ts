@@ -20,6 +20,7 @@ const product: PublicProduct = {
   backImageUrl: "https://example.invalid/a.jpg",
   sizes: [{ size: "M", available: true, price: 350 }],
   price: 350,
+  department: null,
 };
 
 afterEach(() => {

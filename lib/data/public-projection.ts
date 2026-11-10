@@ -13,6 +13,8 @@ export interface PublicProduct {
   backImageUrl: string | null;
   sizes: { size: string; available: boolean; price: number }[];
   price: number | null;
+  /** Departamento activo del producto; inactivo o sin asignar -> null (spec §3.1). */
+  department: { slug: string; name: string; sortOrder: number } | null;
 }
 
 /**
@@ -46,6 +48,10 @@ export function toPublicProduct(
     backImageUrl: p.backImageUrl ?? null,
     sizes,
     price: sizes.length ? Math.min(...sizes.map((x) => x.price)) : null,
+    department:
+      p.department && p.department.isActive
+        ? { slug: p.department.slug, name: p.department.name, sortOrder: p.department.sortOrder }
+        : null,
   };
 }
 

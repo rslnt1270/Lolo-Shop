@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Compass,
   Grid,
@@ -20,6 +21,10 @@ import { StoreMinimap } from "./StoreMinimap";
 import { ProductHotspotModal } from "./ProductHotspotModal";
 import { CatalogDrawer } from "./CatalogDrawer";
 import { CatalogGrid } from "./CatalogGrid";
+import { DepartmentChips, departmentsOf } from "./DepartmentChips";
+
+/** Tarjetas por página; "Ver más" suma otras tantas. */
+const PAGE_SIZE = 24;
 
 interface Props {
   initialProducts: PublicProduct[];
@@ -35,12 +40,34 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
   const [selectedShelf, setSelectedShelf] = useState<string | undefined>(undefined);
   const [isCatalogDrawerOpen, setIsCatalogDrawerOpen] = useState(false);
 
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const departments = useMemo(() => departmentsOf(initialProducts), [initialProducts]);
+  // Un ?depto sin productos públicos equivale a "Todo".
+  const urlDepto = searchParams.get("depto");
+  const urlSlug = departments.some((d) => d.slug === urlDepto) ? urlDepto : null;
+  const [deptoSlug, setDeptoSlug] = useState<string | null>(urlSlug);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setDeptoSlug(urlSlug);
+    setVisibleCount(PAGE_SIZE);
+  }, [urlSlug]);
+
+  const handleSelectDepto = (slug: string | null) => {
+    setDeptoSlug(slug);
+    setVisibleCount(PAGE_SIZE);
+    router.replace(slug ? `${pathname}?depto=${encodeURIComponent(slug)}` : pathname, { scroll: false });
+  };
+
   const tourEnabled = isTourEnabled(STORE_ZONES);
   const showTour = tourEnabled && viewMode === "tour";
 
   // Mapear productos reales a los puntos espaciales de la tienda física
   const hotspots = bindProductsToHotspots(initialProducts);
-  const products = initialProducts;
+  // El orden ya viene de la fuente (createdAt desc, id asc): filtrar y recortar lo conserva sin repetidos ni huecos.
+  const products = deptoSlug ? initialProducts.filter((p) => p.department?.slug === deptoSlug) : initialProducts;
+  const shown = products.slice(0, visibleCount);
   const currentZone = STORE_ZONES.find((z) => z.id === currentZoneId) || STORE_ZONES[0];
 
   // Cambiar de zona en la tienda con orientación inicial
@@ -267,12 +294,29 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
               )}
             </div>
 
+            {initialProducts.length > 0 && (
+              <DepartmentChips departments={departments} selected={deptoSlug} onSelect={handleSelectDepto} />
+            )}
+
             {products.length === 0 ? (
               <p className="rounded-3xl border border-white/60 bg-white/90 p-8 text-center text-sm text-gray-600">
                 {EMPTY_CATALOG_TEXT}
               </p>
             ) : (
-              <CatalogGrid products={products} onSelect={openProduct} />
+              <>
+                <CatalogGrid products={shown} onSelect={openProduct} />
+                {shown.length < products.length && (
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+                      className="min-h-[44px] rounded-full bg-loloteal px-6 text-sm font-bold text-white transition-colors active:bg-loloteal-dark motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
+                    >
+                      Ver más
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

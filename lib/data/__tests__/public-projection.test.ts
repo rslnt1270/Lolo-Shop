@@ -162,3 +162,24 @@ describe("findPublicByCode", () => {
     expect(await findPublicByCode(ds, "AAAA1")).toBeNull();
   });
 });
+
+describe("departamento público", () => {
+  const prod = (department?: { slug: string; name: string; sortOrder: number; isActive: boolean } | null) => ({
+    id: "p", title: "t", brand: "b", category: "c", imageUrl: "f", backImageUrl: "b", publicCode: "AAAAA",
+    ...(department === undefined ? {} : { department }),
+    variants: [{ id: "v", sku: "s", title: "M", size: "M", color: "x", price: 1, barcode: null,
+      inventory: [{ locationId: "st", available: 1 }] }],
+  });
+  const stores = new Set(["st"]);
+
+  it("proyecta slug, name y sortOrder (sin isActive)", () => {
+    const p = toPublicProduct(prod({ slug: "dama", name: "Dama", sortOrder: 1, isActive: true }), stores);
+    expect(p.department).toEqual({ slug: "dama", name: "Dama", sortOrder: 1 });
+  });
+
+  it("departamento inactivo, ausente o null -> null", () => {
+    expect(toPublicProduct(prod({ slug: "x", name: "X", sortOrder: 9, isActive: false }), stores).department).toBeNull();
+    expect(toPublicProduct(prod(null), stores).department).toBeNull();
+    expect(toPublicProduct(prod(), stores).department).toBeNull();
+  });
+});

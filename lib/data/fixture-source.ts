@@ -8,7 +8,7 @@ import {
 } from "./source";
 import { MOVEMENT_TYPE_LABEL } from "@/lib/domain/types";
 import { mexicoRangeToUtc } from "@/lib/domain/movement-scope";
-import { fixtureLocations, fixtureProducts } from "./fixtures";
+import { FIXTURE_DEPARTMENTS, fixtureLocations, fixtureProducts } from "./fixtures";
 import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
 import { normalizeSize, sortSizes } from "@/lib/domain/sizes";
 import { normalizePublicCode } from "@/lib/domain/public-code";
@@ -21,6 +21,12 @@ function cloneProducts(products: Product[]): Product[] {
     ...p,
     variants: p.variants.map((v) => ({ ...v, inventory: v.inventory.map((l) => ({ ...l })) })),
   }));
+}
+
+/** Departamento del doble por id; los ids desconocidos (p. ej. `dept-hombre`) quedan sin departamento. */
+function departmentFor(id: string | null | undefined): Product["department"] {
+  const d = FIXTURE_DEPARTMENTS.find((x) => x.id === id);
+  return d ? { slug: d.slug, name: d.name, sortOrder: d.sortOrder, isActive: d.isActive } : null;
 }
 
 /** Movimiento del registro en memoria, con id y hora para el historial. */
@@ -244,6 +250,7 @@ export class FixtureDataSource implements InventoryDataSource {
       brand: data.brand,
       brandId: data.brandId,
       departmentId: data.departmentId,
+      department: departmentFor(data.departmentId),
       imageUrl: data.imageUrl ?? null,
       backImageUrl: data.backImageUrl ?? null,
       description: data.description ?? null,
@@ -334,7 +341,10 @@ export class FixtureDataSource implements InventoryDataSource {
       product.brandId = patch.brandId;
       if (patch.brand !== undefined) product.brand = patch.brand;
     }
-    if (patch.departmentId !== undefined) product.departmentId = patch.departmentId;
+    if (patch.departmentId !== undefined) {
+      product.departmentId = patch.departmentId;
+      product.department = departmentFor(patch.departmentId);
+    }
   }
 
   async setProductActive(productId: string, active: boolean): Promise<void> {
@@ -366,6 +376,7 @@ export class FixtureDataSource implements InventoryDataSource {
     for (const p of this.products) {
       if (!ids.has(p.id)) continue;
       p.departmentId = departmentId;
+      p.department = departmentFor(departmentId);
       count++;
     }
     return count;
