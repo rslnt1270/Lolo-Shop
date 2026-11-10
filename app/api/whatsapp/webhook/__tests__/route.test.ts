@@ -31,6 +31,19 @@ describe("webhook WhatsApp", () => {
     expect(out).not.toContain("5215512345678");
   });
 
+  it.each(["¿me la puedes apartar?", "apártame una", "la quiero apartada", "¿puedes apartarla?"])(
+    "'%s' dispara el flujo de consulta por código",
+    async (msg) => {
+      const out = await send(msg);
+      expect(out).toContain("escríbenos su código");
+    },
+  );
+
+  it.each(["aparte, ¿hacen envíos?", "busco un apartamento"])("'%s' no dispara el flujo de consulta por código", async (msg) => {
+    const out = await send(msg);
+    expect(out).not.toContain("para consultar una prenda escríbenos su código");
+  });
+
   it("código malformado K7Q2 no consulta la base", async () => {
     const out = await send("Código K7Q2");
     expect(state.spy).not.toHaveBeenCalled();

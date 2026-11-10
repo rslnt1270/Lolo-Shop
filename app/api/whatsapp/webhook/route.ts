@@ -100,8 +100,9 @@ async function processMessage(phoneNumberId: string, from: string, text: string)
   const lowerText = text.toLowerCase();
 
   // --- Flujo 1: Consultar una prenda por su código público ---
-  // Reconoce la palabra del cliente; el bot no promete reservar nada.
-  if (lowerText.includes("apart") || /c[oó]digo/.test(lowerText)) {
+  // Reconoce el verbo que usa el cliente para reservar (y sus formas con pronombre), no "aparte" ni "apartamento".
+  // El bot no promete reservar nada.
+  if (/\b(?:apart(?:ar|ad[oa]s?|as?\b)|apárt)/.test(lowerText) || /c[oó]digo/.test(lowerText)) {
     const req = parsePublicCodeRequest(text);
 
     if (req.kind === "ok") {

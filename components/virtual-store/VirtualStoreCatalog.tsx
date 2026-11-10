@@ -252,7 +252,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn }: Props) {
                   Catálogo de Productos
                 </h1>
                 <p className="text-xs text-gray-500">
-                  Explora las prendas y accesorios en exhibición en nuestra sucursal.
+                  Prendas disponibles en tienda.
                 </p>
               </div>
 
