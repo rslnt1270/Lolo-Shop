@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { PRODUCT_CATEGORIES, validateNewProduct } from "../new-product";
+import { PRODUCT_TYPE_CATALOG } from "../product-types-catalog";
+import { validateNewProduct } from "../new-product";
 
 const valid = {
   title: "Playera Básica",
   brandId: "brand-1",
   departmentId: "dep-1",
-  category: "Playeras",
+  productTypeId: "type-1",
   sizes: [{ size: "", barcode: null, price: 299, initialStock: 0 }],
 };
 /** Alta válida con la única talla modificada (antes `price`, `size` e `initialStock` eran sueltos). */
@@ -26,9 +27,16 @@ describe("validateNewProduct", () => {
     expect(() => validateNewProduct({ ...valid, departmentId: "  " })).toThrow("Elige el departamento.");
   });
 
-  it("exige una categoría de la lista", () => {
-    expect(() => validateNewProduct({ ...valid, category: "" })).toThrow("Elige una categoría válida.");
-    expect(() => validateNewProduct({ ...valid, category: "Inventada" })).toThrow("Elige una categoría válida.");
+  it("sin productTypeId lanza 'Elige el tipo.'", () => {
+    expect(() => validateNewProduct({ ...valid, productTypeId: "" })).toThrow("Elige el tipo.");
+    expect(() => validateNewProduct({ ...valid, productTypeId: undefined as unknown as string })).toThrow("Elige el tipo.");
+  });
+
+  it("validateNewProduct con audience fuera de la lista lanza el mensaje de para", () => {
+    expect(() => validateNewProduct({ ...valid, audience: "Niño" })).toThrow(
+      "Elige para quién es: dama, caballero o niño.",
+    );
+    expect(validateNewProduct({ ...valid, audience: "nino" }).audience).toBe("nino");
   });
 
   it("rechaza precio negativo o no numérico", () => {
@@ -70,9 +78,10 @@ describe("validateNewProduct", () => {
     expect(() => validateNewProduct(row({ initialStock: 1.5 }))).toThrow(/stock inicial/);
   });
 
-  it("las categorías coinciden con las de /productos", () => {
-    expect(PRODUCT_CATEGORIES).toContain("Playeras");
-    expect(PRODUCT_CATEGORIES).toContain("Accesorios");
+  it("PRODUCT_TYPE_CATALOG contiene playera y gorra", () => {
+    const slugs = PRODUCT_TYPE_CATALOG.map((t) => t.slug);
+    expect(slugs).toContain("playera");
+    expect(slugs).toContain("gorra");
   });
 });
 

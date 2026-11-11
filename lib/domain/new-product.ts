@@ -1,10 +1,7 @@
 import { isProductBlobUrl } from "@/lib/image/blob-url";
 import { canonicalCode, isValidGtin } from "./barcode";
 import { normalizeSize, UNIQUE_SIZE } from "./sizes";
-
-export const PRODUCT_CATEGORIES = [
-  "Playeras", "Pantalones", "Hoodies", "Tenis", "Accesorios", "Perfumes", "Raquetas de Padel",
-] as const;
+import { isAudience, MSG_AUDIENCE_INVALID, MSG_PICK_TYPE } from "./product-taxonomy";
 
 export const MAX_TITLE_LENGTH = 120;
 export const MAX_SIZE_LENGTH = 20;
@@ -37,7 +34,12 @@ export interface NewProductInput {
   brandId: string;
   /** Departamento obligatorio en altas nuevas (ER §2.3, A3). */
   departmentId: string;
-  category: string;
+  /** Tipo global elegido (`ProductType.id`); el servidor deriva `category` de él. */
+  productTypeId: string;
+  /** Estilo (slug de `STYLE_OPTIONS[tipo]`); vacío = sin estilo. */
+  style?: string | null;
+  /** «Para» (solo Calzado): dama, caballero o nino. */
+  audience?: string | null;
   /** Una fila por talla (1 a 12); sustituye `price`, `size` e `initialStock` sueltos. */
   sizes: SizeRowInput[];
   /** Por defecto "stock". */
@@ -51,7 +53,9 @@ export interface NormalizedNewProduct {
   title: string;
   brandId: string;
   departmentId: string;
-  category: string;
+  productTypeId: string;
+  style: string | null;
+  audience: string | null;
   sizes: NormalizedSizeRow[];
   mode: EntryMode;
   description: string | null;
@@ -144,9 +148,12 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
   if (!departmentId) {
     throw new Error("Elige el departamento.");
   }
-  if (!(PRODUCT_CATEGORIES as readonly string[]).includes(input.category)) {
-    throw new Error("Elige una categoría válida.");
-  }
+  const productTypeId = typeof input.productTypeId === "string" ? input.productTypeId.trim() : "";
+  if (!productTypeId) throw new Error(MSG_PICK_TYPE);
+  const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : null;
+  const hasAudience = input.audience !== undefined && input.audience !== null && input.audience !== "";
+  if (hasAudience && !isAudience(input.audience)) throw new Error(MSG_AUDIENCE_INVALID);
+  const audience = hasAudience ? (input.audience as string) : null;
   const sizes = validateSizeRows(input.sizes);
   const description = (typeof input.description === "string" ? input.description : "").trim();
   if (description.length > MAX_DESCRIPTION_LENGTH) {
@@ -164,7 +171,7 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
     backImageUrl = input.backImageUrl;
   }
   return {
-    title, brandId, departmentId, category: input.category, sizes,
+    title, brandId, departmentId, productTypeId, style, audience, sizes,
     mode, description: description || null, imageUrl, backImageUrl,
   };
 }

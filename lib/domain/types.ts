@@ -63,6 +63,12 @@ export interface Product {
   /** Marca canónica y departamento (ER §2.3); ausentes en datos viejos. */
   brandId?: string | null;
   departmentId?: string | null;
+  /** Tipo global (ProductType) y atributos de clasificación; ausentes en datos viejos. */
+  productTypeId?: string | null;
+  /** Estilo (slug de STYLE_OPTIONS del tipo), p. ej. "polo". */
+  style?: string | null;
+  /** «Para» (solo Calzado): dama, caballero o nino. */
+  audience?: string | null;
   /** Departamento resuelto (solo lo traen las lecturas del catálogo); la proyección pública lo recorta. */
   department?: { slug: string; name: string; sortOrder: number; isActive: boolean } | null;
   /** Producto destino si este fue unido a otro (ER §2.8). */
