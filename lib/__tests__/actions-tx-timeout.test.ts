@@ -8,7 +8,8 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   default: {
     brand: { findUnique: vi.fn().mockResolvedValue({ name: "Lolo", isActive: true }) },
-    department: { findUnique: vi.fn().mockResolvedValue({ isActive: true }) },
+    department: { findUnique: vi.fn().mockResolvedValue({ isActive: true, slug: "accesorios" }) },
+    productType: { findUnique: vi.fn().mockResolvedValue({ slug: "gorra", name: "Gorras", isActive: true, departments: [{ departmentId: "d1" }] }) },
   },
 }));
 vi.mock("@/lib/auth/password", () => ({ changePassword: vi.fn() }));
@@ -58,7 +59,7 @@ describe("P2028 en las acciones: 'La base tardó en responder; reintenta'", () =
   it("alta", async () => {
     vi.spyOn(source, "createProduct").mockRejectedValue(p2028());
     const res = await createProductAction({
-      title: "Gorra", brandId: "b1", departmentId: "d1", category: "Accesorios", locationId: lomas, mode: "stock",
+      title: "Gorra", brandId: "b1", departmentId: "d1", productTypeId: "type-gorra", locationId: lomas, mode: "stock",
       sizes: [{ size: "U", barcode: null, price: 100, initialStock: 1 }],
     });
     expect(res).toEqual(timeout);

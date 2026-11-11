@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getCurrentUser = vi.fn();
 const brandFind = vi.fn();
 const departmentFind = vi.fn();
+const typeFind = vi.fn();
 let ds: import("@/lib/data/fixture-source").FixtureDataSource;
 
 vi.mock("@/lib/auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
@@ -11,12 +12,14 @@ vi.mock("@/lib/prisma", () => ({
   default: {
     brand: { findUnique: (a: unknown) => brandFind(a) },
     department: { findUnique: (a: unknown) => departmentFind(a) },
+    productType: { findUnique: (a: unknown) => typeFind(a) },
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import {
   assignDepartmentAction,
+  assignProductTypeAction,
   listPriceChangesAction,
   setProductActiveAction,
   setVariantActiveAction,
@@ -42,7 +45,8 @@ beforeEach(() => {
   ds = new FixtureDataSource();
   as("owner");
   brandFind.mockResolvedValue({ name: "Guess", isActive: true });
-  departmentFind.mockResolvedValue({ isActive: true });
+  departmentFind.mockResolvedValue({ isActive: true, slug: "dama" });
+  typeFind.mockResolvedValue({ slug: "playera", name: "Playeras", isActive: true, departments: [{ departmentId: "d2" }] });
 });
 
 describe("permisos y sesión", () => {
@@ -51,6 +55,7 @@ describe("permisos y sesión", () => {
     ["setProductActiveAction", () => setProductActiveAction("prod-1", false)],
     ["setVariantActiveAction", () => setVariantActiveAction("var-1", false)],
     ["assignDepartmentAction", () => assignDepartmentAction(["prod-1"], "d1")],
+    ["assignProductTypeAction", () => assignProductTypeAction(["prod-1"], "t1")],
   ];
 
   const priceCall: [string, () => Promise<unknown>] = ["updateVariantPriceAction", () => updateVariantPriceAction(price())];
@@ -147,9 +152,9 @@ describe("updateVariantPriceAction", () => {
 describe("updateProductAction", () => {
   const upd = (over: Record<string, unknown>) => updateProductAction({ productId: "prod-1", ...over } as never);
 
-  it("cambia título, marca, departamento y categoría; el código público no cambia", async () => {
+  it("cambia título, marca, departamento y tipo; la categoría sale del tipo; el código público no cambia", async () => {
     const before = (await ds.getProducts())[0].publicCode;
-    const r = await upd({ title: "  Hoodie nuevo ", brandId: "b2", departmentId: "d2", category: "Playeras" });
+    const r = await upd({ title: "  Hoodie nuevo ", brandId: "b2", departmentId: "d2", productTypeId: "t1" });
     expect(r).toEqual({ ok: true });
     const p = (await ds.getProducts())[0];
     expect(p).toMatchObject({ title: "Hoodie nuevo", brandId: "b2", brand: "Guess", departmentId: "d2", category: "Playeras" });
@@ -176,12 +181,15 @@ describe("updateProductAction", () => {
   });
 
   it("departamento inactivo: INVALID", async () => {
-    departmentFind.mockResolvedValue({ isActive: false });
-    await expect(upd({ departmentId: "d9" })).resolves.toMatchObject({ ok: false, code: "INVALID" });
+    departmentFind.mockResolvedValue({ isActive: false, slug: "dama" });
+    await expect(upd({ departmentId: "d9", productTypeId: "t1" })).resolves.toMatchObject({ ok: false, code: "INVALID" });
   });
 
-  it("categoría fuera de la lista: INVALID", async () => {
-    await expect(upd({ category: "Cosas" })).resolves.toMatchObject({ ok: false, code: "INVALID" });
+  it("tipo inexistente: INVALID 'Elige el tipo.'", async () => {
+    typeFind.mockResolvedValue(null);
+    await expect(upd({ departmentId: "d2", productTypeId: "t9" })).resolves.toMatchObject({
+      ok: false, code: "INVALID", message: expect.stringMatching(/tipo/i),
+    });
   });
 
   it("producto inexistente: NOT_FOUND", async () => {

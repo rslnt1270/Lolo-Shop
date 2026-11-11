@@ -12,6 +12,7 @@ vi.mock("../prisma", () => ({
   default: {
     brand: { findUnique: (...a: unknown[]) => brandFindUnique(...a) },
     department: { findUnique: (...a: unknown[]) => departmentFindUnique(...a) },
+    productType: { findUnique: vi.fn().mockResolvedValue({ slug: "gorra", name: "Gorras", isActive: true, departments: [{ departmentId: "d1" }] }) },
   },
 }));
 vi.mock("../auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
@@ -29,7 +30,7 @@ import { UnauthenticatedError } from "../auth/errors";
 import { isValidInternalSku } from "../domain/barcode";
 
 const input: CreateProductInput = {
-  title: "Gorra", brandId: "brand-1", departmentId: "dep-1", category: "Accesorios", locationId: "loc-1",
+  title: "Gorra", brandId: "brand-1", departmentId: "dep-1", productTypeId: "type-gorra", locationId: "loc-1",
   sizes: [{ size: "", barcode: "4006381333931", price: 10, initialStock: 2 }],
 };
 /** El alta con la única talla modificada (antes `barcode`, `price`, `size` e `initialStock` iban sueltos). */
@@ -48,7 +49,7 @@ describe("createProductAction", () => {
     createProduct.mockReset().mockImplementation(async (d: { variants: { sku: string }[] }) => ({ product, variants: [variant(d.variants[0].sku)] }));
     revalidatePath.mockReset();
     brandFindUnique.mockReset().mockResolvedValue({ name: "Lolo", isActive: true });
-    departmentFindUnique.mockReset().mockResolvedValue({ isActive: true });
+    departmentFindUnique.mockReset().mockResolvedValue({ isActive: true, slug: "accesorios" });
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -104,7 +105,7 @@ describe("createProductAction", () => {
 
   it("valida en el servidor → INVALID con mensaje", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    expect(await createProductAction({ ...input, category: "" })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/categoría/i) });
+    expect(await createProductAction({ ...input, productTypeId: "" })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/tipo/i) });
     expect(await createProductAction(row({ initialStock: -1 }))).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/stock/i) });
     expect(await createProductAction(row({ price: 0 }))).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/precio/i) });
     expect(createProduct).not.toHaveBeenCalled();

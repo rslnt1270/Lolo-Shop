@@ -9,6 +9,8 @@ import { getDataSource } from "./data/get-source";
 import { scopeInventory, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
 import { validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput } from "./domain/new-product";
+import { loadTypeRule } from "./catalog/type-rule";
+import { MSG_PICK_TYPE, validateClassification, type Audience } from "./domain/product-taxonomy";
 import { generatePublicCode } from "./domain/public-code";
 import prisma from "./prisma";
 import { SESSION_EXPIRED_TEXT } from "./session-text";
@@ -155,7 +157,14 @@ export type CreateProductInput = {
   brandId: string;
   /** `Department.id`, obligatorio en altas nuevas. */
   departmentId: string;
-  category: string;
+  /** `ProductType.id`, obligatorio: el servidor deriva `category` de su nombre. */
+  productTypeId?: string;
+  /** Estilo (slug de `STYLE_OPTIONS` del tipo); vacío = sin estilo. */
+  style?: string | null;
+  /** «Para» (solo Calzado): dama, caballero o nino. */
+  audience?: string | null;
+  /** @deprecated Se ignora (la categoría la pone el servidor); se retira en G (Task 7). */
+  category?: string;
   /**
    * Una fila por talla (1 a 12): talla, código escaneado (null = "Sin código"),
    * precio y piezas contadas en `locationId`.
@@ -277,7 +286,8 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
 
     let data;
     try {
-      data = validateNewProduct(input);
+      // `category` del cliente no cuenta: sin `productTypeId` responde "Elige el tipo."
+      data = validateNewProduct({ ...input, category: undefined });
     } catch (err) {
       return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : "Datos inválidos." };
     }
@@ -293,13 +303,27 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
 
     const [brand, department] = await Promise.all([
       prisma.brand.findUnique({ where: { id: data.brandId }, select: { name: true, isActive: true } }),
-      prisma.department.findUnique({ where: { id: data.departmentId }, select: { isActive: true } }),
+      prisma.department.findUnique({ where: { id: data.departmentId }, select: { isActive: true, slug: true } }),
     ]);
     if (!brand?.isActive) {
       return { ok: false, code: "INVALID", message: "Elige una marca de la lista o créala." };
     }
     if (!department?.isActive) {
       return { ok: false, code: "INVALID", message: "Elige el departamento." };
+    }
+
+    // El servidor decide el tipo: `category` = nombre del tipo, nunca lo que mande el cliente.
+    const type = await loadTypeRule(data.productTypeId ?? "", data.departmentId);
+    let classification: { style: string | null; audience: Audience | null };
+    try {
+      classification = validateClassification({
+        departmentSlug: department.slug,
+        type: type?.rule ?? null,
+        style: data.style,
+        audience: data.audience,
+      });
+    } catch (err) {
+      return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : MSG_PICK_TYPE };
     }
 
     const loc = await checkLocation(user, ds, input.locationId);
@@ -319,7 +343,10 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           brandId: data.brandId,
           departmentId: data.departmentId,
           publicCode: generatePublicCode(),
-          category: data.category,
+          category: type!.name,
+          productTypeId: data.productTypeId,
+          style: classification.style,
+          audience: classification.audience,
           variants: data.sizes.map((r) => ({ ...r, sku: generateInternalSku() })),
           locationId: loc.locationId,
           imageUrl: data.imageUrl,

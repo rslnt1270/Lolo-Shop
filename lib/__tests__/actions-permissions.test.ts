@@ -16,7 +16,8 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   default: {
     brand: { findUnique: vi.fn().mockResolvedValue({ name: "Lolo", isActive: true }) },
-    department: { findUnique: vi.fn().mockResolvedValue({ isActive: true }) },
+    department: { findUnique: vi.fn().mockResolvedValue({ isActive: true, slug: "accesorios" }) },
+    productType: { findUnique: vi.fn().mockResolvedValue({ slug: "gorra", name: "Gorras", isActive: true, departments: [{ departmentId: "d1" }] }) },
     product: { findUnique: (...a: unknown[]) => productFindUnique(...a) },
   },
 }));
@@ -38,7 +39,7 @@ import {
 import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
 
 const input: CreateProductInput = {
-  title: "Gorra", brandId: "b1", departmentId: "d1", category: "Accesorios", locationId: "loc-clubalva",
+  title: "Gorra", brandId: "b1", departmentId: "d1", productTypeId: "type-gorra", locationId: "loc-clubalva",
   sizes: [{ size: "", barcode: "4006381333931", price: 10, initialStock: 2 }],
 };
 const user = (role: string, locationId: string | null) => ({ id: "u1", role, locationId });

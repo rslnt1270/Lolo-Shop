@@ -19,6 +19,14 @@ export interface DepartmentOption {
   name: string;
 }
 
+export interface ProductTypeOption {
+  id: string;
+  slug: string;
+  name: string;
+  /** Departamentos que admiten el tipo (puente `DepartmentProductType`). */
+  departmentIds: string[];
+}
+
 export type CreateBrandResult = { ok: true; brand: BrandOption } | { ok: false; message: string };
 
 export type MergeBrandsResult =
@@ -63,6 +71,22 @@ export async function listDepartmentsAction(): Promise<DepartmentOption[] | null
     orderBy: { sortOrder: "asc" },
   });
   return rows.map((d) => ({ id: d.id, slug: d.slug, name: d.name }));
+}
+
+/** Tipos activos con sus departamentos, por `sortOrder`. `null`: la sesión terminó. */
+export async function listProductTypesAction(): Promise<ProductTypeOption[] | null> {
+  if (!(await sessionUser())) return null;
+  const rows = await prisma.productType.findMany({
+    where: { isActive: true },
+    select: { id: true, slug: true, name: true, departments: { select: { departmentId: true } } },
+    orderBy: { sortOrder: "asc" },
+  });
+  return rows.map((t) => ({
+    id: t.id,
+    slug: t.slug,
+    name: t.name,
+    departmentIds: t.departments.map((d) => d.departmentId),
+  }));
 }
 
 /**
