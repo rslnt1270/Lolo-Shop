@@ -62,6 +62,7 @@ model User {
   salesCancelled        Sale[]        @relation("SaleCancelledBy")
   appSettingsUpdated    AppSetting[]
   priceChanges          PriceChange[]
+  colorOptions          ColorOption[]
   productsMerged        Product[]     @relation("ProductMergedBy")
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @default(now()) @updatedAt
@@ -73,6 +74,7 @@ model Location {
   id        String           @id @default(uuid())
   name      String
   type      LocationType     @default(store)
+  isPublic  Boolean          @default(true)
   users     User[]
   inventory InventoryLevel[]
   movements Movement[]
@@ -82,34 +84,38 @@ model Location {
 }
 
 model Product {
-  id            String       @id @default(uuid())
-  title         String
-  brand         String
-  category      String       @default("General")
-  brandId       String?
-  brandRef      Brand?       @relation(fields: [brandId], references: [id], onDelete: Restrict)
-  departmentId  String?
-  department    Department?  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  productTypeId String?
-  productType   ProductType? @relation(fields: [productTypeId], references: [id], onDelete: Restrict)
-  style         String?      @db.VarChar(40)
-  audience      String?      @db.VarChar(20)
-  publicCode    String?      @unique
-  imageUrl      String?
-  backImageUrl  String?
-  description   String?
-  isActive      Boolean      @default(true)
-  mergedIntoId  String?
-  mergedInto    Product?     @relation("ProductMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
-  mergedFrom    Product[]    @relation("ProductMerge")
-  mergedAt      DateTime?
-  mergedById    String?
-  mergedBy      User?        @relation("ProductMergedBy", fields: [mergedById], references: [id], onDelete: Restrict)
-  variants      Variant[]
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @default(now()) @updatedAt
+  id                     String       @id @default(uuid())
+  title                  String
+  brand                  String
+  category               String       @default("General")
+  brandId                String?
+  brandRef               Brand?       @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  departmentId           String?
+  department             Department?  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  productTypeId          String?
+  productType            ProductType? @relation(fields: [productTypeId], references: [id], onDelete: Restrict)
+  style                  String?      @db.VarChar(40)
+  audience               String?      @db.VarChar(20)
+  publicCode             String?      @unique
+  imageUrl               String?
+  backImageUrl           String?
+  description            String?
+  color                  String?      @db.VarChar(40)
+  isPublished            Boolean      @default(false)
+  catalogPhotosCheckedAt DateTime?
+  isActive               Boolean      @default(true)
+  mergedIntoId           String?
+  mergedInto             Product?     @relation("ProductMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedFrom             Product[]    @relation("ProductMerge")
+  mergedAt               DateTime?
+  mergedById             String?
+  mergedBy               User?        @relation("ProductMergedBy", fields: [mergedById], references: [id], onDelete: Restrict)
+  variants               Variant[]
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @default(now()) @updatedAt
 
   @@index([mergedIntoId])
+  @@index([isPublished])
   @@index([category])
   @@index([brand])
   @@index([brandId])
@@ -307,4 +313,13 @@ model PriceChange {
   changedBy User    @relation(fields: [changedById], references: [id], onDelete: Restrict)
 
   @@index([variantId, createdAt(sort: Desc)])
+}
+
+model ColorOption {
+  id          String   @id @default(uuid())
+  key         String   @unique @db.VarChar(40)
+  label       String   @db.VarChar(40)
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
 }

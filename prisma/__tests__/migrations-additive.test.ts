@@ -70,3 +70,43 @@ describe("migración add_product_types", () => {
     for (const l of adds) expect(l).not.toMatch(/NOT NULL/i);
   });
 });
+
+describe("migración catalog_color_visibility", () => {
+  const all = readdirSync(dir).filter((d) => d !== "migration_lock.toml");
+  const folders = all.filter((d) => d.endsWith("_catalog_color_visibility"));
+  const s = folders[0] ? readFileSync(join(dir, folders[0], "migration.sql"), "utf8") : "";
+
+  it("existe una sola carpeta *_catalog_color_visibility y ordena después de 20261111120000_add_product_types", () => {
+    expect(folders.length).toBe(1);
+    expect(folders[0]!.split("_")[0] > "20261111120000").toBe(true);
+  });
+
+  it("agrega color VARCHAR(40), isPublished, catalogPhotosCheckedAt e isPublic", () => {
+    expect(s).toMatch(/ADD COLUMN\s+"color"\s+VARCHAR\(40\)/);
+    expect(s).toMatch(/ADD COLUMN\s+"isPublished"\s+BOOLEAN\s+NOT NULL\s+DEFAULT\s+false/);
+    expect(s).toMatch(/ADD COLUMN\s+"catalogPhotosCheckedAt"\s+TIMESTAMP\(3\)/);
+    expect(s).toMatch(/ADD COLUMN\s+"isPublic"\s+BOOLEAN\s+NOT NULL\s+DEFAULT\s+true/);
+  });
+
+  it("crea la tabla ColorOption con key única", () => {
+    expect(s).toContain('CREATE TABLE "ColorOption"');
+    expect(s).toMatch(/CREATE UNIQUE INDEX "ColorOption_key_key"/);
+  });
+
+  it("no contiene DROP, RENAME ni ALTER COLUMN", () => {
+    expect(s).not.toMatch(/\bDROP\b/i);
+    expect(s).not.toMatch(/\bRENAME\b/i);
+    expect(s).not.toMatch(/ALTER COLUMN/i);
+  });
+
+  it("ninguna otra migración agrega color, isPublished, isPublic ni catalogPhotosCheckedAt", () => {
+    let count = 0;
+    for (const d of all) {
+      const f = join(dir, d, "migration.sql");
+      let t = "";
+      try { t = readFileSync(f, "utf8"); } catch { continue; }
+      count += (t.match(/ADD COLUMN\s+"(color|isPublished|isPublic|catalogPhotosCheckedAt)"/g) ?? []).length;
+    }
+    expect(count).toBe(4);
+  });
+});

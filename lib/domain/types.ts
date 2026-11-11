@@ -20,6 +20,8 @@ export interface Location {
   id: string;
   name: string;
   type?: LocationType;
+  /** Tienda visible en el catálogo público (con type store). Ausente se trata como pública. */
+  isPublic?: boolean;
 }
 
 export interface InventoryLevel {
@@ -48,6 +50,12 @@ export interface Product {
   imageUrl: string | null;
   backImageUrl?: string | null;
   description?: string | null;
+  /** Color del producto (texto libre normalizado en el alta, hasta 40). */
+  color?: string | null;
+  /** Publicado en el catálogo público; ausente se trata como no publicado. */
+  isPublished?: boolean;
+  /** Fecha ISO en que el servidor aceptó las fotos blancas de catálogo; nulo si no. */
+  catalogPhotosCheckedAt?: string | null;
   /** Código público corto (ER §2.7); solo los productos dados de alta lo tienen. */
   publicCode?: string | null;
   /** Ausente se trata como activo (fixtures). */

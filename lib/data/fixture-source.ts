@@ -101,7 +101,7 @@ export class FixtureDataSource implements InventoryDataSource {
   async createLocation(data: CreateLocationData): Promise<Location> {
     const name = data.name.trim();
     if (!name) throw new Error("El nombre de la tienda es obligatorio.");
-    const loc: Location = { id: nextId("loc"), name, type: data.type ?? "store" };
+    const loc: Location = { id: nextId("loc"), name, type: data.type ?? "store", isPublic: true };
     this.locations = [...this.locations, loc];
     return loc;
   }
@@ -226,6 +226,9 @@ export class FixtureDataSource implements InventoryDataSource {
       imageUrl: data.imageUrl ?? null,
       backImageUrl: data.backImageUrl ?? null,
       description: data.description ?? null,
+      color: null,
+      isPublished: false,
+      catalogPhotosCheckedAt: null,
       publicCode: data.publicCode,
       isActive: true,
       mergedIntoId: null,

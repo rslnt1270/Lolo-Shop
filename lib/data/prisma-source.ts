@@ -44,6 +44,9 @@ function toProduct(p: DbProduct, variants: Variant[]): Product {
     backImageUrl: p.backImageUrl,
     description: p.description,
     publicCode: p.publicCode,
+    color: p.color,
+    isPublished: p.isPublished,
+    catalogPhotosCheckedAt: p.catalogPhotosCheckedAt?.toISOString() ?? null,
     isActive: p.isActive,
     brandId: p.brandId,
     departmentId: p.departmentId,
@@ -88,7 +91,8 @@ export class PrismaDataSource implements InventoryDataSource {
     return locs.map(l => ({
       id: l.id,
       name: l.name,
-      type: l.type as any
+      type: l.type as any,
+      isPublic: l.isPublic,
     }));
   }
 
@@ -98,7 +102,7 @@ export class PrismaDataSource implements InventoryDataSource {
     const loc = await this.db.location.create({
       data: { name, type: (data.type ?? "store") as any },
     });
-    return { id: loc.id, name: loc.name, type: loc.type as any };
+    return { id: loc.id, name: loc.name, type: loc.type as any, isPublic: loc.isPublic };
   }
 
   async getProducts(): Promise<Product[]> {
@@ -119,6 +123,9 @@ export class PrismaDataSource implements InventoryDataSource {
       backImageUrl: p.backImageUrl,
       description: p.description,
       publicCode: p.publicCode,
+      color: p.color,
+      isPublished: p.isPublished,
+      catalogPhotosCheckedAt: p.catalogPhotosCheckedAt?.toISOString() ?? null,
       isActive: p.isActive,
       brandId: p.brandId,
       departmentId: p.departmentId,
