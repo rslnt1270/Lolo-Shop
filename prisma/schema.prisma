@@ -82,34 +82,39 @@ model Location {
 }
 
 model Product {
-  id           String      @id @default(uuid())
-  title        String
-  brand        String
-  category     String      @default("General")
-  brandId      String?
-  brandRef     Brand?      @relation(fields: [brandId], references: [id], onDelete: Restrict)
-  departmentId String?
-  department   Department? @relation(fields: [departmentId], references: [id], onDelete: Restrict)
-  publicCode   String?     @unique
-  imageUrl     String?
-  backImageUrl String?
-  description  String?
-  isActive     Boolean     @default(true)
-  mergedIntoId String?
-  mergedInto   Product?    @relation("ProductMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
-  mergedFrom   Product[]   @relation("ProductMerge")
-  mergedAt     DateTime?
-  mergedById   String?
-  mergedBy     User?       @relation("ProductMergedBy", fields: [mergedById], references: [id], onDelete: Restrict)
-  variants     Variant[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @default(now()) @updatedAt
+  id            String       @id @default(uuid())
+  title         String
+  brand         String
+  category      String       @default("General")
+  brandId       String?
+  brandRef      Brand?       @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  departmentId  String?
+  department    Department?  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  productTypeId String?
+  productType   ProductType? @relation(fields: [productTypeId], references: [id], onDelete: Restrict)
+  style         String?      @db.VarChar(40)
+  audience      String?      @db.VarChar(20)
+  publicCode    String?      @unique
+  imageUrl      String?
+  backImageUrl  String?
+  description   String?
+  isActive      Boolean      @default(true)
+  mergedIntoId  String?
+  mergedInto    Product?     @relation("ProductMerge", fields: [mergedIntoId], references: [id], onDelete: Restrict)
+  mergedFrom    Product[]    @relation("ProductMerge")
+  mergedAt      DateTime?
+  mergedById    String?
+  mergedBy      User?        @relation("ProductMergedBy", fields: [mergedById], references: [id], onDelete: Restrict)
+  variants      Variant[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
 
   @@index([mergedIntoId])
   @@index([category])
   @@index([brand])
   @@index([brandId])
   @@index([departmentId])
+  @@index([productTypeId])
 }
 
 model Brand {
@@ -127,14 +132,38 @@ model Brand {
 }
 
 model Department {
-  id        String    @id @default(uuid())
-  slug      String    @unique
-  name      String
-  sortOrder Int       @default(0)
-  isActive  Boolean   @default(true)
-  products  Product[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now()) @updatedAt
+  id           String                  @id @default(uuid())
+  slug         String                  @unique
+  name         String
+  sortOrder    Int                     @default(0)
+  isActive     Boolean                 @default(true)
+  products     Product[]
+  productTypes DepartmentProductType[]
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @default(now()) @updatedAt
+}
+
+model ProductType {
+  id          String                  @id @default(uuid())
+  slug        String                  @unique
+  name        String                  @unique
+  sortOrder   Int                     @default(0)
+  isActive    Boolean                 @default(true)
+  products    Product[]
+  departments DepartmentProductType[]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @default(now()) @updatedAt
+}
+
+model DepartmentProductType {
+  departmentId  String
+  department    Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  productTypeId String
+  productType   ProductType @relation(fields: [productTypeId], references: [id], onDelete: Restrict)
+  createdAt     DateTime    @default(now())
+
+  @@id([departmentId, productTypeId])
+  @@index([productTypeId])
 }
 
 model Variant {
@@ -244,6 +273,7 @@ model SaleLine {
   productId        String
   brandId          String?
   departmentId     String?
+  productTypeId    String?
   category         String
   quantity         Int
   unitPrice        Decimal @db.Decimal(10, 2)
@@ -253,6 +283,7 @@ model SaleLine {
   @@index([saleId])
   @@index([brandId])
   @@index([departmentId])
+  @@index([productTypeId])
 }
 
 model AppSetting {
