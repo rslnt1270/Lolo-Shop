@@ -3,11 +3,6 @@ import { canonicalCode, isValidGtin } from "./barcode";
 import { normalizeSize, UNIQUE_SIZE } from "./sizes";
 import { isAudience, MSG_AUDIENCE_INVALID, MSG_PICK_TYPE } from "./product-taxonomy";
 
-/** @deprecated se retira en G (Task 7) cuando los consumidores usen productTypeId */
-export const PRODUCT_CATEGORIES = [
-  "Playeras", "Pantalones", "Hoodies", "Tenis", "Accesorios", "Perfumes", "Raquetas de Padel",
-] as const;
-
 export const MAX_TITLE_LENGTH = 120;
 export const MAX_SIZE_LENGTH = 20;
 /** Tope de `Variant.price` (Decimal(10,2)). */
@@ -40,9 +35,7 @@ export interface NewProductInput {
   /** Departamento obligatorio en altas nuevas (ER §2.3, A3). */
   departmentId: string;
   /** Tipo global elegido (`ProductType.id`); el servidor deriva `category` de él. */
-  productTypeId?: string;
-  /** @deprecated se retira en G (Task 7) cuando los consumidores usen productTypeId */
-  category?: string;
+  productTypeId: string;
   /** Estilo (slug de `STYLE_OPTIONS[tipo]`); vacío = sin estilo. */
   style?: string | null;
   /** «Para» (solo Calzado): dama, caballero o nino. */
@@ -60,10 +53,7 @@ export interface NormalizedNewProduct {
   title: string;
   brandId: string;
   departmentId: string;
-  /** Null solo en el camino legado con `category`. */
-  productTypeId: string | null;
-  /** @deprecated se retira en G (Task 7) cuando los consumidores usen productTypeId */
-  category: string;
+  productTypeId: string;
   style: string | null;
   audience: string | null;
   sizes: NormalizedSizeRow[];
@@ -159,15 +149,7 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
     throw new Error("Elige el departamento.");
   }
   const productTypeId = typeof input.productTypeId === "string" ? input.productTypeId.trim() : "";
-  // Camino legado (transición): quien manda `category` sin tipo se valida como antes.
-  const legacy = !productTypeId && input.category !== undefined;
-  if (legacy) {
-    if (!(PRODUCT_CATEGORIES as readonly string[]).includes(input.category as string)) {
-      throw new Error("Elige una categoría válida.");
-    }
-  } else if (!productTypeId) {
-    throw new Error(MSG_PICK_TYPE);
-  }
+  if (!productTypeId) throw new Error(MSG_PICK_TYPE);
   const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : null;
   const hasAudience = input.audience !== undefined && input.audience !== null && input.audience !== "";
   if (hasAudience && !isAudience(input.audience)) throw new Error(MSG_AUDIENCE_INVALID);
@@ -189,7 +171,7 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
     backImageUrl = input.backImageUrl;
   }
   return {
-    title, brandId, departmentId, productTypeId: productTypeId || null, category: legacy ? (input.category as string) : "", style, audience, sizes,
+    title, brandId, departmentId, productTypeId, style, audience, sizes,
     mode, description: description || null, imageUrl, backImageUrl,
   };
 }

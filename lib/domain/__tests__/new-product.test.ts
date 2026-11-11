@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { PRODUCT_CATEGORIES } from "../new-product";
 import { PRODUCT_TYPE_CATALOG } from "../product-types-catalog";
 import { validateNewProduct } from "../new-product";
 
@@ -28,12 +27,9 @@ describe("validateNewProduct", () => {
     expect(() => validateNewProduct({ ...valid, departmentId: "  " })).toThrow("Elige el departamento.");
   });
 
-  it("camino legado: category fuera de la lista sigue lanzando el mensaje anterior", () => {
-    expect(() => validateNewProduct({ ...valid, productTypeId: undefined, category: "Inventada" })).toThrow(
-      "Elige una categoría válida.",
-    );
-    expect(() => validateNewProduct({ ...valid, productTypeId: undefined, category: "Playeras" })).not.toThrow();
-    expect(PRODUCT_CATEGORIES).toContain("Playeras");
+  it("un category suelto no sustituye al tipo: sin productTypeId lanza 'Elige el tipo.'", () => {
+    const legacy = { ...valid, productTypeId: undefined, category: "Playeras" } as unknown as Parameters<typeof validateNewProduct>[0];
+    expect(() => validateNewProduct(legacy)).toThrow("Elige el tipo.");
   });
 
   it("sin productTypeId lanza 'Elige el tipo.'", () => {

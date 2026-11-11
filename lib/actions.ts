@@ -158,13 +158,11 @@ export type CreateProductInput = {
   /** `Department.id`, obligatorio en altas nuevas. */
   departmentId: string;
   /** `ProductType.id`, obligatorio: el servidor deriva `category` de su nombre. */
-  productTypeId?: string;
+  productTypeId: string;
   /** Estilo (slug de `STYLE_OPTIONS` del tipo); vacío = sin estilo. */
   style?: string | null;
   /** «Para» (solo Calzado): dama, caballero o nino. */
   audience?: string | null;
-  /** @deprecated Se ignora (la categoría la pone el servidor); se retira en G (Task 7). */
-  category?: string;
   /**
    * Una fila por talla (1 a 12): talla, código escaneado (null = "Sin código"),
    * precio y piezas contadas en `locationId`.
@@ -286,8 +284,8 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
 
     let data;
     try {
-      // `category` del cliente no cuenta: sin `productTypeId` responde "Elige el tipo."
-      data = validateNewProduct({ ...input, category: undefined });
+      // El tipo manda: un cliente viejo con `category` y sin `productTypeId` recibe "Elige el tipo."
+      data = validateNewProduct(input);
     } catch (err) {
       return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : "Datos inválidos." };
     }

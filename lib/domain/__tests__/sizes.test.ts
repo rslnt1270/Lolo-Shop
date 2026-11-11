@@ -36,7 +36,7 @@ describe("sortSizes", () => {
 
 describe("validateNewProduct: tallas", () => {
   const row = (size: string, barcode: string | null = null, price = 100, initialStock = 1) => ({ size, barcode, price, initialStock });
-  const base = { title: "Playera", brandId: "b1", departmentId: "d1", category: "Playeras" };
+  const base = { title: "Playera", brandId: "b1", departmentId: "d1", productTypeId: "t1" };
 
   it("acepta 1 a 12 tallas y normaliza talla y código", () => {
     const out = validateNewProduct({ ...base, sizes: [row(" m ", " abc-1 "), row("")] });
