@@ -6,6 +6,7 @@ import { ForbiddenError } from "./auth/errors";
 import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
+import { scopeInventory, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
 import { validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput } from "./domain/new-product";
 import { generatePublicCode } from "./domain/public-code";
@@ -25,7 +26,7 @@ import { changePassword, type ChangePasswordResult } from "./auth/password";
 export async function fetchProductsAction(): Promise<Product[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return await getDataSource().getProducts();
+  return (await getDataSource().getProducts()).map((p) => scopeInventory(p, user));
 }
 
 export async function fetchLocationsAction(): Promise<Location[] | null> {
@@ -45,13 +46,17 @@ export async function createLocationAction(data: { name: string; type?: Location
 }
 
 export async function getProductByBarcodeAction(code: string): Promise<VariantMatch | null> {
-  if (!(await currentUserOrNull())) return null;
-  return await getDataSource().getProductByBarcode(code);
+  const user = await currentUserOrNull();
+  if (!user) return null;
+  const match = await getDataSource().getProductByBarcode(code);
+  return match && scopeVariantMatch(match, user);
 }
 
 export async function getProductByVariantIdAction(id: string): Promise<VariantMatch | null> {
-  if (!(await currentUserOrNull())) return null;
-  return await getDataSource().getProductByVariantId(id);
+  const user = await currentUserOrNull();
+  if (!user) return null;
+  const match = await getDataSource().getProductByVariantId(id);
+  return match && scopeVariantMatch(match, user);
 }
 
 export type StockMovementResult =
@@ -130,11 +135,13 @@ export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
   const code = normalizeCode(typeof raw === "string" ? raw : "");
   if (!code) return { found: false, code, error: "El código está vacío. Vuelve a escanear." };
   try {
-    if (!(await currentUserOrNull())) {
+    const user = await currentUserOrNull();
+    if (!user) {
       return { found: false, code, error: SESSION_EXPIRED_TEXT };
     }
-    const match = await getDataSource().getProductByBarcode(code);
-    if (!match) return { found: false, code };
+    const raw = await getDataSource().getProductByBarcode(code);
+    if (!raw) return { found: false, code };
+    const match = scopeVariantMatch(raw, user);
     return { found: true, product: withVariant(match), variantId: match.variant.id };
   } catch (err) {
     console.error("lookupCodeAction", err);
@@ -399,7 +406,7 @@ export async function addVariantAction(input: AddVariantInput): Promise<CreatePr
           userId: user.id,
         });
         revalidateProducts("addVariantAction");
-        return { ok: true, product: withVariant(match), variantId: match.variant.id, sku: match.variant.sku };
+        return { ok: true, product: withVariant(scopeVariantMatch(match, user)), variantId: match.variant.id, sku: match.variant.sku };
       } catch (err) {
         if (err instanceof InventoryRuleError) return { ok: false, code: "INVALID", message: err.message };
         const field = uniqueViolationField(err);

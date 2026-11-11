@@ -170,7 +170,7 @@ describe("/escanear: flujo de alta por lote", () => {
       expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
     });
 
-    it("etiqueta solo en otra tienda: muestra el aviso y no ofrece traspasar", async () => {
+    it("prenda fuera de tu tienda: avisa sin nombrar otra tienda y no ofrece traspasar", async () => {
       lookup.mockResolvedValue({
         found: true,
         product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-9", available: 4 }] }] },
@@ -178,7 +178,8 @@ describe("/escanear: flujo de alta por lote", () => {
       });
       render(<EscanearPage />);
       fireEvent.click(screen.getByText("simular-escaneo"));
-      await screen.findByText(/registrada en otra tienda/);
+      expect(await screen.findByText("Esta prenda no está en tu tienda")).toBeInTheDocument();
+      expect(screen.queryByText(/otra tienda/i)).toBeNull();
       expect(screen.queryByRole("button", { name: /registrar traspaso/i })).toBeNull();
       expect(screen.queryByRole("button", { name: /traspas/i })).toBeNull();
     });

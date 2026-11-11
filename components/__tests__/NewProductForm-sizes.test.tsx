@@ -302,7 +302,7 @@ describe("/escanear: código existente", () => {
     lookup.mockResolvedValue({ found: true, product: { ...product, variants: [{ ...product.variants[1], barcode: "750999" }] }, variantId: "v2" });
     render(<EscanearPage />);
     fireEvent.click(screen.getByText("simular-escaneo"));
-    expect(await screen.findByText(/registrada en otra tienda/i)).toBeInTheDocument();
+    expect(await screen.findByText("Esta prenda no está en tu tienda")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sumar 1 pieza en tu tienda" }));
     await waitFor(() =>
       expect(record).toHaveBeenCalledWith(expect.objectContaining({ variantId: "v2", locationId: "loc-1", kind: "restock", quantity: 1 })),

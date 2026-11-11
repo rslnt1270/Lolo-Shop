@@ -315,4 +315,17 @@ describe("ProductAdminSheet", () => {
     expect(screen.queryByRole("button", { name: /desactivar/i })).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
   });
+
+  it("el colaborador ve en Stock por tienda solo su tienda", async () => {
+    // El servidor ya recortó: solo llegan filas de l1.
+    const scoped: Product = {
+      ...product,
+      variants: product.variants.map((v) => ({ ...v, inventory: v.inventory.filter((l) => l.locationId === "l1") })),
+    };
+    open("collaborator", scoped);
+    const table = await screen.findByRole("table", { name: "Stock por tienda" });
+    expect(within(table).getByRole("row", { name: /Lomas/ })).toBeInTheDocument();
+    expect(within(table).queryByRole("row", { name: /ClubAlva/ })).toBeNull();
+    expect(within(table).queryByRole("row", { name: /Almacén/ })).toBeNull();
+  });
 });

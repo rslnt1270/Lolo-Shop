@@ -166,9 +166,8 @@ export default function EscanearPage() {
   const stockHere = variant ? (variant.inventory.find((l) => l.locationId === locationId)?.available ?? 0) : null;
   const showScanner = !scannedCode && newCode === undefined;
   const sizesHere = found && locationId ? stockBySize(found.product, locationId) : [];
-  // La etiqueta escaneada tiene piezas en otras tiendas pero ninguna fila en la tuya.
-  const onlyInOtherStore =
-    !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId) && variant.inventory.length > 0;
+  // El servidor solo manda las filas de tu tienda: sin fila aquí, la prenda no está en tu tienda.
+  const notInMyStore = !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId);
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -299,11 +298,9 @@ export default function EscanearPage() {
                     En esta tienda: <span className="font-semibold">{stockHere} pzas</span>
                   </p>
                 )}
-                {onlyInOtherStore ? (
+                {notInMyStore ? (
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-700">
-                      Esta etiqueta está registrada en otra tienda; aquí todavía no tiene piezas.
-                    </p>
+                    <p className="text-sm text-gray-700">Esta prenda no está en tu tienda</p>
                     <SumToMyStore
                       variantId={found.variantId}
                       locationId={locationId}

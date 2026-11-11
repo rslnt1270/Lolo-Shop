@@ -529,7 +529,8 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E1E9E9]/40 text-xs">
-                  {locations.map((loc) => {
+                  {/* El servidor ya recorta el stock del colaborador a su tienda; aquí solo se omiten las tiendas sin filas. */}
+                  {locations.filter((loc) => role !== "collaborator" || product.variants.some((v) => v.inventory.some((l) => l.locationId === loc.id))).map((loc) => {
                     const cells = product.variants.map((v) => v.inventory.find((l) => l.locationId === loc.id)?.available);
                     const total = cells.reduce<number>((sum, n) => sum + (n ?? 0), 0);
                     return (
