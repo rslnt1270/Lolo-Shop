@@ -1,6 +1,6 @@
 # LoloShop: implementaciones posteriores a ventas P1 (versión 2)
 
-**Fecha:** 2026-11-09 · **Versión:** 2, re-priorizada con las decisiones del dueño del 2026-11-09 y la auditoría consolidada · **Estado:** diseño para planificar; las propuestas de §5 se construyen sin esperar respuesta
+**Fecha:** 2026-11-09 · **Versión:** 2, re-priorizada con las decisiones del dueño del 2026-11-09 y la auditoría consolidada · **Estado:** cerrado el 2026-11-10. Se implementó y está en producción; el detalle del cierre y el backlog están en la cabecera del plan v2 (`docs/superpowers/plans/2026-11-09-implementaciones-posteriores.md`)
 **Base:** SRS (`2026-11-05-loloshop-srs.md`), modelo de datos (`2026-11-05-modelo-datos-er.md`, **fuente de verdad**), auditoría (`2026-11-09-auditoria-consolidada.md`, hallazgos H1–H25), UX del sitio público (`2026-11-05-sitio-publico-ux-design.md`), guía de salida (`docs/runbooks/2026-11-salida-ventas.md`). La versión 1 está en git (`ca22425`); sus tareas se conservan en §4 con su número anterior entre paréntesis.
 
 Qué sigue después del módulo de ventas, en qué orden y cómo se acepta. Cada tarea trae comportamiento, contrato, criterios de aceptación, riesgos y dependencias. (T) = prueba automática; (M) = verificación manual; [C] = dato de proveedor sin verificar; "h" = horas de agente.
@@ -123,12 +123,13 @@ Orden = prioridad del dueño. "Demo" = necesaria para la demo al dueño. Entre p
 | 3.4 | Variables y Fase G ampliada | H19 | 1.5 | No |
 | 3.5 | Evaluación de parches de seguridad (parte de v1 1.10) | H13 | 3 | No |
 | 3.6 | Endurecimiento menor de subida y login | — | 1.5 | No |
+| 3.8 | Clasificación por departamento y tipo (addendum 2026-11-10; va antes de 3.7) | RF-CAT-03, D-CAT-2 | 13 | No |
 | 3.7 | Salida a producción y carga de mercancía (v1 0.3, 0.5, 0.6) | H1, H15 | 3 | — |
 | **Fase 4** | **Portal y complemento** (enero salvo indicación) | | | |
 | 4.1–4.8 | Puntos del recorrido, giro, panorámicas, derivados, blobs huérfanos, SEO y privacidad, WhatsApp Business, tokens (v1 1.2–1.5, 1.11, 1.13) | H17, H20, H21, H25 | ≈ 35 | No |
 | **§4.6** | **Después de la demo: operación** (v1 1.7, 1.8, resto de 1.9, PR #17) | | ≈ 20 | No |
 
-Antes de la demo (Fases 1 y 2 sin 1.13, más el hito): ≈ 66 h. Con la Fase 3: ≈ 82 h.
+Antes de la demo (Fases 1 y 2 sin 1.13, más el hito): ≈ 66 h. Con la Fase 3: ≈ 82 h; con la 3.8 (addendum del 2026-11-10): ≈ 95 h.
 
 ### 4.1 Fase 1: registro de stock y control de inventario
 
@@ -327,13 +328,15 @@ Antes de la demo (Fases 1 y 2 sin 1.13, más el hito): ≈ 66 h. Con la Fase 3: 
 
 **3.6 Endurecimiento menor de subida y login.** `lib/image/upload.ts` revisa los bytes iniciales (JPEG, PNG, WebP) y baja el tope a 3.5 MB (el límite de Vercel es 4.5 MB por petición); el login compara contra un hash ficticio cuando el usuario no existe (sin diferencia de tiempo). *Acepta:* (T) un archivo de texto con `image/jpeg` → rechazado; 3.6 MB → mensaje claro; (T) usuario inexistente → se llama a `bcrypt.compare`. *Depende:* nada.
 
+**3.8 Clasificación por departamento y tipo (addendum del 2026-11-10).** Detalle completo en [`2026-11-10-taxonomia-productos-design.md`](2026-11-10-taxonomia-productos-design.md) (modelo, migración y relleno, lista de tipos pendiente de confirmar, atributos `estilo` y `para`, reglas, lote, "Por revisar", público, consulta de stock por tipo, criterios). Resumen: `ProductType` global con la puente `DepartmentProductType`; `Product.productTypeId`, `style` y `audience` ("para", solo Calzado); copia `SaleLine.productTypeId` sin FK; `category` se sigue escribiendo con el nombre del tipo; tipo obligatorio en altas nuevas y válido para el departamento; `assignDepartmentAction` (1.7) no cambia; `PublicProduct` no cambia. Va después de la demo y de 3.6, **antes de 3.7**, para que la carga real entre con tipo. *Depende:* 1.3, 1.5, 1.6, 1.7, 2.3 y la confirmación de la lista en la demo.
+
 **3.7 Salida a producción y carga de mercancía (v1 0.3, 0.5, 0.6; H1, H15).**
 - *Comportamiento:* producción recibe ventas, control de inventario y catálogo nuevo; luego las dos tiendas cargan todo su stock en noviembre.
-- *Contrato:* fases A y E–G de la guía, con la migración 1.1 incluida; ventana nocturna sin ventas, respaldo restaurable del mismo día, id del deploy anterior y responsable del retroceso anotados. **No correr `reset-users.ts`.** Cierra H1 (la acción pública de `main` deja de existir).
+- *Contrato:* fases A y E–G de la guía, con las migraciones 1.1 y 3.8 incluidas (y el relleno de 3.8 después de `migrate deploy`); ventana nocturna sin ventas, respaldo restaurable del mismo día, id del deploy anterior y responsable del retroceso anotados. **No correr `reset-users.ts`.** Cierra H1 (la acción pública de `main` deja de existir).
 - *Carga:* por tienda y por departamento, empezando por lo de más venta; el producto con varias tallas se da de alta una vez (1.5). Si ClubAlva no alcanza, plan B (H15): ClubAlva carga solo stock y las fotos de catálogo se toman en Lomas.
 - *Acepta:* (M) Fase G en verde y 10 minutos sin errores en Runtime Logs. (M) al cierre de cada semana, una muestra de 20 prendas por tienda coincide con `/productos`; con más de 5 % de diferencias se activa 1.13. (M) el 2026-11-30, cada departamento de cada tienda marcado como "cargado" por el dueño.
 - *Riesgos / no hacer:* fotos sin caras ni personas, y con la etiqueta del retailer fuera del cuadro (su precio revela el costo). Autosuspend de Neon (v1 0.5): solo si el Buen Fin se confirma y el plan lo permite; si no, se acepta el arranque en frío. Vigilar en Vercel el uso de Hobby (almacenamiento y transferencia de Blob) cada semana.
-- *Depende:* demo aprobada, 3.1–3.6.
+- *Depende:* demo aprobada, 3.1–3.6 y 3.8. La salida incluye la migración `add_product_types` y el relleno `backfill-product-types.ts` (3.8); la carga entra con tipo obligatorio y "Por revisar" en 0.
 
 ### 4.5 Fase 4: portal y complemento (enero, salvo indicación del dueño)
 
