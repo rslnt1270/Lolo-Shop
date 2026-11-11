@@ -2,8 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { Location, Product, Role, Variant } from "@/lib/domain/types";
-import { PRODUCT_CATEGORIES } from "@/lib/domain/new-product";
-import { listBrandsAction, listDepartmentsAction, type BrandOption, type DepartmentOption } from "@/lib/catalog/actions";
+import {
+  listBrandsAction, listDepartmentsAction, listProductTypesAction,
+  type BrandOption, type DepartmentOption, type ProductTypeOption,
+} from "@/lib/catalog/actions";
+import { isAudience, typesForDepartment, type Audience } from "@/lib/domain/product-taxonomy";
+import { ClassificationFields, type ClassificationValue } from "./ClassificationFields";
 import {
   listPriceChangesAction,
   setProductActiveAction,
@@ -63,7 +67,12 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   const [title, setTitle] = useState(product.title);
   const [brandId, setBrandId] = useState(product.brandId ?? "");
   const [departmentId, setDepartmentId] = useState(product.departmentId ?? "");
-  const [category, setCategory] = useState(product.category);
+  const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
+  const [classification, setClassification] = useState<ClassificationValue>({
+    productTypeId: product.productTypeId ?? "",
+    style: product.style ?? null,
+    audience: isAudience(product.audience) ? product.audience : null,
+  });
   const [dataMsg, setDataMsg] = useState<{ ok: boolean; text: string; session?: boolean } | null>(null);
   const [savingData, setSavingData] = useState(false);
 
@@ -89,11 +98,12 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   useEffect(() => {
     if (!canEditData) return;
     let cancelled = false;
-    Promise.all([listBrandsAction(), listDepartmentsAction()])
-      .then(([b, d]) => {
+    Promise.all([listBrandsAction(), listDepartmentsAction(), listProductTypesAction()])
+      .then(([b, d, t]) => {
         if (cancelled) return;
         setBrands(b ?? []);
         setDepartments(d ?? []);
+        setProductTypes(t ?? []);
       })
       .catch(() => undefined);
     return () => {
@@ -158,13 +168,26 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   };
 
   const saveData = async () => {
-    const patch: { productId: string; title?: string; brandId?: string; departmentId?: string; category?: string } = {
+    const patch: {
+      productId: string; title?: string; brandId?: string; departmentId?: string;
+      productTypeId?: string; style?: string | null; audience?: Audience | null;
+    } = {
       productId: product.id,
     };
     if (title.trim() !== product.title) patch.title = title.trim();
     if (brandId && brandId !== (product.brandId ?? "")) patch.brandId = brandId;
-    if (departmentId && departmentId !== (product.departmentId ?? "")) patch.departmentId = departmentId;
-    if (category !== product.category) patch.category = category;
+    const classificationChanged =
+      departmentId !== (product.departmentId ?? "") ||
+      classification.productTypeId !== (product.productTypeId ?? "") ||
+      classification.style !== (product.style ?? null) ||
+      classification.audience !== (isAudience(product.audience) ? product.audience : null);
+    if (classificationChanged) {
+      // Departamento, tipo, estilo y «para» viajan juntos: el servidor los valida como un bloque.
+      patch.departmentId = departmentId;
+      patch.productTypeId = classification.productTypeId;
+      patch.style = classification.style;
+      patch.audience = classification.audience;
+    }
     if (Object.keys(patch).length === 1) {
       setDataMsg({ ok: false, text: "No hay cambios que guardar." });
       return;
@@ -230,9 +253,16 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   };
 
   const confirmVariant = confirm?.kind === "variant" ? product.variants.find((v) => v.id === confirm.variantId) : undefined;
-  const categories = (PRODUCT_CATEGORIES as readonly string[]).includes(product.category)
-    ? [...PRODUCT_CATEGORIES]
-    : [product.category, ...PRODUCT_CATEGORIES];
+  const selectedDepartment = departments.find((d) => d.id === departmentId) ?? null;
+  const typesForSelected = selectedDepartment ? typesForDepartment(productTypes, selectedDepartment.id) : [];
+  const changeDepartment = (id: string) => {
+    const dept = departments.find((d) => d.id === id) ?? null;
+    const current = productTypes.find((t) => t.id === classification.productTypeId);
+    const audience = dept?.slug === "calzado" ? classification.audience : null;
+    const typeFits = !current || (dept !== null && current.departmentIds.includes(dept.id));
+    setDepartmentId(id);
+    setClassification(typeFits ? { ...classification, audience } : { productTypeId: "", style: null, audience });
+  };
   const productActive = isActive(product);
   const historyVariants = product.variants.filter((v) => (history[v.id]?.length ?? 0) > 0);
 
@@ -319,26 +349,23 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="ficha-depto" className={labelCls}>Departamento</label>
-                  <select id="ficha-depto" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={field}>
-                    {!departmentId && <option value="">Sin departamento</option>}
-                    {departmentId && !departments.some((d) => d.id === departmentId) && <option value={departmentId}>Actual</option>}
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="ficha-categoria" className={labelCls}>Categoría</label>
-                  <select id="ficha-categoria" value={category} onChange={(e) => setCategory(e.target.value)} className={field}>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label htmlFor="ficha-depto" className={labelCls}>Departamento</label>
+                <select id="ficha-depto" value={departmentId} onChange={(e) => changeDepartment(e.target.value)} className={field}>
+                  {!departmentId && <option value="">Sin departamento</option>}
+                  {departmentId && !departments.some((d) => d.id === departmentId) && <option value={departmentId}>Actual</option>}
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
+              <ClassificationFields
+                idPrefix="ficha"
+                departmentSlug={selectedDepartment?.slug ?? null}
+                types={typesForSelected}
+                value={classification}
+                onChange={setClassification}
+              />
               <div aria-live="polite">
                 {dataMsg && (
                   <p

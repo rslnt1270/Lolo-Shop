@@ -19,7 +19,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/sales/dashboard-actions", () => ({ getLowStockThresholdAction: vi.fn().mockResolvedValue(1) }));
 vi.mock("@/lib/products/actions", () => ({}));
-vi.mock("@/lib/catalog/actions", () => ({}));
+vi.mock("@/lib/catalog/actions", () => ({ listProductTypesAction: async () => [] }));
 vi.mock("react-barcode", () => ({ default: () => null }));
 
 import Home from "@/app/page";

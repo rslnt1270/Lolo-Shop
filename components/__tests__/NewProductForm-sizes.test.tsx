@@ -25,6 +25,7 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
+  listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 vi.mock("@/components/inventory/Scanner", () => ({
   Scanner: ({ onScan }: { onScan: (c: string) => void }) => (
@@ -51,7 +52,7 @@ async function fillProduct() {
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
   await screen.findByRole("option", { name: "Dama" });
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
 }
 
 beforeEach(() => {

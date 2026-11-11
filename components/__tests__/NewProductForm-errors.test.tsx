@@ -14,6 +14,7 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: (...a: unknown[]) => listBrandsAction(...a),
   createBrandAction: (...a: unknown[]) => createBrandAction(...a),
   listDepartmentsAction: (...a: unknown[]) => listDepartmentsAction(...a),
+  listProductTypesAction: () => Promise.resolve([{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }]),
 }));
 vi.mock("../products/ProductPhotoCapture", () => ({
   ProductPhotoCapture: ({ onCapture, onBusyChange }: { onCapture: (f: File) => void; onBusyChange?: (b: boolean) => void }) => (
@@ -35,7 +36,7 @@ async function submitValid(onSuccess = vi.fn(), onDuplicate?: (id: string) => vo
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
   await pickBrandAndDepartment();
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
   fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
   return onSuccess;
 }
@@ -156,7 +157,7 @@ describe("NewProductForm: errores del servidor", () => {
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
-    fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0][0].message).toMatch(/Dado de alta SIN fotos: Falta el token del almacén\. Agrégalas desde \/productos/);
@@ -185,7 +186,7 @@ describe("NewProductForm: errores del servidor", () => {
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
-    fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0][0].message).not.toMatch(/\.\./);

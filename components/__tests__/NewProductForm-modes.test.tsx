@@ -11,6 +11,7 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: vi.fn().mockResolvedValue([{ id: "b1", name: "Lolo", slug: "lolo" }]),
   createBrandAction: vi.fn(),
   listDepartmentsAction: vi.fn().mockResolvedValue([{ id: "d1", slug: "dama", name: "Dama" }]),
+  listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 vi.mock("../products/ProductPhotoCapture", () => ({
   ProductPhotoCapture: ({ onCapture }: { onCapture: (f: File) => void }) => (
@@ -27,7 +28,7 @@ async function fillRest() {
   await waitFor(() => expect(screen.getByRole("option", { name: "Dama", hidden: true })).toBeTruthy());
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
 }
 
 const render1 = (props = {}) =>

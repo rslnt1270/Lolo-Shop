@@ -23,6 +23,7 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
+  listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 // Parcial: el alta usa canonicalCode del módulo real; solo se fuerza isValidGtin.
 vi.mock("@/lib/domain/barcode", async (orig) => ({
@@ -50,7 +51,7 @@ async function fillForm() {
   await screen.findByRole("option", { name: "Dama" });
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "50" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
   fireEvent.change(screen.getByLabelText(/piezas/i), { target: { value: "4" } });
   fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
 }
@@ -77,7 +78,7 @@ describe("/escanear: flujo de alta por lote", () => {
 
     await waitFor(() => expect(screen.getByTestId("scanner")).toBeTruthy());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({
-      category: "Accesorios", locationId: "loc-1", sizes: [{ barcode: "750999", initialStock: 4 }],
+      productTypeId: "t1", locationId: "loc-1", sizes: [{ barcode: "750999", initialStock: 4 }],
     });
     expect(screen.getByText(/1 alta en esta sesión/i)).toBeTruthy();
     expect(screen.getByText(/escanea la siguiente/i)).toBeTruthy();

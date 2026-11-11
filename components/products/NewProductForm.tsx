@@ -4,14 +4,16 @@ import { Plus } from "lucide-react";
 import { createProductAction, uploadProductImageAction } from "@/lib/actions";
 import type { CreateProductInput } from "@/lib/actions";
 import {
-  MAX_DESCRIPTION_LENGTH, MAX_SIZES, PRODUCT_CATEGORIES, validateNewProduct, type EntryMode,
+  MAX_DESCRIPTION_LENGTH, MAX_SIZES, validateNewProduct, type EntryMode,
 } from "@/lib/domain/new-product";
 import { canonicalCode, isValidGtin } from "@/lib/domain/barcode";
 import { Scanner } from "@/components/inventory/Scanner";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
 import { SizeRows, type SizeRowDraft } from "./SizeRows";
-import { createBrandAction, listBrandsAction, listDepartmentsAction } from "@/lib/catalog/actions";
-import type { BrandOption, DepartmentOption } from "@/lib/catalog/actions";
+import { createBrandAction, listBrandsAction, listDepartmentsAction, listProductTypesAction } from "@/lib/catalog/actions";
+import type { BrandOption, DepartmentOption, ProductTypeOption } from "@/lib/catalog/actions";
+import { typesForDepartment, validateClassification, type Audience } from "@/lib/domain/product-taxonomy";
+import { ClassificationFields, type ClassificationValue } from "./ClassificationFields";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
 import { withSession } from "@/lib/client/with-session";
 import { BrandCombobox } from "./BrandCombobox";
@@ -141,6 +143,9 @@ export function NewProductForm({
   const missingPhotos = mode === "catalog" && (!frontPhoto || !backPhoto);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
+  const [classification, setClassification] = useState<ClassificationValue>({ productTypeId: "", style: null, audience: null });
+  const [typeCleared, setTypeCleared] = useState("");
   const [brand, setBrand] = useState<BrandOption | null>(null);
   const photosHelpId = useId();
   const [catalogError, setCatalogError] = useState("");
@@ -155,7 +160,6 @@ export function NewProductForm({
   const [formData, setFormData] = useState({
     title: "",
     departmentId: "",
-    category: "",
     description: "",
   });
   const canAddRow = rows.length < MAX_SIZES;
@@ -186,18 +190,19 @@ export function NewProductForm({
 
   useEffect(() => {
     let alive = true;
-    Promise.all([listBrandsAction(), listDepartmentsAction()])
-      .then(([b, d]) => {
+    Promise.all([listBrandsAction(), listDepartmentsAction(), listProductTypesAction()])
+      .then(([b, d, t]) => {
         if (!alive) return;
-        if (!b || !d) {
+        if (!b || !d || !t) {
           setSessionExpired(true);
           return;
         }
         setBrands(b);
         setDepartments(d);
+        setProductTypes(t);
       })
       .catch(() => {
-        if (alive) setCatalogError("No se pudieron cargar las marcas y los departamentos. Recarga la página.");
+        if (alive) setCatalogError("No se pudieron cargar las marcas, los departamentos y los tipos. Recarga la página.");
       });
     return () => {
       alive = false;
@@ -224,7 +229,9 @@ export function NewProductForm({
       title: formData.title,
       brandId: brand?.id ?? "",
       departmentId: formData.departmentId,
-      category: formData.category,
+      productTypeId: classification.productTypeId,
+      style: classification.style,
+      audience: classification.audience,
       sizes: rows.map((r) => ({
         size: r.size,
         barcode: r.barcode,
@@ -235,6 +242,15 @@ export function NewProductForm({
     };
     try {
       validateNewProduct(input);
+      const rule = productTypes.find((t) => t.id === classification.productTypeId);
+      validateClassification({
+        departmentSlug: selectedDepartment?.slug ?? "",
+        type: rule
+          ? { slug: rule.slug, isActive: true, appliesToDepartment: rule.departmentIds.includes(formData.departmentId) }
+          : null,
+        style: classification.style,
+        audience: classification.audience,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Revisa los datos del producto.");
       return;
@@ -358,6 +374,19 @@ export function NewProductForm({
     );
   };
 
+  const selectedDepartment = departments.find((d) => d.id === formData.departmentId) ?? null;
+  const typesForSelected = selectedDepartment ? typesForDepartment(productTypes, selectedDepartment.id) : [];
+
+  const changeDepartment = (departmentId: string) => {
+    const dept = departments.find((d) => d.id === departmentId) ?? null;
+    const audience: Audience | null = dept?.slug === "calzado" ? classification.audience : null;
+    const current = productTypes.find((t) => t.id === classification.productTypeId);
+    const invalid = !!current && (!dept || !current.departmentIds.includes(dept.id));
+    setFormData((prev) => ({ ...prev, departmentId }));
+    setTypeCleared(invalid && dept ? `El tipo se borró porque no aplica a ${dept.name}.` : "");
+    setClassification(invalid ? { productTypeId: "", style: null, audience } : { ...classification, audience });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -435,14 +464,7 @@ export function NewProductForm({
           />
         </div>
 
-        <div>
-          <label htmlFor="brand" className="block text-sm font-medium text-gray-700">
-            Marca
-          </label>
-          <BrandCombobox id="brand" brands={brands} value={brand} onChange={setBrand} onCreate={createBrand} />
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-3">
           <div>
             <label htmlFor="departmentId" className="block text-sm font-medium text-gray-700">
               Departamento
@@ -452,7 +474,7 @@ export function NewProductForm({
               name="departmentId"
               aria-required="true"
               value={formData.departmentId}
-              onChange={handleChange}
+              onChange={(e) => changeDepartment(e.target.value)}
               className={fieldClass}
             >
               <option value="">Elige el departamento</option>
@@ -462,23 +484,26 @@ export function NewProductForm({
             </select>
           </div>
 
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700">
-              Categoría
-            </label>
-            <select
-              id="category"
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className={fieldClass}
-            >
-              <option value="">Elige una categoría</option>
-              {PRODUCT_CATEGORIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </div>
+          {typeCleared && (
+            <p role="status" className="mt-1 text-sm font-medium text-[#9A3B2E]">{typeCleared}</p>
+          )}
+          <ClassificationFields
+            idPrefix="alta"
+            departmentSlug={selectedDepartment?.slug ?? null}
+            types={typesForSelected}
+            value={classification}
+            onChange={(v) => {
+              setTypeCleared("");
+              setClassification(v);
+            }}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="brand" className="block text-sm font-medium text-gray-700">
+            Marca
+          </label>
+          <BrandCombobox id="brand" brands={brands} value={brand} onChange={setBrand} onCreate={createBrand} />
         </div>
       </div>
 
