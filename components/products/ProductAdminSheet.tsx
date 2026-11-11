@@ -548,7 +548,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               </table>
             </div>
             <p className="pt-1 text-[11px] leading-snug text-[#5C6E6D]">
-              Solo lectura. Para mover piezas usa Entrada o Traspasar.
+              Solo lectura. Para sumar piezas usa Escanear.
             </p>
           </section>
 

@@ -1,4 +1,4 @@
-export type StockMovementKind = "restock" | "damage" | "adjustment";
+export type StockMovementKind = "restock";
 
 export const MIN_STOCK_QUANTITY = 1;
 export const MAX_STOCK_QUANTITY = 200;
@@ -22,7 +22,7 @@ export type StockMovementValidation =
   | { ok: false; message: string };
 
 /**
- * Motivo de ajuste, traspaso o precio: 3–120 caracteres, sin secuencias de 7 o
+ * Motivo de entrada o de cambio de precio: 3–120 caracteres, sin secuencias de 7 o
  * más dígitos (evita guardar teléfonos). Lanza `Error` con el mensaje para el
  * operador. Vacío y no obligatorio devuelve null.
  */
@@ -55,25 +55,15 @@ export function validateStockMovement(input: unknown): StockMovementValidation {
   if (typeof i.requestId !== "string" || !UUID_RE.test(i.requestId)) {
     return fail("Identificador de la operación inválido.");
   }
-  const kind = i.kind;
-  if (kind !== "restock" && kind !== "damage" && kind !== "adjustment") {
-    return fail("Tipo de movimiento inválido.");
-  }
+  if (i.kind !== "restock") return fail("Tipo de movimiento inválido.");
   const q = i.quantity;
   if (typeof q !== "number" || !Number.isInteger(q) || q < MIN_STOCK_QUANTITY || q > MAX_STOCK_QUANTITY) {
     return fail(`La cantidad debe ser un entero entre ${MIN_STOCK_QUANTITY} y ${MAX_STOCK_QUANTITY}.`);
   }
 
-  let sign: 1 | -1;
-  if (kind === "restock") sign = 1;
-  else if (kind === "damage") sign = -1;
-  else if (i.direction === "in") sign = 1;
-  else if (i.direction === "out") sign = -1;
-  else return fail("Elige si la corrección suma o resta.");
-
   let reason: string | null;
   try {
-    reason = validateReason(i.reason, kind !== "restock");
+    reason = validateReason(i.reason, false);
   } catch (err) {
     return fail(err instanceof Error ? err.message : "Motivo inválido.");
   }
@@ -83,8 +73,8 @@ export function validateStockMovement(input: unknown): StockMovementValidation {
     value: {
       variantId: i.variantId,
       locationId: i.locationId,
-      kind,
-      delta: sign * q,
+      kind: "restock",
+      delta: q,
       reason,
       requestId: i.requestId,
     },

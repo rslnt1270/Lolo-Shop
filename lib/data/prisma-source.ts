@@ -2,7 +2,7 @@ import {
   MAX_SEARCH_RESULTS,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
-  type TransferStockData, type UpdateVariantPriceResult, type VariantMatch,
+  type UpdateVariantPriceResult, type VariantMatch,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery,
 } from "./source";
 import { MOVEMENT_TYPE_LABEL, type MovementType } from "../domain/types";
@@ -329,79 +329,6 @@ export class PrismaDataSource implements InventoryDataSource {
         if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
           // Carrera: otro intento con el mismo requestId ganó; la transacción se revirtió.
           return { available: await currentAvailable(this.db), replayed: true };
-        }
-        if (err.code === "P2003") throw new StockTargetNotFoundError();
-      }
-      throw err;
-    }
-  }
-
-  async transferStock(data: TransferStockData): Promise<{ available: number; replayed: boolean }> {
-    const { variantId, fromLocationId, toLocationId, quantity, requestId, note, userId } = data;
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new Error("La cantidad del traspaso debe ser un entero mayor que cero.");
-    }
-    if (fromLocationId === toLocationId) {
-      throw new InventoryRuleError("El origen y el destino deben ser distintos.");
-    }
-    const outId = `${requestId}:out`;
-    const inId = `${requestId}:in`;
-    const originAvailable = async (client: Pick<PrismaClient, "inventoryLevel">) =>
-      (await client.inventoryLevel.findUnique({ where: { variantId_locationId: { variantId, locationId: fromLocationId } } }))
-        ?.available ?? 0;
-
-    try {
-      return await this.db.$transaction(async (tx) => {
-        const existing = await tx.movement.findUnique({ where: { requestId: outId }, select: { id: true } });
-        if (existing) return { available: await originAvailable(tx), replayed: true };
-
-        // El Movement de salida va primero: su @unique serializa los reintentos
-        // en paralelo (el perdedor recibe P2002 -> replayed) antes del descuento.
-        await tx.movement.create({
-          data: { variantId, locationId: fromLocationId, userId, delta: -quantity, type: "TRANSFER", notes: note, requestId: outId },
-        });
-
-        // Las dos filas se tocan en orden de locationId: dos traspasos opuestos
-        // toman los candados en el mismo orden y no se interbloquean.
-        const decrementOrigin = async () => {
-          const res = await tx.inventoryLevel.updateMany({
-            where: { variantId, locationId: fromLocationId, available: { gte: quantity } },
-            data: { available: { decrement: quantity } },
-          });
-          if (res.count === 0) {
-            throw new InsufficientStockError(variantId, await originAvailable(tx), quantity);
-          }
-        };
-        const incrementDestination = async () => {
-          await tx.inventoryLevel.upsert({
-            where: { variantId_locationId: { variantId, locationId: toLocationId } },
-            update: { available: { increment: quantity } },
-            create: { variantId, locationId: toLocationId, available: quantity },
-          });
-        };
-        if (fromLocationId < toLocationId) {
-          await decrementOrigin();
-          await incrementDestination();
-        } else {
-          await incrementDestination();
-          await decrementOrigin();
-        }
-
-        await tx.movement.create({
-          data: { variantId, locationId: toLocationId, userId, delta: quantity, type: "TRANSFER", notes: note, requestId: inId },
-        });
-        return { available: await originAvailable(tx), replayed: false };
-      }, INVENTORY_TX_OPTIONS);
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError) {
-        if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
-          return {
-            available:
-              (await this.db.inventoryLevel.findUnique({
-                where: { variantId_locationId: { variantId, locationId: fromLocationId } },
-              }))?.available ?? 0,
-            replayed: true,
-          };
         }
         if (err.code === "P2003") throw new StockTargetNotFoundError();
       }

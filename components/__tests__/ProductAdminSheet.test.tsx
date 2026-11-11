@@ -289,7 +289,7 @@ describe("ProductAdminSheet", () => {
     expect(within(lomas).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Lomas", "3", "1", "4"]);
     const club = within(table).getByRole("row", { name: /ClubAlva/ });
     expect(within(club).getAllByRole("cell").map((c) => c.textContent)).toEqual(["ClubAlva", "—", "4", "4"]);
-    expect(screen.getByText("Solo lectura. Para mover piezas usa Entrada o Traspasar.")).toBeInTheDocument();
+    expect(screen.getByText("Solo lectura. Para sumar piezas usa Escanear.")).toBeInTheDocument();
     expect(within(table).queryAllByRole("textbox")).toHaveLength(0);
   });
 

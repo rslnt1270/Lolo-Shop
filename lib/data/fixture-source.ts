@@ -3,7 +3,7 @@ import {
   MAX_SEARCH_RESULTS,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
-  type TransferStockData, type UpdateVariantPriceResult, type VariantMatch,
+  type UpdateVariantPriceResult, type VariantMatch,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery, type MovementRow,
 } from "./source";
 import { MOVEMENT_TYPE_LABEL } from "@/lib/domain/types";
@@ -165,35 +165,6 @@ export class FixtureDataSource implements InventoryDataSource {
     }
     this.log({ variantId, locationId, type, delta, notes, requestId, userId });
     return { available: current + delta, replayed: false };
-  }
-
-  async transferStock(data: TransferStockData): Promise<{ available: number; replayed: boolean }> {
-    const { variantId, fromLocationId, toLocationId, quantity, requestId, note, userId } = data;
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new Error("La cantidad del traspaso debe ser un entero mayor que cero.");
-    }
-    if (fromLocationId === toLocationId) throw new InventoryRuleError("El origen y el destino deben ser distintos.");
-    const match = await this.getProductByVariantId(variantId);
-    if (!match) throw new StockTargetNotFoundError();
-    for (const id of [fromLocationId, toLocationId]) {
-      if (!this.locations.some((l) => l.id === id)) throw new StockTargetNotFoundError();
-    }
-    const from = match.variant.inventory.find((l) => l.locationId === fromLocationId);
-    if (this.movements.some((m) => m.requestId === `${requestId}:out`)) {
-      return { available: from?.available ?? 0, replayed: true };
-    }
-    const current = from?.available ?? 0;
-    if (!from || current < quantity) throw new InsufficientStockError(variantId, current, quantity);
-
-    from.available -= quantity;
-    const to = match.variant.inventory.find((l) => l.locationId === toLocationId);
-    if (to) to.available += quantity;
-    else match.variant.inventory.push({ locationId: toLocationId, available: quantity });
-    this.log(
-      { variantId, locationId: fromLocationId, type: "TRANSFER", delta: -quantity, notes: note, requestId: `${requestId}:out`, userId },
-      { variantId, locationId: toLocationId, type: "TRANSFER", delta: quantity, notes: note, requestId: `${requestId}:in`, userId },
-    );
-    return { available: from.available, replayed: false };
   }
 
   /** Mismas reglas de unicidad que Prisma: barcode y sku únicos en toda la base (también dentro del envío). */

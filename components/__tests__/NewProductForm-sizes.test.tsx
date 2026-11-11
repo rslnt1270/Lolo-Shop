@@ -293,7 +293,7 @@ describe("/escanear: código existente", () => {
     fireEvent.click(screen.getByText("simular-escaneo"));
     const list = await screen.findByRole("list", { name: /tallas en tu tienda/i });
     expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["M: 3 pzas", "L: 0 pzas"]);
-    expect(screen.getByRole("button", { name: "Entrada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sumar .* en tu tienda/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Agregar talla" }));
     expect(await screen.findByText("Tallas registradas:")).toBeInTheDocument();
   });

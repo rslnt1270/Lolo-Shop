@@ -14,7 +14,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/auth/password", () => ({ changePassword: vi.fn() }));
 vi.mock("@/lib/data/get-source", () => ({ getDataSource: () => source }));
 
-import { addVariantAction, createProductAction, recordStockMovementAction, transferStockAction } from "../actions";
+import { addVariantAction, createProductAction, recordStockMovementAction } from "../actions";
 import { mergeProductsAction, updateVariantPriceAction } from "../products/actions";
 import { FixtureDataSource } from "../data/fixture-source";
 import { DB_TIMEOUT_TEXT, isTransactionTimeout } from "../data/errors";
@@ -52,13 +52,6 @@ describe("P2028 en las acciones: 'La base tardó en responder; reintenta'", () =
     vi.spyOn(source, "recordStockMovement").mockRejectedValue(p2028());
     expect(
       await recordStockMovementAction({ variantId, locationId: lomas, kind: "restock", quantity: 1, requestId: crypto.randomUUID() }),
-    ).toEqual(timeout);
-  });
-
-  it("traspaso", async () => {
-    vi.spyOn(source, "transferStock").mockRejectedValue(p2028());
-    expect(
-      await transferStockAction({ variantId, fromLocationId: lomas, toLocationId: club, quantity: 1, requestId: crypto.randomUUID() }),
     ).toEqual(timeout);
   });
 

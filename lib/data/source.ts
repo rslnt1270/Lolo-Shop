@@ -89,18 +89,6 @@ export interface RecordStockMovementData {
   userId: string;
 }
 
-export interface TransferStockData {
-  variantId: string;
-  fromLocationId: string;
-  toLocationId: string;
-  /** Entero > 0. */
-  quantity: number;
-  /** UUID de idempotencia; los Movement llevan `<requestId>:out` y `<requestId>:in`. */
-  requestId: string;
-  note: string | null;
-  userId: string;
-}
-
 /** Una entrada del historial de precios de una talla. */
 export interface PriceChangeEntry {
   oldPrice: number;
@@ -196,12 +184,6 @@ export interface InventoryDataSource {
    */
   recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }>;
   /**
-   * Traspaso atómico entre dos tiendas: resta en el origen (sin piezas
-   * suficientes lanza `InsufficientStockError` y no escribe nada), suma en el
-   * destino y escribe dos `Movement` TRANSFER. `available` es el del origen.
-   * Un `requestId` ya aplicado devuelve `replayed: true` sin repetir el cambio.
-   */
-  transferStock(data: TransferStockData): Promise<{ available: number; replayed: boolean }>;
   /**
    * Crea producto + N variantes (`title` = talla) + N filas de inventario en
    * `locationId` + un Movement RESTOCK "alta" por talla con piezas, todo

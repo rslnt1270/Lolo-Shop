@@ -17,7 +17,7 @@ import {
   DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
 } from "./data/errors";
 import {
-  MAX_STOCK_QUANTITY, MIN_STOCK_QUANTITY, validateReason, validateStockMovement, type StockMovementKind,
+  MAX_STOCK_QUANTITY, MIN_STOCK_QUANTITY, validateStockMovement, type StockMovementKind,
 } from "./domain/stock-movement";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
@@ -63,18 +63,17 @@ export type StockMovementResult =
       available?: number;
     };
 
-const STOCK_TYPE = { restock: "RESTOCK", damage: "DAMAGE", adjustment: "ADJUSTMENT" } as const;
+const STOCK_TYPE = { restock: "RESTOCK" } as const;
 
 /**
- * Entrada, merma o corrección de stock. Rol y tienda se releen de la base; no
- * hay "salida" (las ventas se registran en /pos). Nunca lanza: devuelve el código.
+ * Entrada de stock (única vía de sumar piezas). Rol y tienda se releen de la base;
+ * no hay "salida" (las ventas se registran en /pos). Nunca lanza: devuelve el código.
  */
 export async function recordStockMovementAction(input: {
   variantId: string;
   locationId: string;
   kind: StockMovementKind;
   quantity: number;
-  direction?: "in" | "out";
   reason?: string;
   requestId: string;
 }): Promise<StockMovementResult> {
@@ -86,7 +85,6 @@ export async function recordStockMovementAction(input: {
     if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
     const v = parsed.value;
 
-    if (v.kind !== "restock") requireRole(user, ["owner", "manager"]);
     assertCanOperate(user, v.locationId);
 
     const res = await getDataSource().recordStockMovement({
@@ -115,82 +113,6 @@ export async function recordStockMovementAction(input: {
       return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
     }
     console.error("recordStockMovementAction", err);
-    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
-    return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
-  }
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Traspaso de stock entre dos tiendas (owner o manager). El manager con tienda
- * solo traspasa desde o hacia la suya. Nunca lanza: devuelve el código.
- */
-export async function transferStockAction(input: {
-  variantId: string;
-  fromLocationId: string;
-  toLocationId: string;
-  quantity: number;
-  requestId: string;
-  note?: string;
-}): Promise<StockMovementResult> {
-  try {
-    const user = await currentUserOrNull();
-    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
-
-    const invalid = (message: string): StockMovementResult => ({ ok: false, code: "INVALID", message });
-    const { variantId, fromLocationId, toLocationId, quantity, requestId } = input ?? ({} as typeof input);
-    if (typeof variantId !== "string" || !variantId) return invalid("Falta la prenda.");
-    if (typeof fromLocationId !== "string" || !fromLocationId) return invalid("Elige la tienda de origen.");
-    if (typeof toLocationId !== "string" || !toLocationId) return invalid("Elige la tienda de destino.");
-    if (typeof requestId !== "string" || !UUID_RE.test(requestId)) return invalid("Identificador de la operación inválido.");
-    if (fromLocationId === toLocationId) return invalid("El origen y el destino deben ser distintos.");
-    if (
-      typeof quantity !== "number" || !Number.isInteger(quantity) ||
-      quantity < MIN_STOCK_QUANTITY || quantity > MAX_STOCK_QUANTITY
-    ) {
-      return invalid(`La cantidad debe ser un entero entre ${MIN_STOCK_QUANTITY} y ${MAX_STOCK_QUANTITY}.`);
-    }
-    let note: string | null;
-    try {
-      note = validateReason(input.note, false);
-    } catch (err) {
-      return invalid(err instanceof Error ? err.message : "Nota inválida.");
-    }
-
-    requireRole(user, ["owner", "manager"]);
-    if (isStoreBound(user) && user.locationId !== fromLocationId && user.locationId !== toLocationId) {
-      throw new ForbiddenError("Solo puedes traspasar desde o hacia tu tienda asignada.");
-    }
-
-    const source = getDataSource();
-    const res = await source.transferStock({
-      variantId, fromLocationId, toLocationId, quantity, requestId, note, userId: user.id,
-    });
-    const locations = await source.getLocations();
-    const name = (id: string) => locations.find((l) => l.id === id)?.name ?? "otra tienda";
-    revalidatePath("/catalogo");
-    revalidatePath("/productos");
-    return {
-      ok: true,
-      available: res.available,
-      replayed: res.replayed,
-      message: `Se movieron ${quantity} de ${name(fromLocationId)} a ${name(toLocationId)}.`,
-    };
-  } catch (err) {
-    if (err instanceof ForbiddenError) return { ok: false, code: "FORBIDDEN", message: err.message };
-    if (err instanceof InsufficientStockError) {
-      return {
-        ok: false,
-        code: "INSUFFICIENT",
-        available: err.available,
-        message: `Solo hay ${err.available} en esta tienda.`,
-      };
-    }
-    if (err instanceof StockTargetNotFoundError) {
-      return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
-    }
-    console.error("transferStockAction", err);
     if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
     return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
   }

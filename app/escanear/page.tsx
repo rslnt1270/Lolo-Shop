@@ -19,7 +19,6 @@ import {
   type LookupCodeResult,
 } from "@/lib/actions";
 import { isValidGtin } from "@/lib/domain/barcode";
-import { StockMovementPanel } from "@/components/inventory/StockMovementPanel";
 
 type Found = Extract<LookupCodeResult, { found: true }>;
 type LocationOption = { id: string; name: string };
@@ -170,12 +169,6 @@ export default function EscanearPage() {
   // La etiqueta escaneada tiene piezas en otras tiendas pero ninguna fila en la tuya.
   const onlyInOtherStore =
     !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId) && variant.inventory.length > 0;
-  const canTransfer = role === "owner" || role === "manager";
-  // Origen sugerido para traspasar hacia la tienda elegida: la tienda con más piezas de esta etiqueta.
-  const richestOther = onlyInOtherStore
-    ? [...variant!.inventory].sort((a, b) => b.available - a.available)[0]?.locationId
-    : undefined;
-
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -320,37 +313,14 @@ export default function EscanearPage() {
                         reset();
                       }}
                     />
-                    {canTransfer && (
-                      <StockMovementPanel
-                        variantId={found.variantId}
-                        locationId={locationId}
-                        role={role as Role}
-                        storeBound={storeBound}
-                        transferOnly
-                        defaultFromId={richestOther}
-                        defaultToId={locationId}
-                        onDone={(available, doneMessage) => {
-                          setIsError(false);
-                          setMessage(
-                            doneMessage ?? `Traspaso registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`,
-                          );
-                          reset();
-                        }}
-                      />
-                    )}
                   </div>
                 ) : (
-                  <StockMovementPanel
+                  <SumToMyStore
                     variantId={found.variantId}
                     locationId={locationId}
-                    role={role as Role}
-                    storeBound={storeBound}
-                    onDone={(available, doneMessage) => {
+                    onDone={(available) => {
                       setIsError(false);
-                      setMessage(
-                        doneMessage ??
-                          `Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`,
-                      );
+                      setMessage(`Piezas sumadas: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
                       reset();
                     }}
                   />

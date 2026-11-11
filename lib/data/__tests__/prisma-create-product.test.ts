@@ -54,7 +54,7 @@ describe("PrismaDataSource.createProduct", () => {
     const src = readFileSync(resolve(process.cwd(), "lib/data/prisma-source.ts"), "utf8");
     const opened = src.match(/\$transaction\(/g)?.length ?? 0;
     const withOptions = src.match(/\}, INVENTORY_TX_OPTIONS\)/g)?.length ?? 0;
-    expect(opened).toBeGreaterThanOrEqual(6);
+    expect(opened).toBeGreaterThanOrEqual(5);
     expect(withOptions).toBe(opened);
   });
 
