@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { SCAN_FORMAT_NAMES } from "@/lib/domain/scan-formats";
 
 type Props = {
   onScan: (decodedText: string) => void;
@@ -16,15 +17,7 @@ type Facing = "environment" | "user";
 type Status = "idle" | "starting" | "running" | "error";
 
 const READER_ID = "loloshop-reader";
-const FORMATS = [
-  Html5QrcodeSupportedFormats.EAN_13,
-  Html5QrcodeSupportedFormats.UPC_A,
-  Html5QrcodeSupportedFormats.EAN_8,
-  Html5QrcodeSupportedFormats.UPC_E,
-  Html5QrcodeSupportedFormats.CODE_128,
-  Html5QrcodeSupportedFormats.CODE_39,
-  Html5QrcodeSupportedFormats.QR_CODE,
-];
+const FORMATS = SCAN_FORMAT_NAMES.map((name) => Html5QrcodeSupportedFormats[name]);
 const GTIN_LENGTHS = [8, 12, 13, 14];
 
 export function cameraErrorMessage(err: unknown): string {
