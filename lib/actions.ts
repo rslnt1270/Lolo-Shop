@@ -3,7 +3,7 @@ import { isProductBlobUrl } from "./image/blob-url";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "./auth/current-user";
 import { ForbiddenError } from "./auth/errors";
-import { assertCanOperate, currentUserOrNull, isStoreBound, requireRole } from "./auth/permissions";
+import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
 import type { Location, LocationType, Product } from "./domain/types";
@@ -17,7 +17,7 @@ import {
   DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
 } from "./data/errors";
 import {
-  MAX_STOCK_QUANTITY, MIN_STOCK_QUANTITY, validateStockMovement, type StockMovementKind,
+  validateStockMovement, type StockMovementKind,
 } from "./domain/stock-movement";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
