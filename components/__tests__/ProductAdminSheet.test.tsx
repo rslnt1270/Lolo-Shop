@@ -301,13 +301,18 @@ describe("ProductAdminSheet", () => {
     }
   });
 
-  it("el colaborador no ve controles de edición pero sí el stock", async () => {
+  it("el colaborador ve la sección de precio y puede guardarlo", async () => {
+    open("collaborator");
+    expect(await screen.findByRole("region", { name: "Precio por talla" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /guardar/i }).length).toBeGreaterThan(0);
+    expect(products.listPriceChangesAction).toHaveBeenCalled();
+  });
+
+  it("el colaborador no ve datos del producto ni desactivar, pero sí el stock", async () => {
     open("collaborator");
     expect(await screen.findByRole("table", { name: "Stock por tienda" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /guardar/i })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Datos del producto" })).toBeNull();
     expect(screen.queryByRole("button", { name: /desactivar/i })).toBeNull();
-    expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
-    expect(products.listPriceChangesAction).not.toHaveBeenCalled();
   });
 });

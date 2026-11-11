@@ -55,7 +55,8 @@ const DANGER = "#9A3B2E";
 const isActive = (x: { isActive?: boolean }) => x.isActive !== false;
 
 export function ProductAdminSheet({ product, locations, role, onClose, onChanged }: Props) {
-  const canEdit = role === "owner" || role === "manager";
+  const canEditData = role === "owner" || role === "manager";
+  const canEditPrice = canEditData || role === "collaborator";
 
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
@@ -86,7 +87,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
 
   const variantKey = product.variants.map((v) => v.id).join(",");
   useEffect(() => {
-    if (!canEdit) return;
+    if (!canEditData) return;
     let cancelled = false;
     Promise.all([listBrandsAction(), listDepartmentsAction()])
       .then(([b, d]) => {
@@ -95,6 +96,14 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
         setDepartments(d ?? []);
       })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [canEditData]);
+
+  useEffect(() => {
+    if (!canEditPrice) return;
+    let cancelled = false;
     Promise.all(
       variantKey
         .split(",")
@@ -108,7 +117,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
     return () => {
       cancelled = true;
     };
-  }, [canEdit, variantKey]);
+  }, [canEditPrice, variantKey]);
 
   const patchPrice = (id: string, p: Partial<PriceState>) =>
     setPrices((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }));
@@ -266,7 +275,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               </span>
             </div>
             <h3 className="text-lg font-bold text-[#16302F]">{product.title}</h3>
-            {canEdit && (
+            {canEditData && (
               <div className="flex flex-wrap items-center gap-x-3">
                 <ProductPhotoButton
                   productId={product.id}
@@ -293,7 +302,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             )}
           </div>
 
-          {canEdit && (
+          {canEditData && (
             <section aria-label="Datos del producto" className="space-y-3.5 rounded-xl border border-[#E1E9E9] p-3.5">
               <h3 className="border-b border-[#E1E9E9] pb-1 text-sm font-bold text-[#16302F]">Datos del producto</h3>
               <div>
@@ -347,7 +356,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             </section>
           )}
 
-          {canEdit && (
+          {canEditPrice && (
             <section aria-label="Precio por talla" className="space-y-3">
               <h3 className="text-sm font-bold text-[#16302F]">Precio por talla</h3>
               {product.variants.map((v) => {
@@ -365,7 +374,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                       <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-[#E1E9E9] bg-white px-1 font-mono text-sm font-bold text-[#16302F]">
                         {v.size || v.title}
                       </span>
-                      {variantActive ? (
+                      {canEditData && variantActive ? (
                         <button
                           type="button"
                           aria-label={`Desactivar talla ${v.size || v.title}`}
@@ -375,7 +384,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                         >
                           Desactivar talla
                         </button>
-                      ) : (
+                      ) : canEditData ? (
                         <button
                           type="button"
                           aria-label={`Reactivar talla ${v.size || v.title}`}
@@ -385,7 +394,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                         >
                           Reactivar talla
                         </button>
-                      )}
+                      ) : null}
                     </div>
                     {st.conflict !== undefined && (
                       <p role="alert" className="rounded-lg bg-[#FDF2F0] p-2.5 text-xs font-medium leading-tight" style={{ color: DANGER }}>
@@ -474,7 +483,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             </section>
           )}
 
-          {canEdit && (
+          {canEditPrice && (
             <section aria-label="Historial de precios" className="space-y-2.5 rounded-xl border border-[#E1E9E9] p-3.5">
               <div className="flex items-center justify-between border-b border-[#E1E9E9] pb-1">
                 <h3 className="text-sm font-bold text-[#16302F]">Historial de precios</h3>
@@ -543,7 +552,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             </p>
           </section>
 
-          {canEdit && (
+          {canEditData && (
             <section className="pt-2">
               {productActive ? (
                 <button
