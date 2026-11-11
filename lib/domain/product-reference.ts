@@ -19,11 +19,34 @@ export function colorApplies(input: {
   return true;
 }
 
+/** Tope de longitud del texto crudo antes de cualquier normalización. */
+export const MAX_RAW_COLOR_LENGTH = 200;
+
+/** Quita lo que va entre "<" y el siguiente ">" en una sola pasada, sin regex. */
+function stripTags(text: string): string {
+  let out = "";
+  let noMoreClose = false;
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "<" && !noMoreClose) {
+      const close = text.indexOf(">", i + 1);
+      if (close === -1) noMoreClose = true;
+      else {
+        out += " ";
+        i = close + 1;
+        continue;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 /** Quita marcado y símbolos: deja letras (con acentos), dígitos y espacios simples. */
 function sanitizeColorText(raw: string): string {
-  return raw
-    .normalize("NFC")
-    .replace(/<[^>]*>/g, " ")
+  return stripTags(raw.slice(0, MAX_RAW_COLOR_LENGTH).normalize("NFC"))
     .replace(/[^\p{L}\p{N}\p{M} ]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -75,6 +98,7 @@ export function validateReference(input: {
 }): { color: string | null } {
   if (!input.brand || !input.brand.trim()) throw new Error("Elige la marca.");
   if (!colorApplies(input)) return { color: null };
+  if (input.color && input.color.length > MAX_RAW_COLOR_LENGTH) throw new Error("El color es demasiado largo.");
   if (!input.color || !normalizeColorKey(input.color)) return { color: null };
   const color = displayColor(input.color);
   if (color.length > MAX_COLOR_LENGTH) throw new Error("El color puede tener máximo 40 caracteres.");

@@ -68,6 +68,23 @@ describe("product-reference", () => {
     expect(validateReference({ ...base, color: "🔥<i></i>" }).color).toBeNull();
   });
 
+  it("review: un texto enorme de '<' se rechaza y se normaliza rápido", () => {
+    const huge = "<".repeat(1_000_000);
+    const t0 = Date.now();
+    expect(() =>
+      validateReference({ brand: "ALO", color: huge, departmentSlug: "dama", typeSlug: "playera" })
+    ).toThrow("El color es demasiado largo.");
+    expect(normalizeColorKey(huge)).toBe("");
+    expect(displayColor(huge)).toBe("");
+    expect(Date.now() - t0).toBeLessThan(500);
+  });
+
+  it('review: "<b>rosa</b>" sigue dando "Rosa"', () => {
+    expect(
+      validateReference({ brand: "ALO", color: "<b>rosa</b>", departmentSlug: "dama", typeSlug: "playera" }).color
+    ).toBe("Rosa");
+  });
+
   it("displayColor capitaliza y colapsa espacios", () => {
     expect(displayColor("  ROSA   palo ")).toBe("Rosa palo");
   });
