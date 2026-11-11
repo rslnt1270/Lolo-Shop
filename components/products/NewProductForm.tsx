@@ -450,7 +450,7 @@ export function NewProductForm({
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-            Descripción <span className="text-gray-600">(opcional)</span>
+            Descripción <span className="text-gray-600">(obligatoria)</span>
           </label>
           <textarea
             id="description"

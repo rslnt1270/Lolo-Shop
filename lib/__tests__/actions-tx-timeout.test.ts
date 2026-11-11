@@ -59,7 +59,7 @@ describe("P2028 en las acciones: 'La base tardó en responder; reintenta'", () =
   it("alta", async () => {
     vi.spyOn(source, "createProduct").mockRejectedValue(p2028());
     const res = await createProductAction({
-      title: "Gorra", brandId: "b1", departmentId: "d1", productTypeId: "type-gorra", locationId: lomas, mode: "stock",
+      title: "Gorra", description: "Algodón suave", brandId: "b1", departmentId: "d1", productTypeId: "type-gorra", locationId: lomas, mode: "stock",
       sizes: [{ size: "U", barcode: null, price: 100, initialStock: 1 }],
     });
     expect(res).toEqual(timeout);

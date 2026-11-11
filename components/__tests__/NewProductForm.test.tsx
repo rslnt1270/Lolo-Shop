@@ -27,6 +27,7 @@ import { NewProductForm } from "../products/NewProductForm";
 
 async function fillRequired(withDepartment = true) {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera Básica" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   const combo = screen.getByRole("combobox", { name: /marca/i });
   fireEvent.change(combo, { target: { value: "Lolo" } });
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
@@ -138,7 +139,7 @@ describe("NewProductForm", () => {
     fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lol" } });
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "5" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
-    expect(await screen.findByText("Título y marca son obligatorios.")).toBeInTheDocument();
+    expect(await screen.findByText("Elige la marca.")).toBeInTheDocument();
     expect(createProductAction).not.toHaveBeenCalled();
   });
 
@@ -148,6 +149,7 @@ describe("NewProductForm", () => {
       render(<NewProductForm scannedCode="750100" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
       await screen.findByRole("option", { name: "Dama" });
       fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera" } });
+      fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
       const combo = screen.getByRole("combobox", { name: /marca/i });
       fireEvent.change(combo, { target: { value: typed } });
       fireEvent.blur(combo);
@@ -157,7 +159,7 @@ describe("NewProductForm", () => {
       fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
       fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
       await waitFor(() => expect(createProductAction).toHaveBeenCalledWith(expect.objectContaining({ brandId: "b1" })));
-      expect(screen.queryByText("Título y marca son obligatorios.")).not.toBeInTheDocument();
+      expect(screen.queryByText("Elige la marca.")).not.toBeInTheDocument();
     },
   );
 

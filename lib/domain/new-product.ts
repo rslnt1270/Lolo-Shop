@@ -12,9 +12,14 @@ export const DEFAULT_SIZE = UNIQUE_SIZE;
 export const MAX_SIZES = 12;
 export const MAX_BARCODE_LENGTH = 64;
 export const MAX_DESCRIPTION_LENGTH = 500;
+/** @deprecated El alta ya no exige las dos fotos (el estado sale de las fotos presentes); se conserva por compatibilidad. */
 export const CATALOG_PHOTOS_MESSAGE = "Para el catálogo se necesitan las dos fotos: frente y atrás.";
+export const MSG_TITLE_REQUIRED = "Escribe el título.";
+export const MSG_BRAND_REQUIRED = "Elige la marca.";
+export const MSG_DESCRIPTION_REQUIRED = "Escribe la descripción.";
+export const MSG_PHOTOS_NOT_ANALYZED = "La foto no pasó la revisión de fondo blanco. Tómala de nuevo.";
 
-/** "stock": solo inventario/venta, sin fotos. "catalog": exige foto de frente y de atrás. */
+/** "stock": solo inventario/venta, sin fotos. "catalog": intención inicial de fotografiar; el estado sale de las fotos presentes. */
 export type EntryMode = "stock" | "catalog";
 
 /** Una talla del alta: código escaneado (null = "Sin código"), precio y piezas contadas. */
@@ -44,9 +49,14 @@ export interface NewProductInput {
   sizes: SizeRowInput[];
   /** Por defecto "stock". */
   mode?: EntryMode;
+  /** Obligatoria en todo alta. */
   description?: string | null;
+  /** Color libre; el servidor lo limpia y lo descarta donde no aplica (`validateReference`). */
+  color?: string | null;
   imageUrl?: string | null;
   backImageUrl?: string | null;
+  /** El cliente revisó el fondo blanco de las fotos enviadas (el servidor no puede analizar píxeles). */
+  photosAnalyzed?: boolean;
 }
 
 export interface NormalizedNewProduct {
@@ -58,10 +68,14 @@ export interface NormalizedNewProduct {
   audience: string | null;
   sizes: NormalizedSizeRow[];
   mode: EntryMode;
-  description: string | null;
+  description: string;
+  /** Color crudo recortado (aún sin `validateReference`) o null. */
+  color: string | null;
   /** Null en modo stock (las fotos se ignoran). */
   imageUrl: string | null;
   backImageUrl: string | null;
+  /** Frente y atrás presentes y revisadas en la misma llamada. */
+  photosChecked: boolean;
 }
 
 /** Redondea a centavos sin el error binario de `x * 100` (10.005 → 10.01). */
@@ -139,9 +153,8 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
   const title = (input.title ?? "").trim();
   const brandId = (input.brandId ?? "").trim();
   const departmentId = (input.departmentId ?? "").trim();
-  if (!title || !brandId) {
-    throw new Error("Título y marca son obligatorios.");
-  }
+  if (!title) throw new Error(MSG_TITLE_REQUIRED);
+  if (!brandId) throw new Error(MSG_BRAND_REQUIRED);
   if (title.length > MAX_TITLE_LENGTH) {
     throw new Error(`El título no puede pasar de ${MAX_TITLE_LENGTH} caracteres.`);
   }
@@ -156,22 +169,29 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
   const audience = hasAudience ? (input.audience as string) : null;
   const sizes = validateSizeRows(input.sizes);
   const description = (typeof input.description === "string" ? input.description : "").trim();
+  if (!description) throw new Error(MSG_DESCRIPTION_REQUIRED);
   if (description.length > MAX_DESCRIPTION_LENGTH) {
     throw new Error(`La descripción no puede pasar de ${MAX_DESCRIPTION_LENGTH} caracteres.`);
   }
   const mode: EntryMode = input.mode === "catalog" ? "catalog" : "stock";
   let imageUrl: string | null = null;
   let backImageUrl: string | null = null;
+  const rawColor = typeof input.color === "string" ? input.color : "";
+  const color = rawColor.trim() ? rawColor : null;
+  let photosChecked = false;
   if (mode === "catalog") {
-    if (!input.imageUrl || !input.backImageUrl) throw new Error(CATALOG_PHOTOS_MESSAGE);
-    if (!isProductBlobUrl(input.imageUrl) || !isProductBlobUrl(input.backImageUrl)) {
-      throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
+    const front = input.imageUrl || null;
+    const back = input.backImageUrl || null;
+    for (const url of [front, back]) {
+      if (url !== null && !isProductBlobUrl(url)) throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
     }
-    imageUrl = input.imageUrl;
-    backImageUrl = input.backImageUrl;
+    if ((front || back) && input.photosAnalyzed !== true) throw new Error(MSG_PHOTOS_NOT_ANALYZED);
+    imageUrl = front;
+    backImageUrl = back;
+    photosChecked = Boolean(front && back);
   }
   return {
     title, brandId, departmentId, productTypeId, style, audience, sizes,
-    mode, description: description || null, imageUrl, backImageUrl,
+    mode, description, color, imageUrl, backImageUrl, photosChecked,
   };
 }

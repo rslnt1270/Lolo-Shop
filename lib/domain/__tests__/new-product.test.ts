@@ -7,6 +7,7 @@ const valid = {
   brandId: "brand-1",
   departmentId: "dep-1",
   productTypeId: "type-1",
+  description: "Algodón suave",
   sizes: [{ size: "", barcode: null, price: 299, initialStock: 0 }],
 };
 /** Alta válida con la única talla modificada (antes `price`, `size` e `initialStock` eran sueltos). */
@@ -17,9 +18,19 @@ describe("validateNewProduct", () => {
     expect(() => validateNewProduct(valid)).not.toThrow();
   });
 
-  it("exige título y marca", () => {
-    expect(() => validateNewProduct({ ...valid, title: "  " })).toThrow("Título y marca son obligatorios.");
-    expect(() => validateNewProduct({ ...valid, brandId: "" })).toThrow("Título y marca son obligatorios.");
+  it("exige título y marca con un mensaje claro para cada uno", () => {
+    expect(() => validateNewProduct({ ...valid, title: "  " })).toThrow("Escribe el título.");
+    expect(() => validateNewProduct({ ...valid, brandId: "" })).toThrow("Elige la marca.");
+  });
+
+  it("C9: validateNewProduct rechaza sin marca", () => {
+    expect(() => validateNewProduct({ ...valid, brandId: "   " })).toThrow("Elige la marca.");
+  });
+
+  it("review: descripción vacía no pasa", () => {
+    expect(() => validateNewProduct({ ...valid, description: "  " })).toThrow("Escribe la descripción.");
+    expect(() => validateNewProduct({ ...valid, description: null })).toThrow("Escribe la descripción.");
+    expect(() => validateNewProduct({ ...valid, description: undefined })).toThrow("Escribe la descripción.");
   });
 
   it("exige el departamento", () => {
@@ -93,21 +104,36 @@ describe("validateNewProduct", () => {
 describe("validateNewProduct: modos de alta y descripción", () => {
   const blob = (n: string) => `https://abc.public.blob.vercel-storage.com/productos/${n}.jpg`;
 
-  it("modo catalog sin foto trasera es inválido con el mensaje exacto", () => {
-    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f") })).toThrow(
-      "Para el catálogo se necesitan las dos fotos: frente y atrás.",
-    );
-    expect(() => validateNewProduct({ ...valid, mode: "catalog", backImageUrl: blob("b") })).toThrow(
-      "Para el catálogo se necesitan las dos fotos: frente y atrás.",
-    );
+  it("modo catalog sin fotos no lanza y deja imageUrl null", () => {
+    expect(validateNewProduct({ ...valid, mode: "catalog" })).toMatchObject({
+      imageUrl: null, backImageUrl: null, photosChecked: false,
+    });
   });
 
-  it("modo catalog valida las dos URLs con isProductBlobUrl", () => {
+  it("C14 (unit): modo catalog con una foto no lanza", () => {
+    const one = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: true });
+    expect(one).toMatchObject({ imageUrl: blob("f"), backImageUrl: null, photosChecked: false });
+    const back = validateNewProduct({ ...valid, mode: "catalog", backImageUrl: blob("b"), photosAnalyzed: true });
+    expect(back).toMatchObject({ imageUrl: null, backImageUrl: blob("b"), photosChecked: false });
+  });
+
+  it("modo catalog valida las URLs con isProductBlobUrl", () => {
     expect(() =>
-      validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: "https://evil.example/b.jpg" }),
+      validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: "https://evil.example/b.jpg", photosAnalyzed: true }),
     ).toThrow(/foto/);
-    const ok = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") });
-    expect(ok).toMatchObject({ mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") });
+  });
+
+  it("review: fotos sin photosAnalyzed se rechazan", () => {
+    const msg = "La foto no pasó la revisión de fondo blanco. Tómala de nuevo.";
+    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") })).toThrow(msg);
+    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: false })).toThrow(msg);
+    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: "true" as unknown as boolean })).toThrow(msg);
+  });
+
+  it("review: dos fotos con photosAnalyzed dejan photosChecked true; una sola, false", () => {
+    const two = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b"), photosAnalyzed: true });
+    expect(two).toMatchObject({ mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b"), photosChecked: true });
+    expect(validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: true }).photosChecked).toBe(false);
   });
 
   it("modo stock (por defecto) acepta sin fotos e ignora las que lleguen", () => {
@@ -117,10 +143,15 @@ describe("validateNewProduct: modos de alta y descripción", () => {
     });
   });
 
-  it("descripción opcional, recortada y de máximo 500 caracteres", () => {
-    expect(validateNewProduct(valid).description).toBeNull();
+  it("descripción obligatoria, recortada y de máximo 500 caracteres", () => {
     expect(validateNewProduct({ ...valid, description: "  Algodón  " }).description).toBe("Algodón");
     expect(validateNewProduct({ ...valid, description: "a".repeat(500) }).description).toHaveLength(500);
     expect(() => validateNewProduct({ ...valid, description: "a".repeat(501) })).toThrow(/500/);
+  });
+
+  it("el color viaja crudo y recortado; vacío es null", () => {
+    expect(validateNewProduct({ ...valid, color: "Rosa" }).color).toBe("Rosa");
+    expect(validateNewProduct({ ...valid, color: "   " }).color).toBeNull();
+    expect(validateNewProduct(valid).color).toBeNull();
   });
 });

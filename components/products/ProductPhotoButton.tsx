@@ -10,6 +10,11 @@ interface ProductPhotoButtonProps {
   hasImage: boolean;
   /** Lado de la foto: "front" (por defecto) o "back". */
   side?: "front" | "back";
+  /**
+   * La foto pasó la revisión de fondo blanco en el navegador. Hasta que la
+   * captura incluya el análisis (Tarea 8) vale false y el servidor la rechaza.
+   */
+  photosAnalyzed?: boolean;
   onUpdated?: () => void;
 }
 
@@ -18,6 +23,7 @@ export function ProductPhotoButton({
   productTitle,
   hasImage,
   side = "front",
+  photosAnalyzed = false,
   onUpdated,
 }: ProductPhotoButtonProps) {
   const [open, setOpen] = useState(false);
@@ -34,13 +40,13 @@ export function ProductPhotoButton({
       if (side === "back") {
         const up = await uploadProductImageAction(fd);
         if (!up.ok) throw new Error(up.message);
-        const r = await setProductBackImageAction(productId, up.url);
+        const r = await setProductBackImageAction(productId, up.url, { photosAnalyzed });
         if (!r.ok) {
           setMsg(r.message);
           return;
         }
       } else {
-        const r = await updateProductImageAction(productId, fd);
+        const r = await updateProductImageAction(productId, fd, { photosAnalyzed });
         if (!r.ok) {
           setMsg(r.message);
           return;

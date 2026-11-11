@@ -8,7 +8,10 @@ import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projecti
 import { getDataSource } from "./data/get-source";
 import { scopeInventory, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
-import { validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput } from "./domain/new-product";
+import {
+  MSG_PHOTOS_NOT_ANALYZED, validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
+} from "./domain/new-product";
+import { productPhotoStatus, validateReference, type PhotoStatus } from "./domain/product-reference";
 import { loadTypeRule } from "./catalog/type-rule";
 import { MSG_PICK_TYPE, validateClassification, type Audience } from "./domain/product-taxonomy";
 import { generatePublicCode } from "./domain/public-code";
@@ -169,15 +172,20 @@ export type CreateProductInput = {
    */
   sizes: SizeRowInput[];
   locationId: string;
-  /** "stock" (por defecto): sin fotos. "catalog": exige imageUrl y backImageUrl. */
+  /** "stock" (por defecto): sin fotos. "catalog": acepta 0, 1 o 2 fotos; el estado sale de las presentes. */
   mode?: EntryMode;
+  /** Obligatoria en todo alta. */
   description?: string | null;
+  /** Color libre; el servidor lo limpia y lo descarta en Accesorios y Perfume. */
+  color?: string | null;
   imageUrl?: string | null;
   backImageUrl?: string | null;
+  /** El cliente revisó el fondo blanco de las fotos enviadas; sin ella las fotos se rechazan. */
+  photosAnalyzed?: boolean;
 };
 
 export type CreateProductResult =
-  | { ok: true; product: Product; variantId: string; sku: string }
+  | { ok: true; product: Product; variantId: string; sku: string; catalogStatus?: PhotoStatus }
   | {
       ok: false;
       code: "SESSION" | "FORBIDDEN" | "INVALID" | "DUPLICATE" | "LOCATION" | "ERROR";
@@ -324,6 +332,16 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
       return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : MSG_PICK_TYPE };
     }
 
+    let color: string | null;
+    try {
+      // Marca, color y reglas por departamento/tipo (el color se descarta donde no aplica).
+      color = validateReference({
+        brand: brand.name, color: data.color, departmentSlug: department.slug, typeSlug: type?.slug ?? null,
+      }).color;
+    } catch (err) {
+      return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : "Datos inválidos." };
+    }
+
     const loc = await checkLocation(user, ds, input.locationId);
     if (!loc.ok) return loc.result;
 
@@ -350,6 +368,8 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           imageUrl: data.imageUrl,
           backImageUrl: data.backImageUrl,
           description: data.description,
+          color,
+          photosChecked: data.photosChecked,
           userId: user.id,
         });
         revalidateProducts("createProductAction");
@@ -359,6 +379,11 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           product: { ...created.product, variants: created.product.variants.length ? created.product.variants : created.variants },
           variantId: first.id,
           sku: first.sku,
+          catalogStatus: productPhotoStatus({
+            hasFront: Boolean(data.imageUrl),
+            hasBack: Boolean(data.backImageUrl),
+            hasStock: data.sizes.reduce((sum, r) => sum + r.initialStock, 0) > 0,
+          }),
         };
       } catch (err) {
         const field = uniqueViolationField(err);
@@ -506,11 +531,22 @@ async function checkPhotoAccess(productId: string, side: "front" | "back"): Prom
   return { ok: true };
 }
 
-/** Fija la foto de atrás (URL ya subida con uploadProductImageAction). Nunca lanza. */
-export async function setProductBackImageAction(productId: string, url: string): Promise<PhotoActionResult> {
+const NOT_ANALYZED: PhotoActionResult = { ok: false, code: "INVALID", message: MSG_PHOTOS_NOT_ANALYZED };
+
+/** El servidor no puede analizar píxeles: confía en la bandera del cliente, pero solo si es `true` exacto. */
+const isAnalyzed = (opts: { photosAnalyzed: boolean } | undefined): boolean => opts?.photosAnalyzed === true;
+
+/**
+ * Fija la foto de atrás (URL ya subida con uploadProductImageAction). Cambiar un
+ * lado no toca `catalogPhotosCheckedAt`. Nunca lanza.
+ */
+export async function setProductBackImageAction(
+  productId: string, url: string, opts: { photosAnalyzed: boolean },
+): Promise<PhotoActionResult> {
   try {
     const access = await checkPhotoAccess(productId, "back");
     if (!access.ok) return access;
+    if (!isAnalyzed(opts)) return NOT_ANALYZED;
     if (!isProductBlobUrl(url)) {
       return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
     }
@@ -524,11 +560,14 @@ export async function setProductBackImageAction(productId: string, url: string):
   }
 }
 
-/** Foto de frente: sube el archivo y la fija. Nunca lanza. */
-export async function updateProductImageAction(productId: string, formData: FormData): Promise<PhotoActionResult> {
+/** Foto de frente: sube el archivo y la fija. Cambiar un lado no toca `catalogPhotosCheckedAt`. Nunca lanza. */
+export async function updateProductImageAction(
+  productId: string, formData: FormData, opts: { photosAnalyzed: boolean },
+): Promise<PhotoActionResult> {
   try {
     const access = await checkPhotoAccess(productId, "front");
     if (!access.ok) return access;
+    if (!isAnalyzed(opts)) return NOT_ANALYZED;
     const file = formData?.get("image");
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, code: "INVALID", message: "No se recibió una imagen válida." };
@@ -542,6 +581,36 @@ export async function updateProductImageAction(productId: string, formData: Form
     if (err instanceof ImageUploadError) return { ok: false, code: "INVALID", message: err.message };
     console.error("updateProductImageAction", err);
     return { ok: false, code: "ERROR", message: "No se pudo guardar la foto. Intenta de nuevo." };
+  }
+}
+
+/**
+ * Fija frente y atrás revisadas en una sola escritura y marca
+ * `catalogPhotosCheckedAt`: la vía para que un producto viejo quede listo para
+ * publicarse. Reemplazar una foto ya puesta sigue siendo solo owner o manager. Nunca lanza.
+ */
+export async function setCatalogPhotosAction(
+  productId: string, input: { imageUrl: string; backImageUrl: string; photosAnalyzed: boolean },
+): Promise<PhotoActionResult> {
+  try {
+    const front = await checkPhotoAccess(productId, "front");
+    if (!front.ok) return front;
+    const back = await checkPhotoAccess(productId, "back");
+    if (!back.ok) return back;
+    if (!input || typeof input !== "object") {
+      return { ok: false, code: "INVALID", message: "Faltan las fotos de frente y de atrás." };
+    }
+    if (input.photosAnalyzed !== true) return NOT_ANALYZED;
+    if (!isProductBlobUrl(input.imageUrl) || !isProductBlobUrl(input.backImageUrl)) {
+      return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
+    }
+    await getDataSource().setCatalogPhotos(productId, { imageUrl: input.imageUrl, backImageUrl: input.backImageUrl });
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return { ok: true };
+  } catch (err) {
+    console.error("setCatalogPhotosAction", err);
+    return { ok: false, code: "ERROR", message: "No se pudo guardar las fotos. Intenta de nuevo." };
   }
 }
 

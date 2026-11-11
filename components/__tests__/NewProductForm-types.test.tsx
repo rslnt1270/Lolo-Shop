@@ -28,6 +28,7 @@ async function setup() {
 }
 async function fillBase() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera Básica" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "299" } });

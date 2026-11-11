@@ -34,6 +34,7 @@ async function pickBrandAndDepartment() {
 async function submitValid(onSuccess = vi.fn(), onDuplicate?: (id: string) => void) {
   render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} onDuplicate={onDuplicate} />);
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   await pickBrandAndDepartment();
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
   fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
@@ -134,6 +135,7 @@ describe("NewProductForm: errores del servidor", () => {
       await submitValid();
       await screen.findByText(/No se pudo dar de alta/);
       fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra roja" } });
+      fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
       fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
       expect(await screen.findByRole("button", { name: /^sumar .*en tu tienda/i })).toBeTruthy();
       expect(screen.queryByText(/Parece que ya se guardó/)).toBeNull();
@@ -155,6 +157,7 @@ describe("NewProductForm: errores del servidor", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
     screen.getAllByText("tomar-foto").forEach((b) => fireEvent.click(b));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+    fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
@@ -184,6 +187,7 @@ describe("NewProductForm: errores del servidor", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
     screen.getAllByText("tomar-foto").forEach((b) => fireEvent.click(b));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+    fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
     await pickBrandAndDepartment();
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });

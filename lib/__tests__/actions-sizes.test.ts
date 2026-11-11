@@ -25,7 +25,7 @@ import { UnauthenticatedError } from "../auth/errors";
 const user = (role: string, locationId: string | null) => ({ id: "u1", role, locationId });
 const row = (size: string, barcode: string | null = null, price = 100, initialStock = 1) => ({ size, barcode, price, initialStock });
 const input = (sizes: CreateProductInput["sizes"]): CreateProductInput => ({
-  title: "Playera Logo", brandId: "b1", departmentId: "d1", productTypeId: "type-playera", locationId: "loc-1", sizes,
+  title: "Playera Logo", description: "Algodón suave", brandId: "b1", departmentId: "d1", productTypeId: "type-playera", locationId: "loc-1", sizes,
 });
 
 async function productWithM(): Promise<string> {

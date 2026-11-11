@@ -69,7 +69,7 @@ beforeEach(() => {
 const sizes = [{ size: "M", barcode: null, price: 100, initialStock: 2 }];
 const create = (over: Record<string, unknown> = {}) =>
   createProductAction({
-    title: "Polo", brandId: "b1", departmentId: "dep-dama", productTypeId: "type-playera",
+    title: "Polo", description: "Algodón suave", brandId: "b1", departmentId: "dep-dama", productTypeId: "type-playera",
     locationId: "loc-1", sizes, ...over,
   } as never);
 

@@ -23,6 +23,7 @@ import { NewProductForm } from "../products/NewProductForm";
 
 async function fillRest() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
   await waitFor(() => expect(screen.getByRole("option", { name: "Dama", hidden: true })).toBeTruthy());
@@ -121,8 +122,8 @@ describe("NewProductForm: dos modos de alta", () => {
     expect(help).toHaveAttribute("aria-live", "polite");
   });
 
-  it('"(opcional)" no usa text-gray-400', () => {
+  it('"(obligatoria)" no usa text-gray-400', () => {
     render1();
-    for (const el of screen.getAllByText("(opcional)")) expect(el.className).not.toMatch(/gray-400/);
+    for (const el of screen.getAllByText("(obligatoria)")) expect(el.className).not.toMatch(/gray-400/);
   });
 });
