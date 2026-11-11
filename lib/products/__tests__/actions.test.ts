@@ -47,12 +47,13 @@ beforeEach(() => {
 
 describe("permisos y sesión", () => {
   const calls: [string, () => Promise<unknown>][] = [
-    ["updateVariantPriceAction", () => updateVariantPriceAction(price())],
     ["updateProductAction", () => updateProductAction({ productId: "prod-1", title: "Nuevo" })],
     ["setProductActiveAction", () => setProductActiveAction("prod-1", false)],
     ["setVariantActiveAction", () => setVariantActiveAction("var-1", false)],
     ["assignDepartmentAction", () => assignDepartmentAction(["prod-1"], "d1")],
   ];
+
+  const priceCall: [string, () => Promise<unknown>] = ["updateVariantPriceAction", () => updateVariantPriceAction(price())];
 
   it.each(calls)("%s: colaborador (o JWT de owner con colaborador en la base) recibe FORBIDDEN", async (_n, call) => {
     as("collaborator", "loc-1");
@@ -62,12 +63,12 @@ describe("permisos y sesión", () => {
     expect(p.variants[0].price).toBe(450);
   });
 
-  it("listPriceChangesAction: colaborador recibe null", async () => {
+  it("listPriceChangesAction: colaborador recibe el historial de la talla", async () => {
     as("collaborator", "loc-1");
-    await expect(listPriceChangesAction("var-1")).resolves.toBeNull();
+    await expect(listPriceChangesAction("var-1")).resolves.toEqual(expect.any(Array));
   });
 
-  it.each(calls)("%s: sin sesión devuelve SESSION", async (_n, call) => {
+  it.each([...calls, priceCall])("%s: sin sesión devuelve SESSION", async (_n, call) => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     await expect(call()).resolves.toMatchObject({ ok: false, code: "SESSION", message: "Tu sesión terminó. Vuelve a iniciar sesión." });
   });
@@ -84,6 +85,23 @@ describe("permisos y sesión", () => {
 });
 
 describe("updateVariantPriceAction", () => {
+  it("colaborador guarda el precio y queda en el historial con su usuario", async () => {
+    as("collaborator", "loc-1");
+    await expect(updateVariantPriceAction(price({ newPrice: 520 }))).resolves.toEqual({ ok: true, price: 520 });
+    const rows = await listPriceChangesAction("var-1");
+    expect(rows![0]).toMatchObject({ oldPrice: 450, newPrice: 520, userName: "u1" });
+  });
+
+  it("colaborador con precio esperado viejo: CONFLICT con el precio vigente", async () => {
+    as("collaborator", "loc-1");
+    await expect(updateVariantPriceAction(price({ expectedPrice: 300 }))).resolves.toMatchObject({
+      ok: false,
+      code: "CONFLICT",
+      currentPrice: 450,
+    });
+    expect((await ds.getProductByVariantId("var-1"))!.variant.price).toBe(450);
+  });
+
   it("guarda el precio y deja el historial con el usuario", async () => {
     const r = await updateVariantPriceAction(price({ reason: "Ajuste de mercado" }));
     expect(r).toEqual({ ok: true, price: 500 });

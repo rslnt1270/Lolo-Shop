@@ -2,6 +2,9 @@ import type { Role } from "@/lib/domain/types";
 import { getCurrentUser, type CurrentUser } from "./current-user";
 import { ForbiddenError, UnauthenticatedError } from "./errors";
 
+/** Roles que pueden editar el precio de una talla y ver su historial. */
+export const PRICE_EDIT_ROLES = ["owner", "manager", "collaborator"] as const satisfies readonly Role[];
+
 /** Colaborador, o manager con tienda asignada: opera solo en su `locationId`. */
 export function isStoreBound(user: CurrentUser): boolean {
   return user.role === "collaborator" || (user.role === "manager" && !!user.locationId);

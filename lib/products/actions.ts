@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { ForbiddenError } from "@/lib/auth/errors";
-import { currentUserOrNull, requireRole } from "@/lib/auth/permissions";
+import { PRICE_EDIT_ROLES, currentUserOrNull, requireRole } from "@/lib/auth/permissions";
 import { getDataSource } from "@/lib/data/get-source";
 import { DB_TIMEOUT_TEXT, InventoryRuleError, ProductNotFoundError, isTransactionTimeout } from "@/lib/data/errors";
 import type { ProductPatch } from "@/lib/data/source";
@@ -67,7 +67,7 @@ export async function updateVariantPriceAction(input: {
   expectedPrice: number;
   reason?: string;
 }): Promise<UpdateVariantPriceResult> {
-  const g = await gate();
+  const g = await gate(PRICE_EDIT_ROLES);
   if (!g.ok) return g;
 
   const { variantId, newPrice, expectedPrice } = input ?? ({} as typeof input);
@@ -109,7 +109,7 @@ export async function updateVariantPriceAction(input: {
 
 /** Últimos 5 cambios de precio de la talla. `null`: sin sesión o sin permiso. */
 export async function listPriceChangesAction(variantId: string): Promise<PriceChangeRow[] | null> {
-  const g = await gate();
+  const g = await gate(PRICE_EDIT_ROLES);
   if (!g.ok) return null;
   if (typeof variantId !== "string" || !variantId) return [];
   return await getDataSource().listPriceChanges(variantId, HISTORY_LIMIT);
