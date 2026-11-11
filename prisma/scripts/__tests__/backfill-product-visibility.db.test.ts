@@ -1,10 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { hasTestDb, testPrisma } from "../../../test/db/setup";
 import { resetDb } from "../../../test/db/reset";
-import { backfillProductVisibility } from "../backfill-product-visibility";
+import { assertVisibilityPrerequisites, backfillProductVisibility } from "../backfill-product-visibility";
 
 describe.skipIf(!hasTestDb)("backfillProductVisibility", () => {
-  beforeEach(resetDb);
+  beforeEach(async () => {
+    await resetDb();
+    await testPrisma.productType.create({ data: { slug: "playeras", name: "Playeras" } });
+  });
   afterAll(() => testPrisma.$disconnect());
 
   let n = 0;
@@ -76,5 +79,38 @@ describe.skipIf(!hasTestDb)("backfillProductVisibility", () => {
     expect(r.plan.notPublishable).toEqual([bad.id]);
     expect(r.published).toBe(1);
     expect((await testPrisma.product.findUniqueOrThrow({ where: { id: bad.id } })).isPublished).toBe(false);
+  });
+
+  describe("guardia de orden", () => {
+    it("migración faltante: mensaje claro, sin escribir", async () => {
+      const p = await mk({ isPublished: true });
+      await expect(assertVisibilityPrerequisites(testPrisma, ["_no_existe"])).rejects.toThrow(
+        "Aplica primero las migraciones (add_product_types y catalog_color_visibility).",
+      );
+      expect((await testPrisma.product.findUniqueOrThrow({ where: { id: p.id } })).isPublished).toBe(true);
+    });
+
+    it("consulta de migraciones falla: mensaje claro, no el error de Prisma", async () => {
+      const stub = { $queryRaw: async () => { throw new Error("relation does not exist"); } } as never;
+      await expect(assertVisibilityPrerequisites(stub)).rejects.toThrow(/^Aplica primero las migraciones/);
+    });
+
+    it("hay productos y cero ProductType: rechaza", async () => {
+      await mk();
+      await testPrisma.productType.deleteMany();
+      await expect(backfillProductVisibility(testPrisma, none)).rejects.toThrow(/backfill-product-types/);
+    });
+
+    it("productos sin productTypeId no bloquean si existen tipos", async () => {
+      await mk();
+      await expect(backfillProductVisibility(testPrisma, none)).resolves.toBeDefined();
+    });
+
+    it("--all-false no se bloquea ni con tipos vacíos", async () => {
+      await mk({ isPublished: true });
+      await testPrisma.productType.deleteMany();
+      const r = await backfillProductVisibility(testPrisma, { ...none, allFalse: true });
+      expect(r.unpublished).toBe(1);
+    });
   });
 });

@@ -9,8 +9,8 @@
  * - --publish: CSV (encabezado `id`) con los ids cuyas fotos de frente y atrás el dueño confirma en fondo blanco.
  * - --unpublish: CSV (encabezado `id`) con ids de fotos de tienda; gana sobre --publish y limpia catalogPhotosCheckedAt.
  * - --all-false: retroceso; deja todo sin publicar y no toca catalogPhotosCheckedAt.
- * Orden: migraciones y relleno de tipos (backfill-product-types.ts) antes de este script; si no existe ningún
- * tipo de producto (el relleno de tipos no corrió), el script se detiene (excepto con --all-false).
+ * Orden: migraciones y relleno de tipos (backfill-product-types.ts) antes de este script; si falta una migración
+ * o no existe ningún tipo de producto, se detiene (excepto con --all-false, que nunca se bloquea).
  * Código de salida 1 si hay ids no encontrados o no publicables (los cambios válidos sí se aplican).
  * Los CSV viven fuera del repo (~/respaldos/loloshop/visibilidad/).
  */
@@ -29,10 +29,47 @@ export interface BackfillVisibilityResult {
   plan: VisibilityPlan;
 }
 
+const REQUIRED_MIGRATIONS = ["_add_product_types", "_catalog_color_visibility"];
+
+/**
+ * Orden de salida: migraciones, relleno de tipos, relleno de visibilidad.
+ * Falla con un mensaje claro (nunca el error crudo de Prisma) si falta alguna migración
+ * o si hay productos y ningún ProductType (el relleno de tipos no corrió).
+ */
+export async function assertVisibilityPrerequisites(
+  prisma: PrismaClient,
+  requiredSuffixes: string[] = REQUIRED_MIGRATIONS,
+): Promise<void> {
+  const migrationsMsg = "Aplica primero las migraciones (add_product_types y catalog_color_visibility).";
+  let applied: string[];
+  try {
+    const rows = await prisma.$queryRaw<{ migration_name: string }[]>`
+      SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL`;
+    applied = rows.map((r) => r.migration_name);
+  } catch {
+    throw new Error(migrationsMsg);
+  }
+  if (!requiredSuffixes.every((suf) => applied.some((n) => n.endsWith(suf)))) throw new Error(migrationsMsg);
+
+  let products: number;
+  let types: number;
+  try {
+    [products, types] = await Promise.all([prisma.product.count(), prisma.productType.count()]);
+  } catch {
+    throw new Error(migrationsMsg);
+  }
+  if (products > 0 && types === 0) {
+    throw new Error(
+      "No existen tipos de producto: corre antes prisma/scripts/backfill-product-types.ts (orden: migraciones, relleno de tipos, relleno de visibilidad).",
+    );
+  }
+}
+
 export async function backfillProductVisibility(
   prisma: PrismaClient,
   opts: { publishIds: string[]; forceUnpublishIds: string[]; allFalse: boolean },
 ): Promise<BackfillVisibilityResult> {
+  if (!opts.allFalse) await assertVisibilityPrerequisites(prisma);
   const [products, locations] = await Promise.all([
     prisma.product.findMany({
       select: {
@@ -104,15 +141,6 @@ if (process.argv[1] && /backfill-product-visibility\.[tj]s$/.test(process.argv[1
   const prisma = new PrismaClient();
   (async () => {
     const args = process.argv.slice(2);
-    // Orden de salida: migración de tipos y su relleno antes que este script.
-    if (!args.includes("--all-false")) {
-      const [products, types] = await Promise.all([prisma.product.count(), prisma.productType.count()]);
-      if (products > 0 && types === 0) {
-        throw new Error(
-          "No existen tipos de producto: corre antes prisma/scripts/backfill-product-types.ts (orden: migraciones, relleno de tipos, relleno de visibilidad).",
-        );
-      }
-    }
     const publishPath = argValue(args, "--publish");
     const unpublishPath = argValue(args, "--unpublish");
     const r = await backfillProductVisibility(prisma, {
