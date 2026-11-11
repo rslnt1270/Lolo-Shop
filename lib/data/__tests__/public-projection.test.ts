@@ -183,3 +183,21 @@ describe("departamento público", () => {
     expect(toPublicProduct(prod(), stores).department).toBeNull();
   });
 });
+
+describe("clasificación fuera de lo público", () => {
+  it("PublicProduct no trae productTypeId, style ni audience y sus claves no cambian", () => {
+    const p = toPublicProduct(
+      {
+        id: "p", title: "t", brand: "b", category: "Playeras", imageUrl: "f", backImageUrl: "b", publicCode: "AAAAA",
+        productTypeId: "type-playera", style: "polo", audience: "nino",
+        variants: [{ id: "v", sku: "s", title: "M", size: "M", color: "x", price: 1, barcode: null,
+          inventory: [{ locationId: "st", available: 1 }] }],
+      },
+      new Set(["st"]),
+    );
+    expect(Object.keys(p).sort()).toEqual(
+      ["backImageUrl", "brand", "category", "department", "id", "imageUrl", "price", "publicCode", "sizes", "title"],
+    );
+    expect(JSON.stringify(p)).not.toMatch(/productTypeId|style|audience|type-playera|polo/);
+  });
+});

@@ -2,13 +2,17 @@ import type { Location, Product, Variant } from "@/lib/domain/types";
 import {
   MAX_SEARCH_RESULTS,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
+  type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
   type UpdateVariantPriceResult, type VariantMatch,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery, type MovementRow,
 } from "./source";
 import { MOVEMENT_TYPE_LABEL } from "@/lib/domain/types";
 import { mexicoRangeToUtc } from "@/lib/domain/movement-scope";
-import { FIXTURE_DEPARTMENTS, fixtureLocations, fixtureProducts } from "./fixtures";
+import {
+  FIXTURE_DEPARTMENTS, FIXTURE_DEPARTMENT_PRODUCT_TYPES, FIXTURE_PRODUCT_TYPES, fixtureLocations, fixtureProducts,
+} from "./fixtures";
+import { isAudience } from "@/lib/domain/product-taxonomy";
 import { canonicalCode, codeCandidates } from "@/lib/domain/barcode";
 import { UNIQUE_SIZE, normalizeSize, sortSizes } from "@/lib/domain/sizes";
 import { stripTrailingSize, trailingSize } from "@/lib/domain/size-duplicates";
@@ -223,6 +227,9 @@ export class FixtureDataSource implements InventoryDataSource {
       brandId: data.brandId,
       departmentId: data.departmentId,
       department: departmentFor(data.departmentId),
+      productTypeId: data.productTypeId ?? null,
+      style: data.style ?? null,
+      audience: data.audience ?? null,
       imageUrl: data.imageUrl ?? null,
       backImageUrl: data.backImageUrl ?? null,
       description: data.description ?? null,
@@ -312,6 +319,9 @@ export class FixtureDataSource implements InventoryDataSource {
     if (!product) throw new ProductNotFoundError();
     if (patch.title !== undefined) product.title = patch.title;
     if (patch.category !== undefined) product.category = patch.category;
+    if (patch.productTypeId !== undefined) product.productTypeId = patch.productTypeId;
+    if (patch.style !== undefined) product.style = patch.style;
+    if (patch.audience !== undefined) product.audience = patch.audience;
     if (patch.brandId !== undefined) {
       product.brandId = patch.brandId;
       if (patch.brand !== undefined) product.brand = patch.brand;
@@ -355,6 +365,87 @@ export class FixtureDataSource implements InventoryDataSource {
       count++;
     }
     return count;
+  }
+
+  async assignProductType(
+    productIds: string[],
+    data: { productTypeId: string; category: string; allowedStyles: readonly string[] },
+  ): Promise<AssignProductTypeResult> {
+    const ids = new Set(productIds);
+    const found = this.products.filter((p) => ids.has(p.id));
+    const allowedDepts = new Set(
+      FIXTURE_DEPARTMENT_PRODUCT_TYPES.filter((x) => x.productTypeId === data.productTypeId).map((x) => x.departmentId),
+    );
+    const invalid = found.filter((p) => p.departmentId && !allowedDepts.has(p.departmentId)).length;
+    if (invalid > 0) {
+      throw new InventoryRuleError(
+        `«${data.category}» no aplica a ${invalid} de los productos elegidos. Quítalos de la selección.`,
+      );
+    }
+    let styleCleared = 0;
+    for (const p of found) {
+      p.productTypeId = data.productTypeId;
+      p.category = data.category;
+      if (p.style && !data.allowedStyles.includes(p.style)) {
+        p.style = null;
+        styleCleared++;
+      }
+    }
+    return { updated: found.length, styleCleared };
+  }
+
+  async getStockByType(filter: { locationId?: string | null }): Promise<StockByTypeRow[]> {
+    const groups = new Map<string, StockByTypeRow & { _ids: Set<string> }>();
+    for (const p of this.products) {
+      if (p.isActive === false || p.mergedIntoId) continue;
+      const dept = FIXTURE_DEPARTMENTS.find((d) => d.id === p.departmentId);
+      const type = FIXTURE_PRODUCT_TYPES.find((t) => t.id === p.productTypeId);
+      const audience = isAudience(p.audience) ? p.audience : null;
+      for (const v of p.variants) {
+        if (v.isActive === false) continue;
+        for (const level of v.inventory) {
+          if (filter.locationId && level.locationId !== filter.locationId) continue;
+          const loc = this.locations.find((l) => l.id === level.locationId);
+          if (!loc) continue;
+          const key = [p.departmentId ?? "", p.productTypeId ?? "", audience ?? "", level.locationId].join("|");
+          let g = groups.get(key);
+          if (!g) {
+            g = {
+              departmentId: dept ? dept.id : (p.departmentId ?? null),
+              departmentName: dept?.name ?? "Sin departamento",
+              productTypeId: p.productTypeId ?? null,
+              typeName: type?.name ?? "Sin tipo",
+              typeActive: type?.isActive ?? true,
+              audience,
+              locationId: level.locationId,
+              locationName: loc.name,
+              pieces: 0,
+              products: 0,
+              _ids: new Set(),
+            };
+            groups.set(key, g);
+          }
+          g.pieces += level.available;
+          if (level.available > 0) g._ids.add(p.id);
+        }
+      }
+    }
+    const order = (x: number | undefined) => x ?? Number.POSITIVE_INFINITY;
+    return [...groups.values()]
+      .filter((g) => g.pieces > 0)
+      .map(({ _ids, ...row }) => ({ ...row, products: _ids.size }))
+      .sort((a, b) => {
+        const da = order(FIXTURE_DEPARTMENTS.find((d) => d.id === a.departmentId)?.sortOrder);
+        const db = order(FIXTURE_DEPARTMENTS.find((d) => d.id === b.departmentId)?.sortOrder);
+        const ta = order(FIXTURE_PRODUCT_TYPES.find((t) => t.id === a.productTypeId)?.sortOrder);
+        const tb = order(FIXTURE_PRODUCT_TYPES.find((t) => t.id === b.productTypeId)?.sortOrder);
+        return (
+          da - db ||
+          ta - tb ||
+          (a.audience ?? "").localeCompare(b.audience ?? "") ||
+          (a.locationName < b.locationName ? -1 : a.locationName > b.locationName ? 1 : 0)
+        );
+      });
   }
 
   async mergeProducts(targetId: string, sourceIds: string[], userId: string): Promise<MergeProductsResult> {

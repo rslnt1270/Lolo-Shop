@@ -1,10 +1,12 @@
 import {
   MAX_SEARCH_RESULTS,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
+  type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
   type UpdateVariantPriceResult, type VariantMatch,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery,
 } from "./source";
+import { isAudience } from "../domain/product-taxonomy";
 import { MOVEMENT_TYPE_LABEL, type MovementType } from "../domain/types";
 import { mexicoRangeToUtc } from "../domain/movement-scope";
 import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError } from "./errors";
@@ -50,6 +52,9 @@ function toProduct(p: DbProduct, variants: Variant[]): Product {
     isActive: p.isActive,
     brandId: p.brandId,
     departmentId: p.departmentId,
+    productTypeId: p.productTypeId,
+    style: p.style,
+    audience: isAudience(p.audience) ? p.audience : null,
     ...("department" in p && p.department
       ? { department: { slug: p.department.slug, name: p.department.name, sortOrder: p.department.sortOrder, isActive: p.department.isActive } }
       : {}),
@@ -129,6 +134,9 @@ export class PrismaDataSource implements InventoryDataSource {
       isActive: p.isActive,
       brandId: p.brandId,
       departmentId: p.departmentId,
+      productTypeId: p.productTypeId,
+      style: p.style,
+      audience: isAudience(p.audience) ? p.audience : null,
       department: p.department
         ? { slug: p.department.slug, name: p.department.name, sortOrder: p.department.sortOrder, isActive: p.department.isActive }
         : null,
@@ -356,6 +364,9 @@ export class PrismaDataSource implements InventoryDataSource {
           departmentId: data.departmentId,
           publicCode: data.publicCode,
           category: data.category,
+          productTypeId: data.productTypeId ?? null,
+          style: data.style ?? null,
+          audience: data.audience ?? null,
           imageUrl: data.imageUrl ?? null,
           backImageUrl: data.backImageUrl ?? null,
           description: data.description ?? null,
@@ -540,6 +551,9 @@ export class PrismaDataSource implements InventoryDataSource {
     const data: Prisma.ProductUpdateInput = {};
     if (patch.title !== undefined) data.title = patch.title;
     if (patch.category !== undefined) data.category = patch.category;
+    if (patch.productTypeId !== undefined) data.productType = { connect: { id: patch.productTypeId } };
+    if (patch.style !== undefined) data.style = patch.style;
+    if (patch.audience !== undefined) data.audience = patch.audience;
     if (patch.brandId !== undefined) {
       data.brandRef = { connect: { id: patch.brandId } };
       if (patch.brand !== undefined) data.brand = patch.brand;
@@ -582,6 +596,74 @@ export class PrismaDataSource implements InventoryDataSource {
       data: { departmentId },
     });
     return res.count;
+  }
+
+  async assignProductType(
+    productIds: string[],
+    data: { productTypeId: string; category: string; allowedStyles: readonly string[] },
+  ): Promise<AssignProductTypeResult> {
+    const ids = [...new Set(productIds)];
+    return await this.db.$transaction(async (tx) => {
+      const products = await tx.product.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, departmentId: true, style: true },
+      });
+      const deptIds = [...new Set(products.flatMap((p) => (p.departmentId ? [p.departmentId] : [])))];
+      const pairs = await tx.departmentProductType.findMany({
+        where: { productTypeId: data.productTypeId, departmentId: { in: deptIds } },
+        select: { departmentId: true },
+      });
+      const allowedDepts = new Set(pairs.map((p) => p.departmentId));
+      // Los productos sin departamento no se pueden revisar: se permiten (quedan en "Por revisar" si no encajan).
+      const invalid = products.filter((p) => p.departmentId && !allowedDepts.has(p.departmentId)).length;
+      if (invalid > 0) {
+        throw new InventoryRuleError(
+          `«${data.category}» no aplica a ${invalid} de los productos elegidos. Quítalos de la selección.`,
+        );
+      }
+      const found = products.map((p) => p.id);
+      await tx.product.updateMany({
+        where: { id: { in: found } },
+        data: { productTypeId: data.productTypeId, category: data.category },
+      });
+      const cleared = products.filter((p) => p.style !== null && !data.allowedStyles.includes(p.style)).map((p) => p.id);
+      if (cleared.length > 0) await tx.product.updateMany({ where: { id: { in: cleared } }, data: { style: null } });
+      return { updated: found.length, styleCleared: cleared.length };
+    }, INVENTORY_TX_OPTIONS);
+  }
+
+  async getStockByType(filter: { locationId?: string | null }): Promise<StockByTypeRow[]> {
+    const locationId = filter.locationId ?? null;
+    const rows = await this.db.$queryRaw<
+      {
+        departmentId: string | null; departmentName: string; productTypeId: string | null; typeName: string;
+        typeActive: boolean; audience: string | null; locationId: string; locationName: string;
+        pieces: number; products: number;
+      }[]
+    >(Prisma.sql`
+      SELECT p."departmentId"                          AS "departmentId",
+             COALESCE(d."name", 'Sin departamento')    AS "departmentName",
+             p."productTypeId"                         AS "productTypeId",
+             COALESCE(t."name", 'Sin tipo')            AS "typeName",
+             COALESCE(t."isActive", true)              AS "typeActive",
+             p."audience"                              AS "audience",
+             il."locationId"                           AS "locationId",
+             loc."name"                                AS "locationName",
+             SUM(il."available")::int                  AS "pieces",
+             (COUNT(DISTINCT p."id") FILTER (WHERE il."available" > 0))::int AS "products"
+      FROM "InventoryLevel" il
+      JOIN "Variant"  v   ON v."id" = il."variantId" AND v."isActive"
+      JOIN "Product"  p   ON p."id" = v."productId"  AND p."isActive" AND p."mergedIntoId" IS NULL
+      JOIN "Location" loc ON loc."id" = il."locationId"
+      LEFT JOIN "Department"  d ON d."id" = p."departmentId"
+      LEFT JOIN "ProductType" t ON t."id" = p."productTypeId"
+      WHERE ${locationId ? Prisma.sql`il."locationId" = ${locationId}` : Prisma.sql`TRUE`}
+      GROUP BY p."departmentId", d."name", d."sortOrder", p."productTypeId", t."name", t."isActive", t."sortOrder",
+               p."audience", il."locationId", loc."name"
+      HAVING SUM(il."available") > 0
+      ORDER BY d."sortOrder" NULLS LAST, t."sortOrder" NULLS LAST, p."audience" NULLS FIRST, loc."name"
+    `);
+    return rows.map((r) => ({ ...r, audience: isAudience(r.audience) ? r.audience : null }));
   }
 
   async mergeProducts(targetId: string, sourceIds: string[], userId: string): Promise<MergeProductsResult> {

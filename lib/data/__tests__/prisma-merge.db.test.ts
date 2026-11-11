@@ -118,6 +118,21 @@ describe.skipIf(!hasTestDb)("unir productos duplicados por talla", () => {
     expect(await dashboard()).toEqual(dashBefore);
   });
 
+  it("unir Playeras con Sudaderas conserva productTypeId de la venta", async () => {
+    const playera = await testPrisma.productType.create({ data: { slug: "playera", name: "Playeras", sortOrder: 1 } });
+    const sudadera = await testPrisma.productType.create({ data: { slug: "sudadera", name: "Sudaderas", sortOrder: 4 } });
+    await testPrisma.product.update({ where: { id: A }, data: { productTypeId: sudadera.id, category: "Sudaderas" } });
+    await testPrisma.product.update({ where: { id: B }, data: { productTypeId: playera.id, category: "Playeras" } });
+    await sell(VB, 1);
+
+    await ds.mergeProducts(A, [B], owner);
+
+    const line = await testPrisma.saleLine.findFirstOrThrow({ where: { variantId: VB } });
+    expect(line.productId).toBe(A);
+    expect(line.productTypeId).toBe(playera.id);
+    expect(line.category).toBe("Playeras");
+  });
+
   it("tallas viejas: A 'Polo - M' (talla U) + B 'Polo - L' (talla U) → A queda con tallas M y L", async () => {
     const VU1 = "00000000-0000-4000-8000-0000000000d1";
     const VU2 = "00000000-0000-4000-8000-0000000000d2";

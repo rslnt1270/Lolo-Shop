@@ -1,3 +1,4 @@
+import type { Audience } from "@/lib/domain/product-taxonomy";
 import type { Location, LocationType, MovementType, Product, Variant } from "@/lib/domain/types";
 
 export interface VariantMatch {
@@ -26,7 +27,14 @@ export interface CreateProductData {
   departmentId: string;
   /** Código público corto (`generatePublicCode`); único, el llamador reintenta ante P2002. */
   publicCode: string;
+  /** Siempre derivada del tipo en el servidor cuando hay `productTypeId` (`ProductType.name`). */
   category: string;
+  /** Tipo global (`ProductType.id`); nulo solo en datos de prueba sin clasificar. */
+  productTypeId?: string | null;
+  /** Estilo (slug de `STYLE_OPTIONS` del tipo). */
+  style?: string | null;
+  /** «Para» (solo Calzado). */
+  audience?: Audience | null;
   /** Una por talla (1 a 12); sustituye barcode, sku, price, size e initialStock sueltos. */
   variants: CreateVariantData[];
   locationId: string;
@@ -108,7 +116,34 @@ export interface ProductPatch {
   brandId?: string;
   brand?: string;
   departmentId?: string;
+  /** Con `productTypeId`, el llamador manda también `category` (nombre del tipo). */
   category?: string;
+  productTypeId?: string;
+  /** Nulo borra el estilo. */
+  style?: string | null;
+  /** Nulo borra el «para». */
+  audience?: Audience | null;
+}
+
+/** Resultado de reclasificar un lote por tipo. */
+export interface AssignProductTypeResult {
+  updated: number;
+  /** Productos cuyo estilo no aplica al tipo nuevo y se borró. */
+  styleCleared: number;
+}
+
+/** Fila de la consulta base de stock por tipo y tienda (interna; nunca pública). */
+export interface StockByTypeRow {
+  departmentId: string | null;
+  departmentName: string;
+  productTypeId: string | null;
+  typeName: string;
+  typeActive: boolean;
+  audience: Audience | null;
+  locationId: string;
+  locationName: string;
+  pieces: number;
+  products: number;
 }
 
 /** Lo que movió una unión de productos. */
@@ -232,6 +267,22 @@ export interface InventoryDataSource {
   setVariantActive(variantId: string, active: boolean): Promise<void>;
   /** Asigna el departamento a varios productos; devuelve cuántos existían. */
   assignDepartment(productIds: string[], departmentId: string): Promise<number>;
+  /**
+   * Reclasifica productos por tipo en una sola transacción: escribe `productTypeId` y
+   * `category` (nombre del tipo), borra el estilo que el tipo nuevo no admite
+   * (`allowedStyles`) y no toca `departmentId` ni `audience`. Si algún producto con
+   * departamento no admite el tipo lanza `InventoryRuleError` y no escribe nada.
+   * Devuelve cuántos existían (`updated`) y cuántos perdieron el estilo.
+   */
+  assignProductType(
+    productIds: string[],
+    data: { productTypeId: string; category: string; allowedStyles: readonly string[] },
+  ): Promise<AssignProductTypeResult>;
+  /**
+   * Piezas por departamento, tipo, «para» y tienda (solo productos y tallas activos, sin unidos;
+   * sin filas de 0 piezas). Orden: departamento, tipo (sin tipo al final), «para» (nulo primero), tienda.
+   */
+  getStockByType(filter: { locationId?: string | null }): Promise<StockByTypeRow[]>;
   /**
    * Une productos duplicados por talla: mueve las tallas y los renglones de venta de
    * cada origen al destino, desactiva los orígenes y deja `mergedIntoId`. Una sola

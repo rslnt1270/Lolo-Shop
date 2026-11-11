@@ -102,7 +102,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
       select: {
         id: true,
         isActive: true,
-        product: { select: { id: true, isActive: true, brandId: true, departmentId: true, category: true } },
+        product: { select: { id: true, isActive: true, brandId: true, departmentId: true, productTypeId: true, category: true } },
       },
     });
     const byId = new Map(variants.map((v) => [v.id, v]));
@@ -163,6 +163,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
               productId: product.id,
               brandId: product.brandId,
               departmentId: product.departmentId,
+              productTypeId: product.productTypeId,
               category: product.category,
               quantity: line.quantity,
               unitPrice: line.unitPrice,

@@ -442,6 +442,50 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
     });
   });
 
+  describe("copia de productTypeId en SaleLine", () => {
+    async function mkType(slug: string, name: string, sortOrder: number) {
+      return testPrisma.productType.create({ data: { slug, name, sortOrder } });
+    }
+
+    it("createSale copia productTypeId de Playeras en SaleLine", async () => {
+      const t = await mkType("playera", "Playeras", 1);
+      await testPrisma.product.update({
+        where: { id: w.productId },
+        data: { productTypeId: t.id, style: "polo" },
+      });
+      await setStock(w.v1, w.storeA, 3);
+      await ds.createSale(sale(w.storeA, [one(w.v1)]), w.owner);
+      const line = await testPrisma.saleLine.findFirstOrThrow({ where: { variantId: w.v1 } });
+      expect(line.productTypeId).toBe(t.id);
+      expect(line.category).toBe("Playeras");
+      // style y audience no se copian: SaleLine no tiene esas columnas.
+      expect(Object.keys(line)).not.toContain("style");
+      expect(Object.keys(line)).not.toContain("audience");
+    });
+
+    it("reclasificar el producto no cambia la copia de la venta", async () => {
+      const playera = await mkType("playera", "Playeras", 1);
+      const sudadera = await mkType("sudadera", "Sudaderas", 4);
+      await testPrisma.product.update({ where: { id: w.productId }, data: { productTypeId: playera.id } });
+      await setStock(w.v1, w.storeA, 3);
+      await ds.createSale(sale(w.storeA, [one(w.v1)]), w.owner);
+      await testPrisma.product.update({
+        where: { id: w.productId },
+        data: { productTypeId: sudadera.id, category: "Sudaderas" },
+      });
+      const line = await testPrisma.saleLine.findFirstOrThrow({ where: { variantId: w.v1 } });
+      expect(line.productTypeId).toBe(playera.id);
+      expect(line.category).toBe("Playeras");
+    });
+
+    it("createSale con producto sin tipo guarda SaleLine.productTypeId null", async () => {
+      await setStock(w.v1, w.storeA, 3);
+      await ds.createSale(sale(w.storeA, [one(w.v1)]), w.owner);
+      const line = await testPrisma.saleLine.findFirstOrThrow({ where: { variantId: w.v1 } });
+      expect(line.productTypeId).toBeNull();
+    });
+  });
+
   describe("umbral de stock bajo", () => {
     it("lee el AppSetting y vuelve a 2 si no existe", async () => {
       expect(await ds.getLowStockThreshold()).toBe(2);
