@@ -1,7 +1,8 @@
 import { put } from "@vercel/blob";
+import { MAX_IMAGE_BYTES } from "@/lib/domain/new-product";
 
-/** Tope de tamaño por imagen de producto. */
-export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+/** Tope de tamaño por imagen de producto (definido en el dominio para que el cliente lo valide). */
+export { MAX_IMAGE_BYTES };
 
 const ALLOWED_TYPES: Record<string, string> = {
   "image/jpeg": "jpg",

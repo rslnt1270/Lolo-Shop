@@ -25,6 +25,8 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
   listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 vi.mock("@/components/inventory/Scanner", () => ({
@@ -58,6 +60,7 @@ async function fillProduct() {
 
 beforeEach(() => {
   [lookup, record, createProductAction, addVariantAction, searchProductsAction, fetchLocations].forEach((m) => m.mockReset());
+  fetchLocations.mockResolvedValue([{ id: "loc-1", name: "Centro", type: "store" }]);
   sessionUser = { id: "u1", role: "collaborator", locationId: "loc-1" };
   lookup.mockResolvedValue({ found: false, code: "750999" });
   searchProductsAction.mockResolvedValue([hit]);

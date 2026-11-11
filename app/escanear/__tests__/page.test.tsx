@@ -23,6 +23,8 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
   listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 // Parcial: el alta usa canonicalCode del módulo real; solo se fuerza isValidGtin.
@@ -239,7 +241,7 @@ describe("/escanear: flujo de alta por lote", () => {
       record.mockResolvedValue({ ok: true, available: 1, replayed: false });
       render(<EscanearPage />);
       expect(screen.queryByLabelText(/^tienda$/i)).toBeNull();
-      expect(fetchLocations).not.toHaveBeenCalled();
+      // La tienda fija no se elige: solo se consulta el nombre para «Registrando en».
       fireEvent.click(screen.getByText("simular-escaneo"));
       await screen.findByText("Playera X");
       fireEvent.click(screen.getByRole("button", { name: /sumar .* en tu tienda/i }));

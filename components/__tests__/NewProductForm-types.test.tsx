@@ -13,6 +13,8 @@ vi.mock("@/lib/catalog/actions", () => ({
     { id: "d1", slug: "dama", name: "Dama" },
     { id: "d4", slug: "calzado", name: "Calzado" },
   ]),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
   listProductTypesAction: vi.fn().mockResolvedValue([
     { id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] },
     { id: "t2", slug: "tenis", name: "Tenis", departmentIds: ["d4"] },

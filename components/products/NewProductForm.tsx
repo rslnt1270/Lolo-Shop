@@ -4,13 +4,18 @@ import { Plus } from "lucide-react";
 import { createProductAction, uploadProductImageAction } from "@/lib/actions";
 import type { CreateProductInput } from "@/lib/actions";
 import {
-  MAX_DESCRIPTION_LENGTH, MAX_SIZES, validateNewProduct, type EntryMode,
+  ALLOWED_IMAGE_TYPES, MAX_DESCRIPTION_LENGTH, MAX_IMAGE_BYTES, MAX_SIZES, validateNewProduct, type EntryMode,
 } from "@/lib/domain/new-product";
+import {
+  buildSuggestedTitle, colorApplies, productPhotoStatus, validateReference, type PhotoStatus,
+} from "@/lib/domain/product-reference";
 import { canonicalCode, isValidGtin } from "@/lib/domain/barcode";
 import { Scanner } from "@/components/inventory/Scanner";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
 import { SizeRows, type SizeRowDraft } from "./SizeRows";
-import { createBrandAction, listBrandsAction, listDepartmentsAction, listProductTypesAction } from "@/lib/catalog/actions";
+import {
+  createBrandAction, createColorAction, listBrandsAction, listColorsAction, listDepartmentsAction, listProductTypesAction,
+} from "@/lib/catalog/actions";
 import type { BrandOption, DepartmentOption, ProductTypeOption } from "@/lib/catalog/actions";
 import { typesForDepartment, validateClassification, type Audience } from "@/lib/domain/product-taxonomy";
 import { ClassificationFields, type ClassificationValue } from "./ClassificationFields";
@@ -18,6 +23,7 @@ import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expi
 import { withSession } from "@/lib/client/with-session";
 import { BrandCombobox } from "./BrandCombobox";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
+import { Button } from "@/components/ui/Button";
 
 export interface CreatedInfo {
   message: string;
@@ -25,12 +31,16 @@ export interface CreatedInfo {
   sku: string;
   imageUrl: string | null;
   noBarcode: boolean;
+  /** Estado del registro fotográfico tras guardar. */
+  catalogStatus: PhotoStatus;
 }
 
 interface NewProductFormProps {
   /** Código escaneado/tecleado; null = prenda sin código (se genera SKU interno). */
   scannedCode: string | null;
   locationId: string;
+  /** Nombre de la tienda activa, para "Registrando en: …". */
+  locationName?: string;
   onSuccess: (info: CreatedInfo) => void;
   onCancel: () => void;
   /** El código ya existía: ofrece registrar entradas del producto existente. */
@@ -51,6 +61,18 @@ const MODE_OPTIONS: { value: EntryMode; label: string }[] = [
   { value: "stock", label: "Solo stock" },
   { value: "catalog", label: "Para catálogo" },
 ];
+
+export const OFFLINE_TEXT = "Sin internet no se puede guardar. Tus datos siguen aquí.";
+const NETWORK_TEXT = "No se pudo dar de alta el producto. Revisa tu conexión e inténtalo de nuevo.";
+const STOCK_FALLBACK_HINT = "Puedes reintentar o guardar como Solo stock y agregar las fotos después.";
+
+/** Revisa en el cliente lo que el servidor rechazaría de una foto, antes de subirla. */
+function photoProblem(file: File): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return "Formato de imagen no permitido: usa JPG, PNG o WebP.";
+  if (file.size === 0) return "La imagen está vacía.";
+  if (file.size > MAX_IMAGE_BYTES) return "La imagen pesa más de 4 MB. Toma la foto de nuevo o redúcela.";
+  return null;
+}
 
 async function uploadPhoto(file: File): Promise<{ url: string | null; warning: string }> {
   try {
@@ -123,7 +145,7 @@ const newRow = (barcode: string | null, price = ""): SizeRowDraft => ({
 });
 
 export function NewProductForm({
-  scannedCode, locationId, onSuccess, onCancel, onDuplicate, onStockAdded, initialMode = "stock", onModeChange,
+  scannedCode, locationId, locationName, onSuccess, onCancel, onDuplicate, onStockAdded, initialMode = "stock", onModeChange,
 }: NewProductFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -140,7 +162,6 @@ export function NewProductForm({
   const [frontBusy, setFrontBusy] = useState(false);
   const [backBusy, setBackBusy] = useState(false);
   const photoBusy = frontBusy || backBusy;
-  const missingPhotos = mode === "catalog" && (!frontPhoto || !backPhoto);
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
@@ -148,6 +169,15 @@ export function NewProductForm({
   const [typeCleared, setTypeCleared] = useState("");
   const [brand, setBrand] = useState<BrandOption | null>(null);
   const photosHelpId = useId();
+  const colorListId = useId();
+  const [colors, setColors] = useState<string[]>([]);
+  const [colorText, setColorText] = useState("");
+  const [titleEdited, setTitleEdited] = useState(false);
+  /** Si la subida o el guardado fallan en catálogo, el alta puede salir como Solo stock. */
+  const [offerStock, setOfferStock] = useState(false);
+  const submittingRef = useRef(false);
+  /** Fotos ya subidas (por archivo): un reintento no vuelve a subirlas ni deja blobs huérfanos. */
+  const uploadsRef = useRef(new Map<File, string>());
   const [catalogError, setCatalogError] = useState("");
   const [sessionExpired, setSessionExpired] = useState(false);
   /**
@@ -190,19 +220,20 @@ export function NewProductForm({
 
   useEffect(() => {
     let alive = true;
-    Promise.all([listBrandsAction(), listDepartmentsAction(), listProductTypesAction()])
-      .then(([b, d, t]) => {
+    Promise.all([listBrandsAction(), listDepartmentsAction(), listProductTypesAction(), listColorsAction()])
+      .then(([b, d, t, c]) => {
         if (!alive) return;
-        if (!b || !d || !t) {
+        if (!b || !d || !t || !c) {
           setSessionExpired(true);
           return;
         }
         setBrands(b);
         setDepartments(d);
         setProductTypes(t);
+        setColors(c);
       })
       .catch(() => {
-        if (alive) setCatalogError("No se pudieron cargar las marcas, los departamentos y los tipos. Recarga la página.");
+        if (alive) setCatalogError("No se pudieron cargar las marcas, los departamentos, los tipos y los colores. Recarga la página.");
       });
     return () => {
       alive = false;
@@ -215,8 +246,25 @@ export function NewProductForm({
     return r;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    void submit(false);
+  };
+
+  /** `forceStock`: guarda como Solo stock aunque el formulario esté en catálogo (sin fotos). */
+  const submit = async (forceStock: boolean) => {
+    // El ref cierra el doble toque aunque el estado aún no se haya pintado.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      await run(forceStock);
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  const run = async (forceStock: boolean) => {
     setError("");
     setDuplicateId(null);
     setDuplicateRowKey(null);
@@ -224,6 +272,22 @@ export function NewProductForm({
     setStockAdded("");
     setSessionExpired(false);
     setLikelySaved(false);
+    setOfferStock(false);
+
+    // El alta requiere internet: sin red no se intenta nada y los datos siguen en pantalla.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      setError(OFFLINE_TEXT);
+      return;
+    }
+    if (!locationId) {
+      setError("Elige una tienda para guardar el producto.");
+      return;
+    }
+
+    const catalog = mode === "catalog" && !forceStock;
+    const photos = catalog ? [frontPhoto, backPhoto].filter((f): f is File => f !== null) : [];
+    const rule = productTypes.find((t) => t.id === classification.productTypeId);
+    const colorRaw = showColor ? colorText : "";
 
     const input = {
       title: formData.title,
@@ -240,9 +304,9 @@ export function NewProductForm({
       })),
       description: formData.description,
     };
+    // Todo lo que se pueda validar en el cliente va ANTES de subir fotos o crear colores.
     try {
       validateNewProduct(input);
-      const rule = productTypes.find((t) => t.id === classification.productTypeId);
       validateClassification({
         departmentSlug: selectedDepartment?.slug ?? "",
         type: rule
@@ -251,41 +315,78 @@ export function NewProductForm({
         style: classification.style,
         audience: classification.audience,
       });
+      validateReference({
+        brand: brand?.name ?? "", color: colorRaw || null,
+        departmentSlug: selectedDepartment?.slug ?? null, typeSlug: rule?.slug ?? null,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Revisa los datos del producto.");
       return;
     }
-    if (missingPhotos) {
-      setError("Para el catálogo se necesitan las dos fotos: frente y atrás.");
-      return;
+    for (const photo of photos) {
+      const problem = photoProblem(photo);
+      if (problem) {
+        setError(`${problem} ${STOCK_FALLBACK_HINT}`);
+        setOfferStock(true);
+        return;
+      }
     }
 
     setLoading(true);
     const sentTitle = titleKey(input.title);
     let sent = false;
     try {
-      let effectiveMode = mode;
+      // El color escrito se resuelve con la lista: "rosas" se guarda como "Rosa".
+      let color: string | null = null;
+      const typed = colorRaw.trim();
+      if (typed) {
+        const known = colors.find((c) => c.toLowerCase() === typed.toLowerCase());
+        if (known) color = known;
+        else {
+          const made = await createColorAction(typed);
+          if (!made?.ok) {
+            setError(made?.message ?? SESSION_EXPIRED_TEXT);
+            return;
+          }
+          color = made.label;
+          const label = made.label;
+          setColors((prev) => (prev.includes(label) ? prev : [...prev, label]));
+        }
+      }
+
       let imageUrl: string | null = null;
       let backImageUrl: string | null = null;
-      let photoWarning = "";
-      if (mode === "catalog" && frontPhoto && backPhoto) {
-        const [front, back] = await Promise.all([uploadPhoto(frontPhoto), uploadPhoto(backPhoto)]);
-        if (front.url && back.url) {
-          imageUrl = front.url;
-          backImageUrl = back.url;
-        } else {
-          // Sin las dos fotos no puede entrar al catálogo: se da de alta solo en inventario.
-          effectiveMode = "stock";
-          photoWarning = front.warning || back.warning;
+      if (photos.length > 0) {
+        const urls = new Map<File, string>();
+        for (const photo of photos) {
+          const cached = uploadsRef.current.get(photo);
+          if (cached) {
+            urls.set(photo, cached);
+            continue;
+          }
+          const up = await uploadPhoto(photo);
+          if (!up.url) {
+            // Se detiene en la primera falla: nada más se sube y el alta no se pierde.
+            setError(`${up.warning.trim().replace(/[.\s]+$/, "")}. ${STOCK_FALLBACK_HINT}`);
+            setOfferStock(true);
+            return;
+          }
+          uploadsRef.current.set(photo, up.url);
+          urls.set(photo, up.url);
         }
+        imageUrl = frontPhoto ? urls.get(frontPhoto) ?? null : null;
+        backImageUrl = backPhoto ? urls.get(backPhoto) ?? null : null;
       }
 
       const payload: CreateProductInput = {
         ...input,
+        color,
         locationId,
-        mode: effectiveMode,
+        mode: catalog ? "catalog" : "stock",
         imageUrl,
         backImageUrl,
+        // Las fotos solo llegan de la captura, que ya revisó el fondo blanco.
+        photosAnalyzed: photos.length > 0,
       };
       sent = true;
       const result = withSession(await createProductAction(payload));
@@ -318,29 +419,30 @@ export function NewProductForm({
         if (result.code === "DUPLICATE" && result.existingVariantId) {
           setDuplicateId(result.existingVariantId);
         }
+        if (photos.length > 0 && result.code !== "DUPLICATE") setOfferStock(true);
         return;
       }
 
-      const photoText = photoWarning
-        ? `Dado de alta SIN fotos: ${photoWarning.trim().replace(/[.\s]+$/, "")}. Agrégalas desde /productos.`
-        : imageUrl
-          ? `"${input.title}" dado de alta para el catálogo con foto de frente y de atrás.`
-          : `"${input.title}" dado de alta en inventario.`;
+      const status: PhotoStatus = result.catalogStatus ?? productPhotoStatus({
+        hasFront: Boolean(imageUrl),
+        hasBack: Boolean(backImageUrl),
+        hasStock: rows.some((r) => Number(r.initialStock) > 0),
+      });
       const sizesText = rows.length > 1 ? ` (${rows.length} tallas)` : "";
       onSuccess({
-        message: photoText.replace(/(dado de alta)/, `$1${sizesText}`),
+        message: `"${input.title.trim()}" dado de alta${sizesText}. Estado: ${status}.`,
         title: input.title.trim(),
         sku: result.sku,
         imageUrl: result.product?.imageUrl ?? imageUrl,
         noBarcode: rows.some((r) => r.barcode === null),
+        catalogStatus: status,
       });
     } catch (err) {
       console.error(err);
-      // Sin respuesta del servidor: el alta pudo guardarse igual.
+      // Sin respuesta del servidor: el alta pudo guardarse igual. Los datos siguen en pantalla.
       if (sent) uncertainTitleRef.current = sentTitle;
-      setError("No se pudo dar de alta el producto. Revisa tu conexión e inténtalo de nuevo.");
-    } finally {
-      setLoading(false);
+      setError(NETWORK_TEXT);
+      if (photos.length > 0) setOfferStock(true);
     }
   };
 
@@ -376,6 +478,19 @@ export function NewProductForm({
 
   const selectedDepartment = departments.find((d) => d.id === formData.departmentId) ?? null;
   const typesForSelected = selectedDepartment ? typesForDepartment(productTypes, selectedDepartment.id) : [];
+  const selectedType = productTypes.find((t) => t.id === classification.productTypeId) ?? null;
+  const showColor = colorApplies({ departmentSlug: selectedDepartment?.slug ?? null, typeSlug: selectedType?.slug ?? null });
+
+  // Título sugerido = tipo + marca + color; deja de sincronizarse tras la primera edición manual.
+  useEffect(() => {
+    if (titleEdited) return;
+    const suggested = buildSuggestedTitle({
+      typeName: selectedType?.name ?? "",
+      brand: brand?.name ?? "",
+      color: showColor ? colorText.trim() || null : null,
+    });
+    setFormData((prev) => (prev.title === suggested ? prev : { ...prev, title: suggested }));
+  }, [titleEdited, selectedType?.name, brand?.name, showColor, colorText]);
 
   const changeDepartment = (departmentId: string) => {
     const dept = departments.find((d) => d.id === departmentId) ?? null;
@@ -389,6 +504,7 @@ export function NewProductForm({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === "title") setTitleEdited(true);
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -399,11 +515,12 @@ export function NewProductForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <h3 className="text-lg font-semibold text-gray-900">Nuevo producto</h3>
+        {locationName && <p className="text-sm font-medium text-gray-800">Registrando en: {locationName}</p>}
         <p className="text-sm text-gray-500">Completa los datos y agrega una fila por talla.</p>
       </div>
 
       <fieldset>
-        <legend className="mb-1 block text-sm font-medium text-gray-700">Tipo de alta</legend>
+        <legend className="mb-1 block text-sm font-medium text-gray-700">¿Va al catálogo?</legend>
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1">
           {MODE_OPTIONS.map((o) => (
             <label
@@ -431,23 +548,30 @@ export function NewProductForm({
         )}
       </fieldset>
 
-      <div className="space-y-3">
-        <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-            Título del producto
-          </label>
-          <input
-            type="text"
-            id="title"
-            name="title"
-            required
-            value={formData.title}
-            onChange={handleChange}
-            placeholder="Ej. Playera Básica"
-            className={fieldClass}
-          />
-        </div>
+      {mode === "catalog" && (
+        <section aria-labelledby="fotos-producto" className="space-y-3">
+          <h4 id="fotos-producto" className="text-sm font-semibold text-gray-900">Fotos del producto</h4>
+          <p id={photosHelpId} className="text-sm text-gray-600">
+            Recomendadas, sobre fondo blanco. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
+          </p>
+          <div role="group" aria-labelledby="foto-frente-label">
+            <p className="mb-1 flex items-baseline justify-between text-sm">
+              <span id="foto-frente-label" className="font-medium text-gray-700">Foto de frente</span>
+              <span className="text-xs font-medium text-turquesa-texto">Recomendada</span>
+            </p>
+            <ProductPhotoCapture side="front" onCapture={setFrontPhoto} onClear={() => setFrontPhoto(null)} onBusyChange={setFrontBusy} />
+          </div>
+          <div role="group" aria-labelledby="foto-atras-label">
+            <p className="mb-1 flex items-baseline justify-between text-sm">
+              <span id="foto-atras-label" className="font-medium text-gray-700">Foto de atrás</span>
+              <span className="text-xs font-medium text-turquesa-texto">Recomendada</span>
+            </p>
+            <ProductPhotoCapture side="back" onCapture={setBackPhoto} onClear={() => setBackPhoto(null)} onBusyChange={setBackBusy} />
+          </div>
+        </section>
+      )}
 
+      <div className="space-y-3">
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700">
             Descripción <span className="text-gray-600">(obligatoria)</span>
@@ -505,27 +629,47 @@ export function NewProductForm({
           </label>
           <BrandCombobox id="brand" brands={brands} value={brand} onChange={setBrand} onCreate={createBrand} />
         </div>
-      </div>
 
-      {mode === "catalog" && (
-        <section aria-labelledby="fotos-producto" className="space-y-3">
-          <h4 id="fotos-producto" className="text-sm font-semibold text-gray-900">Fotos del producto</h4>
-          <div role="group" aria-labelledby="foto-frente-label">
-            <p className="mb-1 flex items-baseline justify-between text-sm">
-              <span id="foto-frente-label" className="font-medium text-gray-700">Foto de frente</span>
-              <span className="text-xs font-medium text-loloteal">Obligatoria</span>
-            </p>
-            <ProductPhotoCapture side="front" onCapture={setFrontPhoto} onClear={() => setFrontPhoto(null)} onBusyChange={setFrontBusy} />
+        {showColor && (
+          <div>
+            <label htmlFor="color" className="block text-sm font-medium text-gray-700">
+              Color <span className="text-gray-600">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              id="color"
+              list={colorListId}
+              autoComplete="off"
+              maxLength={40}
+              value={colorText}
+              onChange={(e) => setColorText(e.target.value)}
+              placeholder="Elige de la lista o escribe uno nuevo"
+              className={fieldClass}
+            />
+            <datalist id={colorListId}>
+              {colors.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
           </div>
-          <div role="group" aria-labelledby="foto-atras-label">
-            <p className="mb-1 flex items-baseline justify-between text-sm">
-              <span id="foto-atras-label" className="font-medium text-gray-700">Foto de atrás</span>
-              <span className="text-xs font-medium text-loloteal">Obligatoria</span>
-            </p>
-            <ProductPhotoCapture side="back" onCapture={setBackPhoto} onClear={() => setBackPhoto(null)} onBusyChange={setBackBusy} />
-          </div>
-        </section>
-      )}
+        )}
+
+        <div>
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+            Título del producto <span className="text-gray-600">(sugerido, puedes editarlo)</span>
+          </label>
+          <input
+            type="text"
+            id="title"
+            name="title"
+            required
+            value={formData.title}
+            onChange={handleChange}
+            placeholder="Ej. Playeras ALO rosa"
+            className={fieldClass}
+          />
+        </div>
+      </div>
 
       <section aria-labelledby="tallas-titulo" className="space-y-3">
         <h4 id="tallas-titulo" className="text-sm font-semibold text-gray-900">Tallas</h4>
@@ -619,27 +763,17 @@ export function NewProductForm({
       )}
 
       <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-gray-100 bg-white px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
-        <button
-          type="submit"
-          disabled={loading || photoBusy || missingPhotos}
-          aria-describedby={mode === "catalog" ? photosHelpId : undefined}
-          className="min-h-[44px] w-full rounded-md bg-loloteal px-4 py-2 font-semibold text-white shadow-sm transition active:bg-loloteal-dark motion-reduce:transition-none disabled:opacity-50"
-        >
+        <Button type="submit" loading={loading} disabled={photoBusy} className="w-full">
           {loading ? "Guardando…" : photoBusy ? "Procesando foto…" : "Guardar producto"}
-        </button>
-        {mode === "catalog" && (
-          <p id={photosHelpId} aria-live="polite" className="text-sm text-gray-600">
-            {missingPhotos ? "Para el catálogo se necesitan las dos fotos: frente y atrás." : ""}
-          </p>
+        </Button>
+        {offerStock && mode === "catalog" && (
+          <Button variant="outline" onClick={() => void submit(true)} loading={loading} className="w-full">
+            Guardar como Solo stock
+          </Button>
         )}
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="min-h-[44px] w-full rounded-md px-4 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-800 disabled:opacity-50"
-        >
+        <Button variant="outline" onClick={onCancel} disabled={loading} className="w-full">
           Cancelar
-        </button>
+        </Button>
       </div>
     </form>
   );

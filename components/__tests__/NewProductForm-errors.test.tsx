@@ -14,6 +14,8 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: (...a: unknown[]) => listBrandsAction(...a),
   createBrandAction: (...a: unknown[]) => createBrandAction(...a),
   listDepartmentsAction: (...a: unknown[]) => listDepartmentsAction(...a),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
   listProductTypesAction: () => Promise.resolve([{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }]),
 }));
 vi.mock("../products/ProductPhotoCapture", () => ({
@@ -149,7 +151,7 @@ describe("NewProductForm: errores del servidor", () => {
     });
   });
 
-  it("si la foto falla, da de alta igual sin imageUrl y avisa 'SIN foto'", async () => {
+  it("si la foto falla, avisa, conserva el formulario y permite guardar como Solo stock", async () => {
     uploadProductImageAction.mockResolvedValue({ ok: false, message: "Falta el token del almacén" });
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
     const onSuccess = vi.fn();
@@ -162,8 +164,10 @@ describe("NewProductForm: errores del servidor", () => {
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
+    expect(await screen.findByText(/Falta el token del almacén\. Puedes reintentar o guardar como Solo stock/)).toBeInTheDocument();
+    expect(createProductAction).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /guardar como solo stock/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(onSuccess.mock.calls[0][0].message).toMatch(/Dado de alta SIN fotos: Falta el token del almacén\. Agrégalas desde \/productos/);
     expect(createProductAction.mock.calls[0][0]).toMatchObject({ mode: "stock", imageUrl: null, backImageUrl: null });
   });
 
@@ -179,7 +183,7 @@ describe("NewProductForm: errores del servidor", () => {
     expect(screen.getByRole("button", { name: /guardar producto/i })).toBeEnabled();
   });
 
-  it("no duplica el punto cuando el mensaje de foto ya termina en punto", async () => {
+  it("no duplica el punto cuando el aviso de la subida ya termina en punto", async () => {
     uploadProductImageAction.mockResolvedValue({ ok: false, message: "Avisa al administrador." });
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
     const onSuccess = vi.fn();
@@ -192,8 +196,8 @@ describe("NewProductForm: errores del servidor", () => {
     fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
     fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
     fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
-    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
-    expect(onSuccess.mock.calls[0][0].message).not.toMatch(/\.\./);
+    expect((await screen.findByRole("alert")).textContent).not.toMatch(/\.\./);
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it("listas del catálogo en null (sesión vencida): muestra el aviso con enlace, no selectores vacíos", async () => {

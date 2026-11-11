@@ -78,13 +78,15 @@ export default function EscanearPage() {
   const locationId = storeBound ? (session?.user?.locationId ?? "") : chosenLocation;
 
   useEffect(() => {
-    if (status !== "authenticated" || storeBound) return;
+    if (status !== "authenticated") return;
     let cancelled = false;
     fetchLocationsAction()
       .then((res) => {
         if (cancelled) return;
         const list = res ?? [];
         setLocations(list.map((l) => ({ id: l.id, name: l.name })));
+        // Con tienda fija solo se necesita el nombre para "Registrando en".
+        if (storeBound) return;
         let saved = "";
         try {
           saved = sessionStorage.getItem(LOCATION_KEY) ?? "";
@@ -95,7 +97,7 @@ export default function EscanearPage() {
         if (pick) setChosenLocation(pick.id);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !storeBound) {
           setIsError(true);
           setMessage("No se pudieron cargar las tiendas. Recarga la página.");
         }
@@ -361,6 +363,7 @@ export default function EscanearPage() {
             <NewProductForm
               scannedCode={newCode}
               locationId={locationId}
+              locationName={locations.find((l) => l.id === locationId)?.name}
               initialMode={entryMode}
               onModeChange={setEntryMode}
               onSuccess={(info) => {
@@ -409,6 +412,7 @@ export default function EscanearPage() {
           <div className="min-w-0 flex-1 text-sm">
             <p className="truncate font-semibold">{lastCreated.title}</p>
             <p className="font-mono text-gray-600">SKU: {lastCreated.sku}</p>
+            <p className="font-medium text-gray-800">{lastCreated.catalogStatus}</p>
             {lastCreated.noBarcode && (
               <Link href="/etiquetas" className="inline-flex min-h-[44px] items-center font-medium text-loloteal underline">
                 Imprimir etiqueta

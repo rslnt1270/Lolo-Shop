@@ -11,6 +11,8 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: vi.fn().mockResolvedValue([{ id: "b1", name: "Lolo", slug: "lolo" }]),
   createBrandAction: vi.fn(),
   listDepartmentsAction: vi.fn().mockResolvedValue([{ id: "d1", slug: "dama", name: "Dama" }]),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
   listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 vi.mock("../products/ProductPhotoCapture", () => ({
@@ -62,18 +64,13 @@ describe("NewProductForm: dos modos de alta", () => {
     expect(screen.getByLabelText(/descripción/i)).toBeInTheDocument();
   });
 
-  it("en Para catálogo aparecen las dos capturas y el alta se deshabilita hasta tener las dos", () => {
+  it("en Para catálogo aparecen las dos capturas y las fotos son recomendadas, no obligatorias", () => {
     render1();
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
     expect(screen.getByText("Foto de frente")).toBeInTheDocument();
     expect(screen.getByText("Foto de atrás")).toBeInTheDocument();
-    const alta = screen.getByRole("button", { name: /guardar producto/i });
-    expect(alta).toBeDisabled();
-    const [front, back] = screen.getAllByText("capturar");
-    fireEvent.click(front);
-    expect(alta).toBeDisabled();
-    fireEvent.click(back);
-    expect(alta).toBeEnabled();
+    expect(screen.getAllByText("Recomendada")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /guardar producto/i })).toBeEnabled();
   });
 
   it("en Para catálogo sube las dos fotos y envía mode, imageUrl, backImageUrl y descripción", async () => {
@@ -112,14 +109,11 @@ describe("NewProductForm: dos modos de alta", () => {
     expect(onModeChange).toHaveBeenCalledWith("stock");
   });
 
-  it("el botón deshabilitado por fotos faltantes enlaza la explicación en una región en vivo", () => {
+  it("la explicación de las fotos recomendadas está enlazada al botón de guardar", () => {
     render1();
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
-    const submit = screen.getByRole("button", { name: "Guardar producto" });
-    expect(submit).toBeDisabled();
-    const help = document.getElementById(submit.getAttribute("aria-describedby") ?? "none");
-    expect(help).toHaveTextContent("Para el catálogo se necesitan las dos fotos");
-    expect(help).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText(/Recomendadas, sobre fondo blanco/)).toBeInTheDocument();
+    expect(screen.getByText(/Falta completar registro fotográfico/)).toBeInTheDocument();
   });
 
   it('"(obligatoria)" no usa text-gray-400', () => {

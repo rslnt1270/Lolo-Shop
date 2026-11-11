@@ -16,6 +16,8 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: (...a: unknown[]) => listBrandsAction(...a),
   createBrandAction: (...a: unknown[]) => createBrandAction(...a),
   listDepartmentsAction: (...a: unknown[]) => listDepartmentsAction(...a),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
   listProductTypesAction: () => Promise.resolve([{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }]),
 }));
 

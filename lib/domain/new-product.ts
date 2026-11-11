@@ -12,6 +12,10 @@ export const DEFAULT_SIZE = UNIQUE_SIZE;
 export const MAX_SIZES = 12;
 export const MAX_BARCODE_LENGTH = 64;
 export const MAX_DESCRIPTION_LENGTH = 500;
+/** Tope de tamaño por foto de producto (el cliente lo valida antes de subir). */
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+/** Formatos de foto que acepta la subida. */
+export const ALLOWED_IMAGE_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp"];
 /** @deprecated El alta ya no exige las dos fotos (el estado sale de las fotos presentes); se conserva por compatibilidad. */
 export const CATALOG_PHOTOS_MESSAGE = "Para el catálogo se necesitan las dos fotos: frente y atrás.";
 export const MSG_TITLE_REQUIRED = "Escribe el título.";
