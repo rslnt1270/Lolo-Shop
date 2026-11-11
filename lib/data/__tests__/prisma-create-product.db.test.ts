@@ -40,6 +40,8 @@ function data(w: World, patch: Partial<CreateProductData> = {}): CreateProductDa
     category: "Playeras",
     locationId: w.store,
     userId: w.user,
+    color: null,
+    photosChecked: false,
     variants: [
       { sku: "LS-S00000-0", barcode: "TALLA-S", size: "S", price: 300, initialStock: 2 },
       { sku: "LS-M00000-0", barcode: null, size: "M", price: 300, initialStock: 0 },
@@ -83,6 +85,50 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.createProduct con varias tallas", 
     expect(moves).toHaveLength(2);
     expect(moves.every((m) => m.type === "RESTOCK" && m.notes === "alta" && m.userId === w.user)).toBe(true);
     expect(Object.fromEntries(moves.map((m) => [m.variant.size, m.delta]))).toEqual({ S: 2, L: 1 });
+  });
+
+  it("stores product color and photos check; variant color stays General", async () => {
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const back = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
+    const a = await ds.createProduct(data(w, { color: "Rosa", photosChecked: true, imageUrl: front, backImageUrl: back }));
+    const row = await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id }, include: { variants: true } });
+    expect(row.color).toBe("Rosa");
+    expect(row.catalogPhotosCheckedAt).not.toBeNull();
+    expect(a.product.color).toBe("Rosa");
+    expect(row.variants.every((v) => v.color === "General")).toBe(true);
+
+    const b = await ds.createProduct(data(w, {
+      publicCode: "ZZZZ1", color: null, photosChecked: false,
+      variants: [{ sku: "LS-Z00000-0", barcode: null, size: "U", price: 1, initialStock: 0 }],
+    }));
+    const row2 = await testPrisma.product.findUniqueOrThrow({ where: { id: b.product.id } });
+    expect(row2.color).toBeNull();
+    expect(row2.catalogPhotosCheckedAt).toBeNull();
+  });
+
+  it("setCatalogPhotos escribe las dos URL y catalogPhotosCheckedAt en una sola escritura", async () => {
+    const a = await ds.createProduct(data(w));
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const back = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
+    await ds.setCatalogPhotos(a.product.id, { imageUrl: front, backImageUrl: back });
+    const row = await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id } });
+    expect(row).toMatchObject({ imageUrl: front, backImageUrl: back });
+    expect(row.catalogPhotosCheckedAt).not.toBeNull();
+  });
+
+  it("cambiar un lado no toca catalogPhotosCheckedAt", async () => {
+    const a = await ds.createProduct(data(w));
+    await ds.updateProductImage(a.product.id, "https://abc.public.blob.vercel-storage.com/productos/f.jpg");
+    expect((await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id } })).catalogPhotosCheckedAt).toBeNull();
+    await ds.setCatalogPhotos(a.product.id, {
+      imageUrl: "https://abc.public.blob.vercel-storage.com/productos/f.jpg",
+      backImageUrl: "https://abc.public.blob.vercel-storage.com/productos/b.jpg",
+    });
+    const before = (await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id } })).catalogPhotosCheckedAt;
+    await ds.updateProductBackImage(a.product.id, "https://abc.public.blob.vercel-storage.com/productos/b2.jpg");
+    const after = await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id } });
+    expect(after.catalogPhotosCheckedAt).toEqual(before);
+    expect(after.backImageUrl).toContain("b2.jpg");
   });
 
   it("una de las 3 con un código ya registrado → P2002 en barcode y no se crea nada", async () => {

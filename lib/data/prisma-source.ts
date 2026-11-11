@@ -370,6 +370,8 @@ export class PrismaDataSource implements InventoryDataSource {
           imageUrl: data.imageUrl ?? null,
           backImageUrl: data.backImageUrl ?? null,
           description: data.description ?? null,
+          color: data.color ?? null,
+          catalogPhotosCheckedAt: data.photosChecked ? new Date() : null,
           variants: {
             create: rows.map((r) => ({
               title: r.size,
@@ -754,6 +756,13 @@ export class PrismaDataSource implements InventoryDataSource {
     await this.db.product.update({
       where: { id: productId },
       data: { backImageUrl },
+    });
+  }
+
+  async setCatalogPhotos(productId: string, photos: { imageUrl: string; backImageUrl: string }): Promise<void> {
+    await this.db.product.update({
+      where: { id: productId },
+      data: { imageUrl: photos.imageUrl, backImageUrl: photos.backImageUrl, catalogPhotosCheckedAt: new Date() },
     });
   }
 }

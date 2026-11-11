@@ -233,9 +233,9 @@ export class FixtureDataSource implements InventoryDataSource {
       imageUrl: data.imageUrl ?? null,
       backImageUrl: data.backImageUrl ?? null,
       description: data.description ?? null,
-      color: null,
+      color: data.color ?? null,
       isPublished: false,
-      catalogPhotosCheckedAt: null,
+      catalogPhotosCheckedAt: data.photosChecked ? new Date().toISOString() : null,
       publicCode: data.publicCode,
       isActive: true,
       mergedIntoId: null,
@@ -526,5 +526,13 @@ export class FixtureDataSource implements InventoryDataSource {
     const product = this.products.find((p) => p.id === productId);
     if (!product) throw new Error("Producto no encontrado");
     product.backImageUrl = backImageUrl;
+  }
+
+  async setCatalogPhotos(productId: string, photos: { imageUrl: string; backImageUrl: string }): Promise<void> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) throw new Error("Producto no encontrado");
+    product.imageUrl = photos.imageUrl;
+    product.backImageUrl = photos.backImageUrl;
+    product.catalogPhotosCheckedAt = new Date().toISOString();
   }
 }

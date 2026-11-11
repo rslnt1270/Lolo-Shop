@@ -41,6 +41,10 @@ export interface CreateProductData {
   imageUrl?: string | null;
   backImageUrl?: string | null;
   description?: string | null;
+  /** Color del producto (`Product.color`); nulo si no aplica. No toca `Variant.color`. */
+  color?: string | null;
+  /** Frente y atrás revisadas en esta misma alta: escribe `catalogPhotosCheckedAt = now()`. */
+  photosChecked?: boolean;
   /** Usuario que da de alta; queda en el Movement RESTOCK de cada talla con piezas. */
   userId: string;
 }
@@ -298,4 +302,6 @@ export interface InventoryDataSource {
   getProductByPublicCode(code: string): Promise<Product | null>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
   updateProductBackImage(productId: string, backImageUrl: string): Promise<void>;
+  /** Escribe las dos fotos y `catalogPhotosCheckedAt = now()` en una sola escritura. */
+  setCatalogPhotos(productId: string, photos: { imageUrl: string; backImageUrl: string }): Promise<void>;
 }
