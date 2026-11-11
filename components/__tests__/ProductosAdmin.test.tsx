@@ -93,12 +93,12 @@ describe("/productos: ficha y departamento en lote", () => {
     expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
   });
 
-  it("el colaborador no ve casillas ni ficha", async () => {
+  it("el colaborador no ve casillas pero sí abre la ficha", async () => {
     session.value = { data: { user: { role: "collaborator" } }, status: "authenticated" };
     render(<ProductosPage />);
     await screen.findByText("Playera");
     expect(screen.queryByRole("checkbox")).toBeNull();
-    expect(screen.queryByRole("button", { name: /ficha/i })).toBeNull();
-    expect(base.fetchLocationsAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Abrir la ficha de Playera" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /asignar departamento/i })).toBeNull();
   });
 });

@@ -26,6 +26,8 @@ export default function ProductosPage() {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const isStaff = role === "owner" || role === "manager";
+  // El colaborador también abre la ficha (fotos en espacios vacíos y precio); el resto sigue siendo de owner/manager.
+  const canOpenSheet = isStaff || role === "collaborator";
   const [locations, setLocations] = useState<Pick<Location, "id" | "name">[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
@@ -63,10 +65,11 @@ export default function ProductosPage() {
   const typeNames = useMemo(() => productTypes.map((t) => t.name), [productTypes]);
 
   useEffect(() => {
-    if (!isStaff) return;
+    if (!canOpenSheet) return;
     fetchLocationsAction().then((r) => setLocations(r ?? [])).catch(() => undefined);
+    if (!isStaff) return;
     listDepartmentsAction().then((r) => setDepartments(r ?? [])).catch(() => undefined);
-  }, [isStaff]);
+  }, [isStaff, canOpenSheet]);
 
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -170,18 +173,20 @@ export default function ProductosPage() {
         {visible.map((p) => (
           <div key={p.id} className="space-y-1">
             <ProductCard product={p} />
-            {isStaff && (
+            {canOpenSheet && (
               <div className="flex flex-wrap items-center gap-x-4">
-                <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(p.id)}
-                    onChange={() => toggle(p.id)}
-                    aria-label={`Seleccionar ${p.title}`}
-                    className="h-5 w-5 rounded border-gray-400 accent-loloteal"
-                  />
-                  Seleccionar
-                </label>
+                {isStaff && (
+                  <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(p.id)}
+                      onChange={() => toggle(p.id)}
+                      aria-label={`Seleccionar ${p.title}`}
+                      className="h-5 w-5 rounded border-gray-400 accent-loloteal"
+                    />
+                    Seleccionar
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => setOpenId(p.id)}
@@ -190,7 +195,7 @@ export default function ProductosPage() {
                 >
                   Ver ficha
                 </button>
-                {p.isActive === false && <span className="text-xs font-semibold text-gray-600">Inactivo</span>}
+                {isStaff && p.isActive === false && <span className="text-xs font-semibold text-gray-600">Inactivo</span>}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-x-2">

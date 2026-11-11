@@ -305,9 +305,9 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               </span>
             </div>
             <h3 className="text-lg font-bold text-[#16302F]">{product.title}</h3>
-            {canEditData && (
-              <div className="flex flex-wrap items-center gap-x-3">
-                {product.catalogPhotosCheckedAt ? (
+            <div className="flex flex-wrap items-center gap-x-3">
+              {canEditData ? (
+                product.catalogPhotosCheckedAt ? (
                   <>
                     <ProductPhotoButton
                       productId={product.id}
@@ -331,9 +331,30 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                     catalogChecked={false}
                     onUpdated={onChanged}
                   />
-                )}
-              </div>
-            )}
+                )
+              ) : (
+                // Colaborador: solo llena espacios vacíos; cambiar una foto puesta es de owner/manager.
+                <>
+                  {!product.imageUrl && (
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      hasImage={false}
+                      onUpdated={onChanged}
+                    />
+                  )}
+                  {!product.backImageUrl && (
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      side="back"
+                      hasImage={false}
+                      onUpdated={onChanged}
+                    />
+                  )}
+                </>
+              )}
+            </div>
           </section>
 
           <div aria-live="polite">

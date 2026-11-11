@@ -35,6 +35,7 @@ import ProductosPage from "@/app/productos/page";
 
 const checked = "2026-11-11T00:00:00.000Z";
 const owner = () => { session.value = { data: { user: { role: "owner" } }, status: "authenticated" }; };
+const collaborator = () => { session.value = { data: { user: { role: "collaborator" } }, status: "authenticated" }; };
 const openSheet = async () => fireEvent.click(await screen.findByRole("button", { name: "Abrir la ficha de Gorra" }));
 const base = { id: "p1", title: "Gorra", category: "Accesorios", brand: "Lolo", publicCode: "K7Q2M", variants: [] };
 
@@ -51,6 +52,35 @@ describe("/productos: fotos de frente y atrás", () => {
     expect(screen.queryByRole("button", { name: /foto/i })).toBeNull();
     await openSheet();
     expect(await screen.findByRole("button", { name: /fotos de catálogo/i })).toBeInTheDocument();
+  });
+
+  it("colaborador: abre la ficha y ve la captura para una foto de atrás vacía", async () => {
+    collaborator();
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: null, catalogPhotosCheckedAt: checked }]);
+    render(<ProductosPage />);
+    expect(screen.queryByRole("checkbox", { name: /seleccionar/i })).toBeNull();
+    await openSheet();
+    expect(await screen.findByRole("button", { name: "Agregar foto de atrás de Gorra" })).toBeInTheDocument();
+  });
+
+  it("colaborador: no ve Cambiar en una foto ya puesta", async () => {
+    collaborator();
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg", catalogPhotosCheckedAt: checked }]);
+    render(<ProductosPage />);
+    await openSheet();
+    await screen.findByRole("dialog", { name: "Ficha del producto" });
+    expect(screen.queryByRole("button", { name: /cambiar foto/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /agregar foto/i })).toBeNull();
+  });
+
+  it("colaborador: la ficha no muestra la clasificación", async () => {
+    collaborator();
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: null, backImageUrl: null }]);
+    render(<ProductosPage />);
+    await openSheet();
+    await screen.findByRole("dialog", { name: "Ficha del producto" });
+    expect(screen.queryByLabelText("Departamento")).toBeNull();
+    expect(screen.queryByRole("button", { name: /desactivar/i })).toBeNull();
   });
 
   it("un producto con fotos revisadas ofrece cambiar frente y atrás desde la ficha", async () => {
