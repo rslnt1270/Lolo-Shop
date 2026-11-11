@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
-import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart, History } from "lucide-react";
+import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart } from "lucide-react";
 
 export function NavBar() {
   const pathname = usePathname();
@@ -19,7 +19,6 @@ export function NavBar() {
     { name: "Etiquetas", href: "/etiquetas", icon: Tags },
     { name: "Productos", href: "/productos", icon: Package },
     { name: "Ventas", href: "/ventas", icon: Receipt },
-    { name: "Movimientos", href: "/movimientos", icon: History },
   ];
 
   return (

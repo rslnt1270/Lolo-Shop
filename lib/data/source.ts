@@ -131,7 +131,7 @@ export interface MergeProductsResult {
   alreadyMerged: number;
 }
 
-/** Filtro ya recortado por rol (`scopeMovementQuery`); fechas `YYYY-MM-DD` de México, inclusivas. */
+/** Filtro ya recortado por rol (el servidor lo recorta por rol); fechas `YYYY-MM-DD` de México, inclusivas. */
 export interface MovementQuery {
   locationIds: string[] | "all";
   type?: MovementType;
