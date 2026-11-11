@@ -1,6 +1,6 @@
 # LoloShop: implementaciones posteriores a ventas P1 (versión 2)
 
-**Fecha:** 2026-11-09 · **Versión:** 2, re-priorizada con las decisiones del dueño del 2026-11-09 y la auditoría consolidada · **Estado:** diseño para planificar; las propuestas de §5 se construyen sin esperar respuesta
+**Fecha:** 2026-11-09 · **Versión:** 2, re-priorizada con las decisiones del dueño del 2026-11-09 y la auditoría consolidada · **Estado:** cerrado el 2026-11-10. Se implementó y está en producción; el detalle del cierre y el backlog están en la cabecera del plan v2 (`docs/superpowers/plans/2026-11-09-implementaciones-posteriores.md`)
 **Base:** SRS (`2026-11-05-loloshop-srs.md`), modelo de datos (`2026-11-05-modelo-datos-er.md`, **fuente de verdad**), auditoría (`2026-11-09-auditoria-consolidada.md`, hallazgos H1–H25), UX del sitio público (`2026-11-05-sitio-publico-ux-design.md`), guía de salida (`docs/runbooks/2026-11-salida-ventas.md`). La versión 1 está en git (`ca22425`); sus tareas se conservan en §4 con su número anterior entre paréntesis.
 
 Qué sigue después del módulo de ventas, en qué orden y cómo se acepta. Cada tarea trae comportamiento, contrato, criterios de aceptación, riesgos y dependencias. (T) = prueba automática; (M) = verificación manual; [C] = dato de proveedor sin verificar; "h" = horas de agente.

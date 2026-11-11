@@ -294,6 +294,16 @@ En Vercel, Deployments, elegir el deploy de producción anterior a la salida y *
 
 Después de cualquier retroceso, no reintentar la salida el mismo día; analizar la causa y volver a empezar por la Fase A.
 
+## Registro de la salida del 2026-11-10
+
+La salida a producción se adelantó al 2026-11-10 por pedido del dueño. Pasos:
+- **Fase A:** respaldo con `pg_dump` y restauración de prueba. Los conteos coincidieron. Los 3 avisos de roles de Neon al restaurar son inofensivos.
+- **Fase C/F:** drift 0, 4 migraciones aditivas sobre `0_init`, relleno de 5 departamentos y 1 marca, y `reset-users.ts` con las contraseñas de producción.
+- **Despliegue:** merge de los PR #29 y #32 y despliegue a Production.
+- **Pooler (1.11):** `DATABASE_URL` de Production apunta al host `-pooler`. Vercel la guarda como **sensible**, así que `vercel env pull` no la puede bajar: para regenerarla se parte de la conexión directa del `.env` local.
+- **Fase G:** login de owner, manager y los 2 colaboradores; `/productos` y `/escanear` responden 200; `/catalogo` no muestra SKU; el bot responde 401 sin clave.
+- **Retroceso:** promover en Vercel el deploy de producción anterior a la salida (`lolo-shop-apuutni7x`). Las migraciones son aditivas, así que la base no se toca.
+
 ## Limpieza al terminar
 
 - Cerrar las terminales con variables exportadas.

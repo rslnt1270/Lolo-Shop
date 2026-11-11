@@ -4,6 +4,20 @@
 >
 > **Para agentes:** SUB-SKILL REQUERIDA: usar superpowers:subagent-driven-development (recomendado) o superpowers:executing-plans para ejecutar este plan tarea por tarea. Los pasos usan casillas (`- [ ]`).
 
+> **Estado de cierre (2026-11-10): plan v2 CERRADO y en producción.** El dueño adelantó la salida y lo pidió en producción ese mismo día para registrar stock en las tiendas.
+> - **Hechas y en `main`** (PR #29, mezclado en `edb8f5e`): 1.1 a 1.10, 1.12, 2.1 a 2.4, la ola final de corrección (I1–I8), los residuales y la auditoría de UI de `/pos` y `/ventas`. Verificación previa al merge: 893/893 pruebas, 111/111 `test:db` y build limpio.
+> - **1.11 (pooler):** aplicado en Production el 2026-11-10 (host `-pooler` con `pgbouncer=true`, `connection_limit=1` y `connect_timeout=15`). Login de los 4 usuarios verificado después del redeploy.
+> - **3.7 (salida):** adelantada al 2026-11-10 siguiendo el runbook (fases A, C, F y G). Hubo respaldo verificado, drift 0, 4 migraciones aditivas, relleno y usuarios reiniciados. La carga de mercancía la hace el dueño desde ese día.
+> - **El hito de la demo (19 de noviembre)** se sustituye por el uso real en tienda.
+> - **Pasan al backlog**, cada una con su propio spec o plan cuando se retome:
+>   - 3.1, webhook: el bot todavía dice "envíos a todo México" y "Tienda Principal";
+>   - 3.2, 3.3, 3.4 y 3.6;
+>   - 3.5, Next 14 con avisos de `npm audit`, incluido uno crítico (PR #17 y Dependabot #28);
+>   - 3.8, taxonomía (spec `2026-11-10-taxonomia-productos-design.md`);
+>   - 1.13, conteo físico.
+> - **Riesgo conocido:** si alguien insiste en Cobrar después de `request_conflict`, se puede registrar una segunda venta.
+> - **Siguiente spec:** el flujo de alta en tienda (escaneo de etiqueta, fotos en el mismo paso e instrucciones en pantalla).
+
 **Goal:** que LoloShop controle el inventario de las dos tiendas (tallas como variantes, movimientos tipados y seguros, precios editables, traspasos e historial), con un catálogo público sin datos inventados, listo para la demo al dueño del 2026-11-19 y después para la salida a producción.
 
 **Architecture:** Next.js 14 App Router con server actions; Prisma 5.22 sobre Postgres (Neon). Toda escritura de stock pasa por `InventoryDataSource` (Prisma y Fixture cambian juntos) dentro de una transacción con `UPDATE … WHERE available >= n`. Los permisos se deciden en el servidor con el usuario releído de la base (`getCurrentUser()`) mediante los helpers de `lib/auth/permissions.ts`. Lo público pasa solo por `PublicProduct` (`lib/data/public-projection.ts`).
