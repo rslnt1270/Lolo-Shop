@@ -30,6 +30,10 @@ describe("button motion", () => {
   it("success check is drawn without animation under reduced motion", () => {
     expect(reduced()).toMatch(/lolo-btn-check path[\s\S]*stroke-dashoffset:\s*0/);
   });
+  it("reduced motion removes hover lift and press scale displacements", () => {
+    expect(reduced()).toMatch(/\.lolo-btn:hover[^{]*\{[^}]*transform:\s*none/);
+    expect(reduced()).toMatch(/\.lolo-btn:active[^{]*\{[^}]*transform:\s*none/);
+  });
   it("scanner button no longer uses the old #007272", () => {
     expect(css).not.toMatch(/#007272/i);
   });

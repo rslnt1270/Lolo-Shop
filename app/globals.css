@@ -50,6 +50,10 @@
   .lolo-btn * {
     transition-duration: 1ms !important;
   }
+  .lolo-btn:hover:not(:disabled),
+  .lolo-btn:active:not(:disabled) {
+    transform: none !important;
+  }
   .lolo-btn-spinner {
     animation-duration: 1600ms !important;
   }
