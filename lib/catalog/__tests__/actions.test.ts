@@ -67,6 +67,23 @@ describe("createBrandAction", () => {
     expect(r).toMatchObject({ ok: false });
     expect(brandCreate).not.toHaveBeenCalled();
   });
+  it("marca inactiva con el mismo nombre: avisa la fusión con el mensaje existente", async () => {
+    as("collaborator");
+    brandFindUnique.mockResolvedValue({ id: "b9", name: "Guess", slug: "guess", isActive: false });
+    expect(await createBrandAction("guess")).toEqual({ ok: false, message: expect.stringContaining("se fusionó") });
+  });
+  it("nombre vacío: mensaje exacto sin tocar la base", async () => {
+    as("collaborator");
+    expect(await createBrandAction("   ")).toEqual({ ok: false, message: "Escribe el nombre de la marca." });
+    expect(brandFindUnique).not.toHaveBeenCalled();
+  });
+  it("«Lacoste» y «LÁCOSTE» caen en el mismo slug (mayúsculas y acentos)", async () => {
+    as("collaborator");
+    await createBrandAction("Lacoste");
+    await createBrandAction("LÁCOSTE");
+    const slugs = brandFindUnique.mock.calls.map((c) => c[0].where.slug);
+    expect(slugs[0]).toBe(slugs[1]);
+  });
   it("carrera P2002: devuelve la marca ganadora", async () => {
     as("owner");
     brandCreate.mockRejectedValue(Object.assign(new Error("u"), { code: "P2002" }));
