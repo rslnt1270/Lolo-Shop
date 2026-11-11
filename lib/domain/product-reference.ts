@@ -19,22 +19,43 @@ export function colorApplies(input: {
   return true;
 }
 
-/** Clave de comparación: sin acentos, minúsculas, solo [a-z0-9 ], singular aproximado. */
+/** Quita marcado y símbolos: deja letras (con acentos), dígitos y espacios simples. */
+function sanitizeColorText(raw: string): string {
+  return raw
+    .normalize("NFC")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[^\p{L}\p{N}\p{M} ]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Singular aproximado de una palabra ya sin acentos: "grises"→"gris", "rosas"→"rosa", "gris" se queda. */
+function singularWord(w: string): string {
+  if (w.length > 4 && w.endsWith("es")) return singularWord2(w.slice(0, -2));
+  if (w.length > 4 && w.endsWith("s")) w = w.slice(0, -1);
+  return singularWord2(w);
+}
+
+/** Quita la "e" final de palabras largas ("café"/"cafés" → "caf", "verde" → "verd"). */
+function singularWord2(w: string): string {
+  return w.length > 3 && w.endsWith("e") ? w.slice(0, -1) : w;
+}
+
+/** Clave de comparación por palabra: sin acentos, minúsculas, solo [a-z0-9 ], singular aproximado. */
 export function normalizeColorKey(raw: string): string {
-  let k = raw
+  return sanitizeColorText(raw)
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .replace(/[^a-z0-9 ]/g, "")
-    .replace(/ +/g, " ")
-    .trim();
-  if (k.length > 3 && k.endsWith("s")) k = k.slice(0, -1);
-  if (k.length > 3 && k.endsWith("e")) k = k.slice(0, -1);
-  return k;
+    .split(" ")
+    .filter(Boolean)
+    .map(singularWord)
+    .join(" ");
 }
 
 export function displayColor(raw: string): string {
-  const t = raw.trim().replace(/\s+/g, " ").toLowerCase();
+  const t = sanitizeColorText(raw).toLowerCase();
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 

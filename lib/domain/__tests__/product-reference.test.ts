@@ -45,6 +45,29 @@ describe("product-reference", () => {
     expect(normalizeColorKey("rosa 🔥")).toBe("rosa");
   });
 
+  it("C11: singular y plural de Gris comparten clave", () => {
+    expect(normalizeColorKey("Gris")).toBe(normalizeColorKey("grises"));
+    expect(normalizeColorKey("Rosa")).toBe(normalizeColorKey("rosas"));
+  });
+
+  it("C11: la clave se calcula por palabra", () => {
+    expect(normalizeColorKey("cafés oscuros")).toBe(normalizeColorKey("café oscuro"));
+  });
+
+  it("C11: los colores base conservan claves distintas", () => {
+    const keys = BASE_COLORS.map(normalizeColorKey);
+    expect(new Set(keys).size).toBe(BASE_COLORS.length);
+    BASE_COLORS.forEach((c) => expect(normalizeColorKey(c)).not.toBe(""));
+  });
+
+  it("review: el color guardado no conserva emoji ni marcado", () => {
+    const base = { brand: "ALO", departmentSlug: "dama", typeSlug: "playera" };
+    expect(validateReference({ ...base, color: "rosa 🔥" }).color).toBe("Rosa");
+    expect(validateReference({ ...base, color: "<b>rosa</b>" }).color).toBe("Rosa");
+    expect(validateReference({ ...base, color: "Café  oscuro" }).color).toBe("Café oscuro");
+    expect(validateReference({ ...base, color: "🔥<i></i>" }).color).toBeNull();
+  });
+
   it("displayColor capitaliza y colapsa espacios", () => {
     expect(displayColor("  ROSA   palo ")).toBe("Rosa palo");
   });
