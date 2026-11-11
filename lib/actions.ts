@@ -139,9 +139,9 @@ export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
     if (!user) {
       return { found: false, code, error: SESSION_EXPIRED_TEXT };
     }
-    const raw = await getDataSource().getProductByBarcode(code);
-    if (!raw) return { found: false, code };
-    const match = scopeVariantMatch(raw, user);
+    const rawMatch = await getDataSource().getProductByBarcode(code);
+    if (!rawMatch) return { found: false, code };
+    const match = scopeVariantMatch(rawMatch, user);
     return { found: true, product: withVariant(match), variantId: match.variant.id };
   } catch (err) {
     console.error("lookupCodeAction", err);
