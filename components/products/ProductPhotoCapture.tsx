@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
-import { computeSquareCrop, autoLevels } from "@/lib/image/process";
+import { Button } from "@/components/ui/Button";
+import { defaultProcessFile, type ProcessFile } from "@/lib/image/process-file";
 
-const MAX_SIZE = 1080;
-const MAX_BYTES = 1024 * 1024;
+export const FRAMING_GUIDE = "Coloca la prenda sobre una superficie blanca y céntrala en el marco.";
+export const BACKGROUND_REJECTED =
+  "El fondo no está en blanco. Repite la foto con la prenda sobre una superficie blanca.";
 
 interface ProductPhotoCaptureProps {
   onCapture: (file: File) => void;
@@ -11,9 +13,11 @@ interface ProductPhotoCaptureProps {
   onBusyChange?: (busy: boolean) => void;
   /** Lado de la foto; distingue las dos capturas para lectores de pantalla. */
   side?: "front" | "back";
+  /** Edita y analiza el fondo. Por defecto usa canvas; se inyecta en pruebas. */
+  processFile?: ProcessFile;
 }
 
-export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side }: ProductPhotoCaptureProps) {
+export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, processFile = defaultProcessFile }: ProductPhotoCaptureProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [preview, setPreview] = useState<string | null>(null);
@@ -37,31 +41,12 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side }: 
     setBusy(true);
     setError("");
     try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      const { sx, sy, size } = computeSquareCrop(bitmap.width, bitmap.height);
-      const out = Math.min(size, MAX_SIZE);
-
-      const canvas = document.createElement("canvas");
-      canvas.width = out;
-      canvas.height = out;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas no disponible");
-      ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, out, out);
-
-      const imageData = ctx.getImageData(0, 0, out, out);
-      autoLevels(imageData.data);
-      ctx.putImageData(imageData, 0, 0);
-
-      const encode = (quality: number): Promise<Blob> =>
-        new Promise((resolve, reject) =>
-          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob falló"))), "image/jpeg", quality)
-        );
-      // 1080x1080 a calidad 0.8 suele pesar 150-400 KB; si pasa de 1 MB, recomprime.
-      let blob = await encode(0.8);
-      if (blob.size > MAX_BYTES) blob = await encode(0.6);
-      if (blob.size > MAX_BYTES) blob = await encode(0.45);
-      const edited = new File([blob], "producto.jpg", { type: "image/jpeg" });
-
+      const { file: edited, analysis } = await processFile(file);
+      if (!analysis.ok) {
+        // Foto rechazada: no se conserva ni se entrega; solo se puede repetir.
+        setError(BACKGROUND_REJECTED);
+        return;
+      }
       if (preview) URL.revokeObjectURL(preview);
       setPreview(URL.createObjectURL(edited));
       onCapture(edited);
@@ -69,6 +54,7 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side }: 
       setError("No se pudo procesar la imagen. Intenta con otra foto.");
     } finally {
       setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
   };
 
@@ -104,27 +90,35 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side }: 
         <div className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview} alt={`Vista previa de la foto${forSide}`} className="w-32 h-32 rounded-lg object-cover border" />
-          <div className="flex gap-3 text-sm">
-            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="min-h-[44px] px-2 text-loloteal" aria-label={`Retomar foto${forSide}`}>
+          <div className="flex flex-wrap gap-3">
+            <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={busy} aria-label={`Retomar foto${forSide}`}>
               Retomar
-            </button>
-            <button type="button" onClick={clear} className="min-h-[44px] px-2 text-gray-500" aria-label={`Quitar foto${forSide}`}>
+            </Button>
+            <button type="button" onClick={clear} className="min-h-[44px] px-2 text-sm text-gray-600" aria-label={`Quitar foto${forSide}`}>
               Quitar
             </button>
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={busy}
-          aria-label={busy ? undefined : `Tomar o subir foto${forSide}`}
-          className="min-h-[44px] w-full rounded-md border border-dashed border-gray-300 py-3 text-sm text-gray-600 hover:border-loloteal disabled:opacity-50"
-        >
-          {busy ? "Procesando…" : "📷 Tomar o subir foto"}
-        </button>
+        <div className="space-y-2">
+          <div
+            data-testid="framing-guide"
+            className="relative mx-auto flex aspect-square w-full max-w-[200px] items-center justify-center rounded-lg border-2 border-dashed border-borde-control bg-white"
+          >
+            <div aria-hidden="true" className="h-3/5 w-3/5 rounded-md border-2 border-turquesa-texto/60" />
+          </div>
+          <p className="text-sm text-gray-700">{FRAMING_GUIDE}</p>
+          <Button
+            onClick={() => inputRef.current?.click()}
+            loading={busy}
+            aria-label={busy ? undefined : `Tomar o subir foto${forSide}`}
+            className="w-full"
+          >
+            {busy ? "Procesando…" : "Tomar foto"}
+          </Button>
+        </div>
       )}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm font-semibold text-agotado">{error}</p>}
     </div>
   );
 }

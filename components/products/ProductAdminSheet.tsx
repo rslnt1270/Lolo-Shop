@@ -307,19 +307,31 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             <h3 className="text-lg font-bold text-[#16302F]">{product.title}</h3>
             {canEditData && (
               <div className="flex flex-wrap items-center gap-x-3">
-                <ProductPhotoButton
-                  productId={product.id}
-                  productTitle={product.title}
-                  hasImage={!!product.imageUrl}
-                  onUpdated={onChanged}
-                />
-                <ProductPhotoButton
-                  productId={product.id}
-                  productTitle={product.title}
-                  side="back"
-                  hasImage={!!product.backImageUrl}
-                  onUpdated={onChanged}
-                />
+                {product.catalogPhotosCheckedAt ? (
+                  <>
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      hasImage={!!product.imageUrl}
+                      onUpdated={onChanged}
+                    />
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      side="back"
+                      hasImage={!!product.backImageUrl}
+                      onUpdated={onChanged}
+                    />
+                  </>
+                ) : (
+                  <ProductPhotoButton
+                    productId={product.id}
+                    productTitle={product.title}
+                    hasImage={!!product.imageUrl}
+                    catalogChecked={false}
+                    onUpdated={onChanged}
+                  />
+                )}
               </div>
             )}
           </section>

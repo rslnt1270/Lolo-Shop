@@ -7,7 +7,6 @@ import type { Location, Product } from "@/lib/domain/types";
 import { filterProducts } from "@/lib/data/filter";
 import { SearchFilter } from "@/components/products/SearchFilter";
 import { ProductCard } from "@/components/products/ProductCard";
-import { ProductPhotoButton } from "@/components/products/ProductPhotoButton";
 import { ProductAdminSheet } from "@/components/products/ProductAdminSheet";
 import { fetchLocationsAction, fetchProductsAction } from "@/lib/actions";
 import { listDepartmentsAction, listProductTypesAction, type DepartmentOption, type ProductTypeOption } from "@/lib/catalog/actions";
@@ -195,19 +194,6 @@ export default function ProductosPage() {
               </div>
             )}
             <div className="flex flex-wrap items-center gap-x-2">
-              <ProductPhotoButton
-                productId={p.id}
-                productTitle={p.title}
-                hasImage={!!p.imageUrl}
-                onUpdated={() => void reload()}
-              />
-              <ProductPhotoButton
-                productId={p.id}
-                productTitle={p.title}
-                side="back"
-                hasImage={!!p.backImageUrl}
-                onUpdated={() => void reload()}
-              />
               {!(p.imageUrl && p.backImageUrl) && (
                 <span className="text-xs text-gray-600">
                   {!p.imageUrl && !p.backImageUrl
