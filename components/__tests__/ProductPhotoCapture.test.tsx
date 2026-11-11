@@ -142,6 +142,22 @@ describe("ProductPhotoButton: la ficha usa el mismo análisis", () => {
     await waitFor(() => expect(onUpdated).toHaveBeenCalled());
   });
 
+  it("cancelar en modo catálogo descarta las fotos: al reabrir no hay vistas previas y Guardar fotos está deshabilitado", async () => {
+    const { container } = render(
+      <ProductPhotoButton productId="p1" hasImage={false} catalogChecked={false} processFile={approve} />
+    );
+    const openBtn = () => screen.getByRole("button", { name: "Tomar fotos de catálogo (frente y atrás)" });
+    fireEvent.click(openBtn());
+    for (const input of Array.from(container.querySelectorAll("input[type=file]"))) {
+      fireEvent.change(input, { target: { files: [new File(["x"], "a.jpg", { type: "image/jpeg" })] } });
+    }
+    await waitFor(() => expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(openBtn());
+    expect(screen.queryByAltText(/vista previa/i)).toBeNull();
+    expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeDisabled();
+  });
+
   it("con una foto de catálogo rechazada no se puede guardar", async () => {
     const { container } = render(
       <ProductPhotoButton productId="p1" hasImage={false} catalogChecked={false} processFile={reject} />

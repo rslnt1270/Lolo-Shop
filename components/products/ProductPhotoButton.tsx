@@ -47,11 +47,15 @@ export function ProductPhotoButton({
   const [back, setBack] = useState<File | null>(null);
   const sideWord = side === "back" ? "atrás" : "frente";
 
-  const finish = (text: string) => {
-    setMsg(text);
+  const close = () => {
     setOpen(false);
     setFront(null);
     setBack(null);
+  };
+
+  const finish = (text: string) => {
+    setMsg(text);
+    close();
     onUpdated?.();
   };
 
@@ -114,7 +118,7 @@ export function ProductPhotoButton({
   const cancel = (
     <button
       type="button"
-      onClick={() => setOpen(false)}
+      onClick={close}
       className="min-h-[44px] px-2 text-sm text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
     >
       Cancelar
