@@ -13,6 +13,7 @@ import { fetchLocationsAction, fetchProductsAction } from "@/lib/actions";
 import { listDepartmentsAction, listProductTypesAction, type DepartmentOption, type ProductTypeOption } from "@/lib/catalog/actions";
 import { assignDepartmentAction, assignProductTypeAction } from "@/lib/products/actions";
 import { classificationIssues, type ClassificationRules } from "@/lib/domain/product-taxonomy";
+import { Button } from "@/components/ui/Button";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
 
@@ -280,14 +281,13 @@ export default function ProductosPage() {
                 >
                   Cancelar
                 </button>
-                <button
-                  type="button"
+                <Button
                   onClick={() => void (assignKind === "department" ? assign() : assignType())}
-                  disabled={(assignKind === "department" ? !targetDept : !targetType) || assignBusy}
-                  className="min-h-[44px] rounded-lg bg-loloteal px-3 text-sm font-semibold text-white active:bg-loloteal-dark disabled:opacity-60"
+                  disabled={assignKind === "department" ? !targetDept : !targetType}
+                  loading={assignBusy}
                 >
                   {assignBusy ? "Asignando…" : "Asignar"}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -304,17 +304,16 @@ export default function ProductosPage() {
                 >
                   Asignar departamento ({selected.length})
                 </button>
-                <button
-                  type="button"
+                <Button
+                  loading={assignBusy}
                   onClick={() => {
                     setAssignMsg(null);
                     setAssignKind("type");
                     setAssigning(true);
                   }}
-                  className="min-h-[44px] rounded-lg bg-loloteal px-3 text-sm font-semibold text-white active:bg-loloteal-dark"
                 >
                   Asignar tipo ({selected.length})
-                </button>
+                </Button>
               </div>
               <button
                 type="button"

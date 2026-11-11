@@ -32,6 +32,7 @@ vi.mock("@/lib/products/actions", () => ({
 vi.mock("@/components/products/ProductPhotoButton", () => ({ ProductPhotoButton: () => null }));
 
 import ProductosPage from "@/app/productos/page";
+import { buttonClasses } from "@/components/ui/button-classes";
 
 const mk = (id: string, over: Record<string, unknown> = {}) => ({
   id, title: `Prod ${id}`, brand: "Lolo", category: "Playeras", imageUrl: null, backImageUrl: null,
@@ -114,5 +115,13 @@ describe("/productos: tipos", () => {
     const sel = await screen.findByLabelText("Categoría");
     await waitFor(() => expect(sel.textContent).toContain("Playeras"));
     expect(sel.textContent).not.toContain("Hoodies");
+  });
+
+  it("Asignar tipo usa el botón compartido (variante primary)", async () => {
+    render(<ProductosPage />);
+    await ready();
+    fireEvent.click(screen.getByLabelText("Seleccionar Prod a"));
+    const btn = screen.getByRole("button", { name: /asignar tipo/i });
+    for (const c of buttonClasses("primary").split(" ")) expect(btn.className).toContain(c);
   });
 });
