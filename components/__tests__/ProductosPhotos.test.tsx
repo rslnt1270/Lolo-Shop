@@ -143,7 +143,7 @@ describe("/productos: fotos de frente y atrás", () => {
     render(<ProductosPage />);
     await openSheet();
     fireEvent.click(await screen.findByRole("button", { name: "Agregar foto de frente de Gorra" }));
-    expect(screen.getByRole("button", { name: "Cancelar" }).className).toMatch(/min-h-\[44px\]/);
+    expect(screen.getByRole("button", { name: "Cancelar" }).className).toMatch(/min-h-(\[44px\]|11)/);
     fireEvent.click(screen.getByText("capturar"));
     await waitFor(() => expect(screen.getAllByRole("status")[0]).toHaveTextContent("Foto de frente actualizada."));
     expect(screen.queryByRole("button", { name: "Cancelar" })).toBeNull();

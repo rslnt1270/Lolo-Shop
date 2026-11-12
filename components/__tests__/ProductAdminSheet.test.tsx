@@ -322,7 +322,7 @@ describe("ProductAdminSheet", () => {
     open();
     await screen.findAllByRole("button", { name: /^guardar precio/i });
     for (const name of ["Guardar precio de la talla M", "Desactivar talla M", "Desactivar producto", "Guardar cambios"]) {
-      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-\[44px\]/);
+      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-(\[44px\]|11)/);
     }
   });
 

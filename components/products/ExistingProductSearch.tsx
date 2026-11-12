@@ -4,6 +4,7 @@ import { HelpCircle, Plus, Search } from "lucide-react";
 import { searchProductsAction } from "@/lib/actions";
 import type { ProductSearchHit } from "@/lib/data/source";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
+import { Button } from "@/components/ui/Button";
 
 interface ExistingProductSearchProps {
   /** Eligió un producto: se abre "Agregar talla" con el código escaneado. Sin esto no hay botón "+". */
@@ -80,7 +81,7 @@ export function ExistingProductSearch({
   return (
     <section aria-labelledby={headingId} className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
       <h2 id={headingId} className="flex items-start gap-2 text-base font-semibold text-gray-900">
-        <HelpCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-loloteal" />
+        <HelpCircle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-turquesa-texto" />
         {heading}
       </h2>
 
@@ -94,16 +95,16 @@ export function ExistingProductSearch({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className="block min-h-[44px] w-full rounded-full border border-gray-300 bg-white py-2 pl-10 pr-4 text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal"
+          className="block min-h-[44px] w-full rounded-full border border-gray-300 bg-white py-2 pl-10 pr-4 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto"
         />
       </div>
 
       <div aria-live="polite" className="text-sm text-gray-600">
         {status === "loading" && <p>Buscando…</p>}
         {status === "done" && hits.length === 0 && <p>No encontramos productos con «{query.trim()}».</p>}
-        {status === "error" && <p className="text-[#9A3B2E]">No se pudo buscar. Revisa tu conexión e intenta de nuevo.</p>}
+        {status === "error" && <p className="text-agotado">No se pudo buscar. Revisa tu conexión e intenta de nuevo.</p>}
         {status === "session" && (
-          <p className="text-[#9A3B2E]">{SESSION_EXPIRED_TEXT} <LoginLink /></p>
+          <p className="text-agotado">{SESSION_EXPIRED_TEXT} <LoginLink /></p>
         )}
       </div>
 
@@ -141,7 +142,7 @@ export function ExistingProductSearch({
                   type="button"
                   aria-label={pickLabel(h)}
                   onClick={() => onPick(h)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-loloteal hover:bg-white active:bg-gray-100"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-turquesa-texto hover:bg-white active:bg-gray-100"
                 >
                   <Plus aria-hidden="true" className="h-6 w-6" />
                 </button>
@@ -154,13 +155,10 @@ export function ExistingProductSearch({
       )}
 
       {onNew && !hideNewButton && (
-        <button
-          type="button"
-          onClick={onNew}
-          className="min-h-[44px] w-full rounded-full border border-loloteal bg-white px-4 font-semibold text-loloteal transition active:bg-gray-100 motion-reduce:transition-none"
-        >
+        <Button variant="outline"
+          onClick={onNew} className="w-full">
           No, es un producto nuevo
-        </button>
+        </Button>
       )}
     </section>
   );

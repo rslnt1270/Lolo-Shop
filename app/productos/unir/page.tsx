@@ -37,7 +37,7 @@ export default async function UnirProductosPage() {
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 p-4">
-      <Link href="/productos" className="inline-flex min-h-[44px] items-center text-sm font-semibold text-loloteal">
+      <Link href="/productos" className="inline-flex min-h-[44px] items-center text-sm font-semibold text-turquesa-texto">
         ← Productos
       </Link>
       <h1 className="text-xl font-bold">Unir productos duplicados</h1>

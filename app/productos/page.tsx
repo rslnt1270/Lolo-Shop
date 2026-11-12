@@ -16,6 +16,7 @@ import { isPendingPublication } from "@/lib/domain/catalog-eligibility";
 import { publicStoreIds } from "@/lib/data/public-projection";
 import { classificationIssues, type ClassificationRules } from "@/lib/domain/product-taxonomy";
 import { Button } from "@/components/ui/Button";
+import { buttonClasses } from "@/components/ui/button-classes";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
 
@@ -167,7 +168,7 @@ export default function ProductosPage() {
       {role === "owner" && (
         <Link
           href="/productos/unir"
-          className="inline-flex min-h-[44px] items-center rounded-lg border border-loloteal px-4 text-sm font-semibold text-loloteal focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+          className={buttonClasses("outline")}
         >
           Unir duplicados por talla
         </Link>
@@ -182,8 +183,8 @@ export default function ProductosPage() {
             setOnlyReview((v) => !v);
             setOnlyPending(false);
           }}
-          className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal ${
-            onlyReview ? "border-loloteal bg-loloteal text-white" : "border-gray-300 bg-white text-gray-800"
+          className={`min-h-[44px] rounded-full border-2 px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto ${
+            onlyReview ? "border-turquesa bg-turquesa text-tinta" : "border-turquesa-texto bg-white text-turquesa-texto"
           }`}
         >
           Por revisar ({reviewCount})
@@ -195,8 +196,8 @@ export default function ProductosPage() {
             setOnlyPending((v) => !v);
             setOnlyReview(false);
           }}
-          className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal ${
-            onlyPending ? "border-loloteal bg-loloteal text-white" : "border-gray-300 bg-white text-gray-800"
+          className={`min-h-[44px] rounded-full border-2 px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto ${
+            onlyPending ? "border-turquesa bg-turquesa text-tinta" : "border-turquesa-texto bg-white text-turquesa-texto"
           }`}
         >
           Por publicar ({pendingCount})
@@ -230,7 +231,7 @@ export default function ProductosPage() {
                       checked={selected.includes(p.id)}
                       onChange={() => toggle(p.id)}
                       aria-label={`Seleccionar ${p.title}`}
-                      className="h-5 w-5 rounded border-gray-400 accent-loloteal"
+                      className="h-5 w-5 rounded border-gray-400 accent-turquesa-texto"
                     />
                     Seleccionar
                   </label>
@@ -239,7 +240,7 @@ export default function ProductosPage() {
                   type="button"
                   onClick={() => setOpenId(p.id)}
                   aria-label={`Abrir la ficha de ${p.title}`}
-                  className="min-h-[44px] rounded-lg px-2 text-sm font-semibold text-loloteal underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+                  className="min-h-[44px] rounded-lg px-2 text-sm font-semibold text-turquesa-texto underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
                 >
                   Ver ficha
                 </button>
@@ -267,7 +268,7 @@ export default function ProductosPage() {
         {assignMsg && (
           <p
             role={assignMsg.ok ? "status" : "alert"}
-            className={`rounded-lg p-3 text-sm font-semibold ${assignMsg.ok ? "bg-loloteal/10 text-loloteal" : "bg-red-50 text-[#9A3B2E]"}`}
+            className={`rounded-lg p-3 text-sm font-semibold ${assignMsg.ok ? "bg-niebla text-tinta" : "border border-agotado bg-white text-agotado"}`}
           >
             <ActionErrorText message={assignMsg.text} session={assignMsg.session} />
           </p>
@@ -287,7 +288,7 @@ export default function ProductosPage() {
                     id="asignar-depto"
                     value={targetDept}
                     onChange={(e) => setTargetDept(e.target.value)}
-                    className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+                    className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
                   >
                     <option value="">Elige el departamento</option>
                     {departments.map((d) => (
@@ -304,7 +305,7 @@ export default function ProductosPage() {
                     id="asignar-tipo"
                     value={targetType}
                     onChange={(e) => setTargetType(e.target.value)}
-                    className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+                    className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
                   >
                     <option value="">Elige el tipo</option>
                     {productTypes.map((t) => (
@@ -314,13 +315,11 @@ export default function ProductosPage() {
                 </>
               )}
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
+                <Button variant="outline"
                   onClick={() => setAssigning(false)}
-                  className="min-h-[44px] rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800"
                 >
                   Cancelar
-                </button>
+                </Button>
                 <Button
                   onClick={() => void (assignKind === "department" ? assign() : assignType())}
                   disabled={assignKind === "department" ? !targetDept : !targetType}
@@ -333,17 +332,15 @@ export default function ProductosPage() {
           ) : (
             <div className="space-y-2">
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
+                <Button
                   onClick={() => {
                     setAssignMsg(null);
                     setAssignKind("department");
                     setAssigning(true);
                   }}
-                  className="min-h-[44px] rounded-lg bg-loloteal px-3 text-sm font-semibold text-white active:bg-loloteal-dark"
                 >
                   Asignar departamento ({selected.length})
-                </button>
+                </Button>
                 <Button
                   loading={assignBusy}
                   onClick={() => {
@@ -355,13 +352,10 @@ export default function ProductosPage() {
                   Asignar tipo ({selected.length})
                 </Button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelected([])}
-                className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800"
-              >
+              <Button variant="outline"
+                onClick={() => setSelected([])} className="w-full">
                 Quitar selección
-              </button>
+              </Button>
             </div>
           )}
         </div>

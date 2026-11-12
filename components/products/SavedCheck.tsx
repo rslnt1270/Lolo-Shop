@@ -16,7 +16,7 @@ export function SavedCheck() {
   }, [holdMs]);
   if (!visible) return null;
   return (
-    <span data-testid="saved-check" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-loloteal text-white">
+    <span data-testid="saved-check" className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-turquesa text-tinta">
       <svg className="lolo-btn-check h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M5 13l4 4L19 7" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>

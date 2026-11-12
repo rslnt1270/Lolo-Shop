@@ -22,6 +22,7 @@ import { ProductPhotoButton } from "./ProductPhotoButton";
 import { PublishControl } from "./PublishControl";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
+import { Button } from "@/components/ui/Button";
 
 interface Props {
   product: Product;
@@ -49,13 +50,8 @@ type PriceState = {
 };
 
 const field =
-  "block min-h-[44px] w-full rounded-xl border border-[#7F9392] bg-white px-3 text-base text-[#16302F] focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal";
-const labelCls = "mb-1 block text-xs font-medium text-[#5C6E6D]";
-const outlineBtn =
-  "flex min-h-[44px] w-full items-center justify-center rounded-xl border border-loloteal px-4 text-sm font-semibold text-loloteal transition active:bg-[#F3F7F7] disabled:opacity-60 motion-reduce:transition-none";
-const solidBtn =
-  "flex min-h-[44px] w-full items-center justify-center rounded-xl bg-loloteal px-4 text-sm font-semibold text-white transition active:bg-loloteal-dark disabled:opacity-60 motion-reduce:transition-none";
-const DANGER = "#9A3B2E";
+  "block min-h-[44px] w-full rounded-xl border border-borde-control bg-white px-3 text-base text-tinta focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto";
+const labelCls = "mb-1 block text-xs font-medium text-tinta/70";
 
 const isActive = (x: { isActive?: boolean }) => x.isActive !== false;
 
@@ -275,23 +271,23 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
       className="fixed inset-0 z-50 overflow-y-auto bg-white pl-[var(--safe-left)] pr-[var(--safe-right)]"
     >
       <div className="mx-auto flex min-h-full max-w-[480px] flex-col">
-        <header className="sticky top-0 z-10 flex h-[calc(3.5rem+var(--safe-top))] items-center gap-2 border-b border-[#E1E9E9] bg-white px-2 pt-[var(--safe-top)]">
+        <header className="sticky top-0 z-10 flex h-[calc(3.5rem+var(--safe-top))] items-center gap-2 border-b border-borde-control/30 bg-white px-2 pt-[var(--safe-top)]">
           <button
             type="button"
             onClick={onClose}
             aria-label="Regresar"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-[#16302F] active:bg-[#F3F7F7]"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-tinta active:bg-niebla"
           >
             <ArrowLeft aria-hidden="true" size={22} />
           </button>
-          <h2 className="text-base font-bold text-[#16302F]">Ficha del producto</h2>
+          <h2 className="text-base font-bold text-tinta">Ficha del producto</h2>
         </header>
 
         <div className="flex-1 space-y-6 px-4 py-4 pb-[calc(3rem+var(--safe-bottom))]">
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               {product.publicCode ? (
-                <span className="rounded border border-[#E1E9E9] bg-[#F3F7F7] px-2.5 py-1 font-mono text-xs font-semibold tracking-tight text-[#16302F]">
+                <span className="rounded border border-borde-control/30 bg-niebla px-2.5 py-1 font-mono text-xs font-semibold tracking-tight text-tinta">
                   Código público: {product.publicCode}
                 </span>
               ) : (
@@ -299,13 +295,13 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               )}
               <span
                 className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${
-                  productActive ? "border-[#BBF7D0] bg-[#F0FDF4] text-[#1F7A4A]" : "border-[#E1E9E9] bg-[#F3F7F7] text-[#5C6E6D]"
+                  productActive ? "border-ok bg-white text-ok" : "border-borde-control/30 bg-niebla text-tinta/70"
                 }`}
               >
                 {productActive ? "Activo" : "Inactivo"}
               </span>
             </div>
-            <h3 className="text-lg font-bold text-[#16302F]">{product.title}</h3>
+            <h3 className="text-lg font-bold text-tinta">{product.title}</h3>
             <div className="flex flex-wrap items-center gap-x-3">
               {canEditData ? (
                 product.imageUrl || product.backImageUrl ? (
@@ -360,7 +356,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
 
           <div aria-live="polite">
             {actionMsg && (
-              <p role="alert" className="rounded-lg bg-[#FDF2F0] p-3 text-sm font-semibold" style={{ color: DANGER }}>
+              <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado">
                 <ActionErrorText message={actionMsg.text} session={actionMsg.session} />
               </p>
             )}
@@ -374,8 +370,8 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
           )}
 
           {canEditData && (
-            <section aria-label="Datos del producto" className="space-y-3.5 rounded-xl border border-[#E1E9E9] p-3.5">
-              <h3 className="border-b border-[#E1E9E9] pb-1 text-sm font-bold text-[#16302F]">Datos del producto</h3>
+            <section aria-label="Datos del producto" className="space-y-3.5 rounded-xl border border-borde-control/30 p-3.5">
+              <h3 className="border-b border-borde-control/30 pb-1 text-sm font-bold text-tinta">Datos del producto</h3>
               <div>
                 <label htmlFor="ficha-titulo" className={labelCls}>Título</label>
                 <input id="ficha-titulo" type="text" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} className={field} />
@@ -411,22 +407,21 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                 {dataMsg && (
                   <p
                     role={dataMsg.ok ? "status" : "alert"}
-                    className="text-sm font-semibold"
-                    style={{ color: dataMsg.ok ? "#1F7A4A" : DANGER }}
+                    className={`text-sm font-semibold ${dataMsg.ok ? "text-ok" : "text-agotado"}`}
                   >
                     <ActionErrorText message={dataMsg.text} session={dataMsg.session} />
                   </p>
                 )}
               </div>
-              <button type="button" onClick={() => void saveData()} disabled={savingData} className={`${outlineBtn} min-h-[44px]`}>
+              <Button variant="outline" onClick={() => void saveData()} disabled={savingData} className="w-full">
                 {savingData ? "Guardando…" : "Guardar cambios"}
-              </button>
+              </Button>
             </section>
           )}
 
           {canEditPrice && (
             <section aria-label="Precio por talla" className="space-y-3">
-              <h3 className="text-sm font-bold text-[#16302F]">Precio por talla</h3>
+              <h3 className="text-sm font-bold text-tinta">Precio por talla</h3>
               {product.variants.map((v) => {
                 const st = prices[v.id];
                 if (!st) return null;
@@ -435,11 +430,10 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                 return (
                   <div
                     key={v.id}
-                    className={`space-y-2.5 rounded-xl bg-[#F3F7F7] p-3 ${st.conflict !== undefined ? "border-2" : "border border-[#E1E9E9]"}`}
-                    style={st.conflict !== undefined ? { borderColor: `${DANGER}66` } : undefined}
+                    className={`space-y-2.5 rounded-xl bg-niebla p-3 ${st.conflict !== undefined ? "border-2 border-agotado/40" : "border border-borde-control/30"}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-[#E1E9E9] bg-white px-1 font-mono text-sm font-bold text-[#16302F]">
+                      <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-borde-control/30 bg-white px-1 font-mono text-sm font-bold text-tinta">
                         {v.size || v.title}
                       </span>
                       {canEditData && variantActive ? (
@@ -448,7 +442,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                           aria-label={`Desactivar talla ${v.size || v.title}`}
                           onClick={() => setConfirm({ kind: "variant", variantId: v.id })}
                           disabled={busy}
-                          className="min-h-[44px] px-2 text-xs text-[#5C6E6D] underline disabled:opacity-60"
+                          className="min-h-[44px] px-2 text-xs text-tinta/70 underline disabled:opacity-60"
                         >
                           Desactivar talla
                         </button>
@@ -458,20 +452,20 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                           aria-label={`Reactivar talla ${v.size || v.title}`}
                           onClick={() => void reactivate({ kind: "variant", variantId: v.id })}
                           disabled={busy}
-                          className="min-h-[44px] px-2 text-xs font-semibold text-loloteal underline disabled:opacity-60"
+                          className="min-h-[44px] px-2 text-xs font-semibold text-turquesa-texto underline disabled:opacity-60"
                         >
                           Reactivar talla
                         </button>
                       ) : null}
                     </div>
                     {st.conflict !== undefined && (
-                      <p role="alert" className="rounded-lg bg-[#FDF2F0] p-2.5 text-xs font-medium leading-tight" style={{ color: DANGER }}>
+                      <p role="alert" className="rounded-lg border border-agotado bg-white p-2.5 text-xs font-medium leading-tight text-agotado">
                         Alguien cambió este precio. Precio vigente: {formatPriceShort(st.conflict)}. Revisa y guarda de nuevo.
                       </p>
                     )}
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label htmlFor={`precio-${v.id}`} className="mb-0.5 block text-[11px] text-[#5C6E6D]">Precio (MXN)</label>
+                        <label htmlFor={`precio-${v.id}`} className="mb-0.5 block text-[11px] text-tinta/70">Precio (MXN)</label>
                         <input
                           id={`precio-${v.id}`}
                           aria-label={`Precio de la talla ${v.size || v.title}`}
@@ -485,7 +479,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                         />
                       </div>
                       <div>
-                        <label htmlFor={`motivo-${v.id}`} className="mb-0.5 block text-[11px] text-[#5C6E6D]" aria-hidden="true">Motivo (opcional)</label>
+                        <label htmlFor={`motivo-${v.id}`} className="mb-0.5 block text-[11px] text-tinta/70" aria-hidden="true">Motivo (opcional)</label>
                         <input
                           id={`motivo-${v.id}`}
                           aria-label={`Motivo (opcional) de la talla ${v.size || v.title}`}
@@ -500,74 +494,65 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                       </div>
                     </div>
                     {st.error && (
-                      <p role="alert" className="text-xs font-semibold" style={{ color: DANGER }}>
+                      <p role="alert" className="text-xs font-semibold text-agotado">
                         <ActionErrorText message={st.error} session={st.session} />
                       </p>
                     )}
-                    {st.saved && <p role="status" className="text-xs font-semibold text-[#1F7A4A]">Precio guardado.</p>}
+                    {st.saved && <p role="status" className="text-xs font-semibold text-ok">Precio guardado.</p>}
                     {st.confirmDrop !== undefined && (
                       <div
                         role="alertdialog"
                         aria-labelledby={`bajar-${v.id}`}
-                        className="space-y-2 rounded-lg border p-2.5"
-                        style={{ borderColor: `${DANGER}66` }}
+                        className="space-y-2 rounded-lg border border-agotado/40 p-2.5"
                       >
-                        <p id={`bajar-${v.id}`} className="text-sm font-semibold" style={{ color: DANGER }}>
+                        <p id={`bajar-${v.id}`} className="text-sm font-semibold text-agotado">
                           ¿{st.confirmDrop < st.baseline ? "Bajar" : "Subir"} de {formatPriceShort(st.baseline)} a {formatPriceShort(st.confirmDrop)}?
                         </p>
                         <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
+                          <Button variant="outline"
                             onClick={() => patchPrice(v.id, { confirmDrop: undefined })}
-                            className="min-h-[44px] rounded-xl border border-[#7F9392] px-3 text-xs font-semibold text-[#16302F] active:bg-[#F3F7F7]"
                           >
                             No, revisar
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button variant="danger"
                             onClick={() => void savePrice(v, true)}
                             disabled={st.saving}
-                            className="min-h-[44px] rounded-xl px-3 text-xs font-semibold text-white disabled:opacity-60"
-                            style={{ backgroundColor: DANGER }}
                           >
                             {`Sí, ${st.confirmDrop < st.baseline ? "bajar" : "subir"}`}
-                          </button>
+                          </Button>
                         </div>
                       </div>
                     )}
-                    <button
-                      type="button"
+                    <Button
                       aria-label={`Guardar precio de la talla ${v.size || v.title}`}
                       onClick={() => void savePrice(v)}
-                      disabled={st.saving}
-                      className={solidBtn}
-                    >
+                      disabled={st.saving} className="w-full">
                       {st.saving ? "Guardando…" : "Guardar precio"}
-                    </button>
+                    </Button>
                   </div>
                 );
               })}
-              <p className="text-[11px] leading-snug text-[#5C6E6D]">El precio es el mismo en todas las tiendas.</p>
+              <p className="text-[11px] leading-snug text-tinta/70">El precio es el mismo en todas las tiendas.</p>
             </section>
           )}
 
           {canEditPrice && (
-            <section aria-label="Historial de precios" className="space-y-2.5 rounded-xl border border-[#E1E9E9] p-3.5">
-              <div className="flex items-center justify-between border-b border-[#E1E9E9] pb-1">
-                <h3 className="text-sm font-bold text-[#16302F]">Historial de precios</h3>
-                <span className="font-mono text-[11px] text-[#5C6E6D]">Últimos 5</span>
+            <section aria-label="Historial de precios" className="space-y-2.5 rounded-xl border border-borde-control/30 p-3.5">
+              <div className="flex items-center justify-between border-b border-borde-control/30 pb-1">
+                <h3 className="text-sm font-bold text-tinta">Historial de precios</h3>
+                <span className="font-mono text-[11px] text-tinta/70">Últimos 5</span>
               </div>
               {historyVariants.length === 0 ? (
-                <p className="text-xs text-[#5C6E6D]">Todavía no hay cambios de precio.</p>
+                <p className="text-xs text-tinta/70">Todavía no hay cambios de precio.</p>
               ) : (
                 historyVariants.map((v) => (
                   <div key={v.id}>
                     {product.variants.length > 1 && (
-                      <p className="mb-1 text-[11px] font-semibold text-[#5C6E6D]">Talla {v.size || v.title}</p>
+                      <p className="mb-1 text-[11px] font-semibold text-tinta/70">Talla {v.size || v.title}</p>
                     )}
-                    <ul className="divide-y divide-[#E1E9E9]/60">
+                    <ul className="divide-y divide-borde-control/60">
                       {history[v.id].map((c, i) => (
-                        <li key={`${c.createdAt}-${i}`} className="py-2 font-mono text-xs text-[#16302F]">
+                        <li key={`${c.createdAt}-${i}`} className="py-2 font-mono text-xs text-tinta">
                           {formatPriceChange(c)}
                         </li>
                       ))}
@@ -578,15 +563,15 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             </section>
           )}
 
-          <section aria-label="Stock por tienda de lectura" className="space-y-2.5 rounded-xl border border-[#E1E9E9] p-3.5">
-            <div className="flex items-center justify-between border-b border-[#E1E9E9] pb-1">
-              <h3 className="text-sm font-bold text-[#16302F]">Stock por tienda</h3>
-              <span className="rounded bg-[#F3F7F7] px-2 py-0.5 text-[11px] font-medium text-[#5C6E6D]">Solo lectura</span>
+          <section aria-label="Stock por tienda de lectura" className="space-y-2.5 rounded-xl border border-borde-control/30 p-3.5">
+            <div className="flex items-center justify-between border-b border-borde-control/30 pb-1">
+              <h3 className="text-sm font-bold text-tinta">Stock por tienda</h3>
+              <span className="rounded bg-niebla px-2 py-0.5 text-[11px] font-medium text-tinta/70">Solo lectura</span>
             </div>
             <div className="overflow-x-auto">
               <table aria-label="Stock por tienda" className="w-full border-collapse text-left">
                 <thead>
-                  <tr className="border-b border-[#E1E9E9] text-[11px] text-[#5C6E6D]">
+                  <tr className="border-b border-borde-control/30 text-[11px] text-tinta/70">
                     <th scope="col" className="py-2 font-normal">Tienda</th>
                     {product.variants.map((v) => (
                       <th key={v.id} scope="col" className="py-2 text-center font-mono font-semibold">
@@ -596,27 +581,27 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                     <th scope="col" className="py-2 text-right font-mono font-semibold">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E1E9E9]/40 text-xs">
+                <tbody className="divide-y divide-borde-control/40 text-xs">
                   {/* El servidor ya recorta el stock del colaborador a su tienda; aquí solo se omiten las tiendas sin filas. */}
                   {locations.filter((loc) => role !== "collaborator" || product.variants.some((v) => v.inventory.some((l) => l.locationId === loc.id))).map((loc) => {
                     const cells = product.variants.map((v) => v.inventory.find((l) => l.locationId === loc.id)?.available);
                     const total = cells.reduce<number>((sum, n) => sum + (n ?? 0), 0);
                     return (
                       <tr key={loc.id}>
-                        <td className="py-2.5 font-medium text-[#16302F]">{loc.name}</td>
+                        <td className="py-2.5 font-medium text-tinta">{loc.name}</td>
                         {cells.map((n, i) => (
                           <td key={product.variants[i].id} className="py-2.5 text-center font-mono">
                             {n === undefined ? "—" : n}
                           </td>
                         ))}
-                        <td className="py-2.5 text-right font-mono font-bold text-loloteal">{total}</td>
+                        <td className="py-2.5 text-right font-mono font-bold text-turquesa-texto">{total}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <p className="pt-1 text-[11px] leading-snug text-[#5C6E6D]">
+            <p className="pt-1 text-[11px] leading-snug text-tinta/70">
               Solo lectura. Para sumar piezas usa Escanear.
             </p>
           </section>
@@ -624,24 +609,18 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
           {canEditData && (
             <section className="pt-2">
               {productActive ? (
-                <button
-                  type="button"
+                <Button variant="danger"
                   onClick={() => setConfirm({ kind: "product" })}
                   disabled={busy}
-                  className="flex min-h-[44px] w-full items-center justify-center rounded-xl border-2 px-4 text-sm font-semibold transition active:bg-[#FDF2F0] disabled:opacity-60 motion-reduce:transition-none"
-                  style={{ borderColor: DANGER, color: DANGER }}
-                >
+                  className="w-full">
                   Desactivar producto
-                </button>
+                </Button>
               ) : (
-                <button
-                  type="button"
+                <Button
                   onClick={() => void reactivate({ kind: "product" })}
-                  disabled={busy}
-                  className={solidBtn}
-                >
+                  disabled={busy} className="w-full">
                   Reactivar producto
-                </button>
+                </Button>
               )}
             </section>
           )}
@@ -662,27 +641,22 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                     ? `¿Desactivar ${product.title}?`
                     : `¿Desactivar la talla ${confirmVariant?.size || confirmVariant?.title}?`}
                 </h3>
-                <p id="ficha-confirm-desc" className="mt-1.5 text-xs leading-relaxed text-[#5C6E6D]">
+                <p id="ficha-confirm-desc" className="mt-1.5 text-xs leading-relaxed text-tinta/70">
                   Deja de verse en el catálogo y no se puede vender. El historial se conserva y puedes reactivarlo.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
+                <Button variant="outline"
                   onClick={() => setConfirm(null)}
-                  className="min-h-[44px] rounded-xl border border-[#7F9392] px-3 text-xs font-semibold text-[#16302F] active:bg-[#F3F7F7]"
                 >
                   Cancelar
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button variant="danger"
                   onClick={() => void runConfirmed()}
                   disabled={busy}
-                  className="min-h-[44px] rounded-xl px-3 text-xs font-semibold text-white disabled:opacity-60"
-                  style={{ backgroundColor: DANGER }}
                 >
                   Sí, desactivar
-                </button>
+                </Button>
               </div>
             </div>
           </div>

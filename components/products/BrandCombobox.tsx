@@ -129,7 +129,7 @@ export function BrandCombobox({ id, brands, value, onChange, onCreate, disabled 
         }}
         onKeyDown={onKeyDown}
         placeholder="Busca o escribe la marca"
-        className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal"
+        className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto"
       />
       <ul
         id={listId}
@@ -149,8 +149,8 @@ export function BrandCombobox({ id, brands, value, onChange, onCreate, disabled 
               void choose(i);
             }}
             className={`flex min-h-[44px] cursor-pointer items-center px-3 text-sm ${
-              i === active ? "bg-loloteal/10 text-gray-900" : "text-gray-800"
-            } ${o.key === CREATE ? "font-semibold text-loloteal" : ""}`}
+              i === active ? "bg-niebla text-gray-900" : "text-gray-800"
+            } ${o.key === CREATE ? "font-semibold text-turquesa-texto" : ""}`}
           >
             {o.label}
           </li>

@@ -120,23 +120,17 @@ function RowCodeEntry({ onCode, onNoBarcode }: { onCode(code: string): void; onN
           }
         }}
         placeholder="Escribe el código"
-        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
       />
-      <button
-        type="button"
+      <Button
         onClick={use}
-        disabled={!trimmed}
-        className="min-h-[44px] w-full rounded-lg bg-loloteal px-4 text-sm font-medium text-white active:bg-loloteal-dark disabled:opacity-50"
-      >
+        disabled={!trimmed} className="w-full">
         Usar este código
-      </button>
-      <button
-        type="button"
-        onClick={onNoBarcode}
-        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium"
-      >
+      </Button>
+      <Button variant="outline"
+        onClick={onNoBarcode} className="w-full">
         Prenda sin código
-      </button>
+      </Button>
     </div>
   );
 }
@@ -526,7 +520,7 @@ export function NewProductForm({
   };
 
   const fieldClass =
-    "mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal";
+    "mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -551,8 +545,8 @@ export function NewProductForm({
           {MODE_OPTIONS.map((o) => (
             <label
               key={o.value}
-              className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-3 text-sm font-medium transition motion-reduce:transition-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-loloteal has-[:focus-visible]:ring-offset-1 ${
-                mode === o.value ? "bg-loloteal text-white shadow-sm" : "text-gray-600 hover:text-gray-900"
+              className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-3 text-sm font-medium transition motion-reduce:transition-none has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-turquesa-texto has-[:focus-visible]:ring-offset-1 ${
+                mode === o.value ? "bg-turquesa text-tinta shadow-sm" : "text-gray-600 hover:text-gray-900"
               }`}
             >
               <input
@@ -610,7 +604,7 @@ export function NewProductForm({
             value={formData.description}
             onChange={handleChange}
             placeholder="Ej. Algodón, corte regular, color azul marino"
-            className="mt-1 block w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal"
+            className="mt-1 block w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto"
           />
         </div>
 
@@ -635,7 +629,7 @@ export function NewProductForm({
           </div>
 
           {typeCleared && (
-            <p role="status" className="mt-1 text-sm font-medium text-[#9A3B2E]">{typeCleared}</p>
+            <p role="status" className="mt-1 text-sm font-medium text-agotado">{typeCleared}</p>
           )}
           <ClassificationFields
             idPrefix="alta"
@@ -705,38 +699,32 @@ export function NewProductForm({
         )}
 
         {scanning ? (
-          <div className="space-y-3 rounded-xl border border-loloteal/40 bg-gray-50 p-3">
+          <div className="space-y-3 rounded-xl border border-turquesa-texto bg-gray-50 p-3">
             <p className="text-sm font-medium text-gray-800">Escanea la etiqueta de la nueva talla</p>
             <Scanner onScan={addRowWithCode} validate={isValidGtin} autoStart />
             <RowCodeEntry onCode={addRowWithCode} onNoBarcode={() => addRowWithCode(null)} />
             {scanError && (
-              <p role="alert" className="text-sm font-medium text-[#9A3B2E]">{scanError}</p>
+              <p role="alert" className="text-sm font-medium text-agotado">{scanError}</p>
             )}
-            <button
-              type="button"
+            <Button variant="outline"
               onClick={() => {
                 setScanning(false);
                 setScanError("");
-              }}
-              className="min-h-[44px] w-full rounded-md text-sm font-medium text-gray-600 hover:text-gray-900"
-            >
+              }} className="w-full">
               Cancelar escaneo
-            </button>
+            </Button>
           </div>
         ) : (
           <div>
-            <button
-              type="button"
+            <Button variant="outline"
               onClick={() => {
                 setScanError("");
                 setScanning(true);
               }}
-              disabled={!canAddRow}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md border border-loloteal bg-white px-4 font-semibold text-loloteal transition active:bg-gray-100 motion-reduce:transition-none disabled:border-[#7F9392] disabled:text-[#5C6E6D]"
-            >
+              disabled={!canAddRow} className="w-full">
               <Plus aria-hidden="true" className="h-5 w-5" />
               Agregar otra talla
-            </button>
+            </Button>
             <p className="mt-1 text-center text-sm text-gray-600">
               {canAddRow
                 ? "Abre el escáner y copia el precio de la talla anterior."
@@ -756,7 +744,7 @@ export function NewProductForm({
       )}
 
       {error && (
-        <div role="alert" className="space-y-2 rounded-md bg-red-50 p-3 text-sm font-medium text-[#9A3B2E]">
+        <div role="alert" className="space-y-2 rounded-md bg-red-50 p-3 text-sm font-medium text-agotado">
           <p>{error}</p>
           {duplicateId && !likelySaved && (
             <SumToMyStore
@@ -774,13 +762,10 @@ export function NewProductForm({
             />
           )}
           {duplicateId && onDuplicate && (
-            <button
-              type="button"
-              onClick={() => onDuplicate(duplicateId)}
-              className="min-h-[44px] w-full rounded-md border border-[#9A3B2E] bg-white px-4 text-[#9A3B2E]"
-            >
+            <Button variant="danger"
+              onClick={() => onDuplicate(duplicateId)} className="w-full">
               Ver producto y registrar entrada
-            </button>
+            </Button>
           )}
         </div>
       )}

@@ -100,9 +100,9 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
             <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={busy} aria-label={`Retomar foto${forSide}`}>
               Retomar
             </Button>
-            <button type="button" onClick={clear} className="min-h-[44px] px-2 text-sm text-gray-600" aria-label={`Quitar foto${forSide}`}>
+            <Button variant="danger" onClick={clear} aria-label={`Quitar foto${forSide}`}>
               Quitar
-            </button>
+            </Button>
           </div>
         </div>
       ) : (

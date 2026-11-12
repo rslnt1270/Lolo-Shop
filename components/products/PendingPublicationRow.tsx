@@ -29,7 +29,7 @@ export function PendingPublicationRow({ product, locations, onChanged, onOpenShe
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`Abrir foto de ${side} de ${product.title}`}
-              className="block h-24 w-24 shrink-0 overflow-hidden rounded-lg border focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+              className="block h-24 w-24 shrink-0 overflow-hidden rounded-lg border focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={url} alt="" className="h-full w-full object-cover" />
@@ -55,7 +55,7 @@ export function PendingPublicationRow({ product, locations, onChanged, onOpenShe
           type="button"
           onClick={onOpenSheet}
           aria-label={`Abrir la ficha de ${product.title}`}
-          className="min-h-[44px] rounded-lg px-2 text-sm font-semibold text-loloteal underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+          className="min-h-[44px] rounded-lg px-2 text-sm font-semibold text-turquesa-texto underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
         >
           Ver ficha
         </button>

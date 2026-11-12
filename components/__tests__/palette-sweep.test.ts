@@ -68,4 +68,29 @@ describe("barrido de paleta (plan B, zonas)", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("products files have no bg-loloteal primary fills", () => {
+    expect(
+      offenders(
+        [
+          "app/productos",
+          "components/products/NewProductForm.tsx",
+          "components/products/ProductAdminSheet.tsx",
+          "components/products/AddSizeForm.tsx",
+          "components/products/ExistingProductSearch.tsx",
+          "components/products/BrandCombobox.tsx",
+          "components/products/SizeRows.tsx",
+          "components/products/ProductPhotoButton.tsx",
+          "components/products/ProductPhotoCapture.tsx",
+          "components/products/PublishControl.tsx",
+          "components/products/PendingPublicationRow.tsx",
+          "components/products/ProductCard.tsx",
+          "components/products/ClassificationFields.tsx",
+          "components/products/AltaTour.tsx",
+          "components/products/SavedCheck.tsx",
+        ],
+        [/loloteal|#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b(?![\w-])/],
+      ),
+    ).toEqual([]);
+  });
 });

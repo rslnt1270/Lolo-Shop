@@ -116,13 +116,11 @@ export function ProductPhotoButton({
   };
 
   const cancel = (
-    <button
-      type="button"
+    <Button variant="outline"
       onClick={close}
-      className="min-h-[44px] px-2 text-sm text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
     >
       Cancelar
-    </button>
+    </Button>
   );
 
   const label = `${hasImage ? "Reemplazar" : "Agregar"} foto de ${sideWord}`;
@@ -149,14 +147,12 @@ export function ProductPhotoButton({
           {cancel}
         </div>
       ) : (
-        <button
-          type="button"
+        <Button variant="outline"
           onClick={() => setOpen(true)}
           aria-label={productTitle ? `${captureBoth ? catalogLabel : label} de ${productTitle}` : undefined}
-          className="min-h-[44px] px-2 text-sm font-semibold text-turquesa-texto hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
         >
           {captureBoth ? catalogLabel : label}
-        </button>
+        </Button>
       )}
       {/* Región en vivo siempre montada: el aviso se anuncia y sigue visible tras cerrar la captura. */}
       <p role="status" className="text-sm text-gray-600">

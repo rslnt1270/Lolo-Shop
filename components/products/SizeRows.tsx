@@ -1,6 +1,7 @@
 "use client";
 import { AlertCircle, Barcode, Minus, Plus, Trash2 } from "lucide-react";
 import { MAX_SIZE_LENGTH } from "@/lib/domain/new-product";
+import { Button } from "@/components/ui/Button";
 
 /** Una fila de talla mientras se edita (los números quedan como texto hasta guardar). */
 export interface SizeRowDraft {
@@ -20,7 +21,7 @@ interface SizeRowsProps {
 }
 
 const inputClass =
-  "block min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal";
+  "block min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto";
 
 /** Piezas: entero ≥ 0 en texto; los botones ± no bajan de 0. */
 function stepStock(value: string, delta: number): string {
@@ -47,7 +48,7 @@ export function SizeRows({ rows, onChange, rowErrors = {} }: SizeRowsProps) {
         return (
           <li
             key={row.key}
-            className={`rounded-xl border p-3 ${error ? "border-[#9A3B2E] bg-red-50" : "border-gray-200 bg-white"}`}
+            className={`rounded-xl border p-3 ${error ? "border-agotado bg-red-50" : "border-gray-200 bg-white"}`}
           >
             <div className="grid grid-cols-[5rem_1fr_44px] items-end gap-2">
               <div>
@@ -80,15 +81,12 @@ export function SizeRows({ rows, onChange, rowErrors = {} }: SizeRowsProps) {
                   />
                 </div>
               </div>
-              <button
-                type="button"
+              <Button variant="danger"
                 aria-label={`Quitar esta fila (talla ${i + 1})`}
                 onClick={() => remove(row.key)}
-                disabled={rows.length === 1}
-                className="flex h-11 w-11 items-center justify-center rounded-md text-[#9A3B2E] hover:bg-red-50 disabled:text-[#7F9392] disabled:hover:bg-transparent"
-              >
+                disabled={rows.length === 1} className="h-11 w-11 !px-0">
                 <Trash2 aria-hidden="true" className="h-5 w-5" />
-              </button>
+              </Button>
             </div>
 
             <div className="mt-2 flex flex-wrap items-end justify-between gap-2">
@@ -111,7 +109,7 @@ export function SizeRows({ rows, onChange, rowErrors = {} }: SizeRowsProps) {
                     step="1"
                     value={row.initialStock}
                     onChange={(e) => update(row.key, { initialStock: e.target.value })}
-                    className="h-11 w-12 border-x border-gray-300 text-center font-mono text-base text-gray-900 focus:outline-none focus:ring-2 focus:ring-loloteal"
+                    className="h-11 w-12 border-x border-gray-300 text-center font-mono text-base text-gray-900 focus:outline-none focus:ring-2 focus:ring-turquesa-texto"
                   />
                   <button
                     type="button"
@@ -125,7 +123,7 @@ export function SizeRows({ rows, onChange, rowErrors = {} }: SizeRowsProps) {
               </div>
               <span
                 className={`inline-flex min-h-[32px] items-center gap-1 rounded-full border px-3 text-sm ${
-                  error ? "border-[#9A3B2E] text-[#9A3B2E]" : "border-gray-200 bg-gray-50 text-gray-700"
+                  error ? "border-agotado text-agotado" : "border-gray-200 bg-gray-50 text-gray-700"
                 }`}
               >
                 <Barcode aria-hidden="true" className="h-4 w-4" />
@@ -138,7 +136,7 @@ export function SizeRows({ rows, onChange, rowErrors = {} }: SizeRowsProps) {
             </div>
 
             {error && (
-              <p className="mt-2 flex items-start gap-1.5 text-sm font-medium text-[#9A3B2E]">
+              <p className="mt-2 flex items-start gap-1.5 text-sm font-medium text-agotado">
                 <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{error}</span>
               </p>

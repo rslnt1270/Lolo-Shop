@@ -88,12 +88,15 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
         </AnimatePresence>
         <div className="flex justify-center gap-2" aria-hidden="true">
           {TOUR_STEPS.map((_, i) => (
-            <motion.span
-              key={i}
-              className="h-2 w-2 rounded-full border border-loloteal"
-              animate={{ backgroundColor: i <= step ? "#3CBFBF" : "#FFFFFF" }}
-              transition={{ duration: dur }}
-            />
+            <span key={i} className="relative h-2 w-2 overflow-hidden rounded-full border border-turquesa-texto bg-white">
+              {/* Relleno turquesa que aparece con opacidad: el color viene del token, sin hex en el código. */}
+              <motion.span
+                className="absolute inset-0 bg-turquesa"
+                initial={false}
+                animate={{ opacity: i <= step ? 1 : 0 }}
+                transition={{ duration: dur }}
+              />
+            </span>
           ))}
         </div>
         <div className="flex gap-3">
