@@ -12,6 +12,7 @@ vi.mock("../prisma", () => ({
   default: {
     brand: { findUnique: (...a: unknown[]) => brandFindUnique(...a) },
     department: { findUnique: (...a: unknown[]) => departmentFindUnique(...a) },
+    productType: { findUnique: vi.fn().mockResolvedValue({ slug: "gorra", name: "Gorras", isActive: true, departments: [{ departmentId: "d1" }] }) },
   },
 }));
 vi.mock("../auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
@@ -29,7 +30,7 @@ import { UnauthenticatedError } from "../auth/errors";
 import { isValidInternalSku } from "../domain/barcode";
 
 const input: CreateProductInput = {
-  title: "Gorra", brandId: "brand-1", departmentId: "dep-1", category: "Accesorios", locationId: "loc-1",
+  title: "Gorra", description: "Algodón suave", brandId: "brand-1", departmentId: "dep-1", productTypeId: "type-gorra", locationId: "loc-1",
   sizes: [{ size: "", barcode: "4006381333931", price: 10, initialStock: 2 }],
 };
 /** El alta con la única talla modificada (antes `barcode`, `price`, `size` e `initialStock` iban sueltos). */
@@ -48,7 +49,7 @@ describe("createProductAction", () => {
     createProduct.mockReset().mockImplementation(async (d: { variants: { sku: string }[] }) => ({ product, variants: [variant(d.variants[0].sku)] }));
     revalidatePath.mockReset();
     brandFindUnique.mockReset().mockResolvedValue({ name: "Lolo", isActive: true });
-    departmentFindUnique.mockReset().mockResolvedValue({ isActive: true });
+    departmentFindUnique.mockReset().mockResolvedValue({ isActive: true, slug: "accesorios" });
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
@@ -90,9 +91,49 @@ describe("createProductAction", () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
     const back = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
-    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, backImageUrl: back, description: "  Algodón  " });
-    expect(r.ok).toBe(true);
-    expect(createProduct.mock.calls[0][0]).toMatchObject({ imageUrl: front, backImageUrl: back, description: "Algodón" });
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, backImageUrl: back, photosAnalyzed: true, description: "  Algodón  " });
+    expect(r).toMatchObject({ ok: true, catalogStatus: "Listo para catálogo" });
+    expect(createProduct.mock.calls[0][0]).toMatchObject({
+      imageUrl: front, backImageUrl: back, description: "Algodón", photosChecked: true,
+    });
+  });
+
+  it("fotos sin photosAnalyzed → INVALID y no se crea nada", async () => {
+    getCurrentUser.mockResolvedValue(session("owner", null));
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front });
+    expect(r).toEqual({ ok: false, code: "INVALID", message: "La foto no pasó la revisión de fondo blanco. Tómala de nuevo." });
+    expect(createProduct).not.toHaveBeenCalled();
+  });
+
+  it("una sola foto no pone catalogPhotosCheckedAt y deja el estado incompleto", async () => {
+    getCurrentUser.mockResolvedValue(session("owner", null));
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, photosAnalyzed: true });
+    expect(r).toMatchObject({ ok: true, catalogStatus: "Falta completar registro fotográfico" });
+    expect(createProduct.mock.calls[0][0]).toMatchObject({ imageUrl: front, backImageUrl: null, photosChecked: false });
+  });
+
+  it("sin marca y sin título: un mensaje claro para cada uno; sin descripción también", async () => {
+    getCurrentUser.mockResolvedValue(session("owner", null));
+    expect(await createProductAction({ ...input, brandId: "" })).toEqual({ ok: false, code: "INVALID", message: "Elige la marca." });
+    expect(await createProductAction({ ...input, title: " " })).toEqual({ ok: false, code: "INVALID", message: "Escribe el título." });
+    expect(await createProductAction({ ...input, description: "" })).toEqual({ ok: false, code: "INVALID", message: "Escribe la descripción." });
+    expect(createProduct).not.toHaveBeenCalled();
+  });
+
+  it("el color se limpia en el servidor y se descarta en Accesorios", async () => {
+    getCurrentUser.mockResolvedValue(session("owner", null));
+    departmentFindUnique.mockResolvedValue({ isActive: true, slug: "dama" });
+    await createProductAction({ ...input, color: "  ROSAS 🔥 " });
+    expect(createProduct.mock.calls[0][0]).toMatchObject({ color: "Rosas" });
+    departmentFindUnique.mockResolvedValue({ isActive: true, slug: "accesorios" });
+    await createProductAction({ ...input, color: "Azul" });
+    expect(createProduct.mock.calls[1][0]).toMatchObject({ color: null });
+    departmentFindUnique.mockResolvedValue({ isActive: true, slug: "dama" });
+    expect(await createProductAction({ ...input, color: "a".repeat(201) })).toEqual({
+      ok: false, code: "INVALID", message: "El color es demasiado largo.",
+    });
   });
 
   it("tienda inexistente → LOCATION", async () => {
@@ -104,7 +145,7 @@ describe("createProductAction", () => {
 
   it("valida en el servidor → INVALID con mensaje", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
-    expect(await createProductAction({ ...input, category: "" })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/categoría/i) });
+    expect(await createProductAction({ ...input, productTypeId: "" })).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/tipo/i) });
     expect(await createProductAction(row({ initialStock: -1 }))).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/stock/i) });
     expect(await createProductAction(row({ price: 0 }))).toMatchObject({ ok: false, code: "INVALID", message: expect.stringMatching(/precio/i) });
     expect(createProduct).not.toHaveBeenCalled();

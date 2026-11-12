@@ -39,12 +39,16 @@ beforeEach(async () => {
 });
 
 describe("recordStockMovementAction", () => {
-  it("colaborador con damage o adjustment -> FORBIDDEN", async () => {
-    getCurrentUser.mockResolvedValue(user("collaborator", locA));
-    const d = await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 1, reason: "Manchada", requestId: rid() });
-    const a = await recordStockMovementAction({ variantId, locationId: locA, kind: "adjustment", direction: "in", quantity: 1, reason: "Conteo", requestId: rid() });
-    expect(d).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(a).toMatchObject({ ok: false, code: "FORBIDDEN" });
+  it.each([
+    ["damage", { reason: "Manchada" }],
+    ["adjustment", { direction: "in", reason: "Conteo" }],
+  ])("cliente viejo con kind %s -> INVALID y no escribe", async (kind, extra) => {
+    const spy = vi.spyOn(source, "recordStockMovement");
+    const before = source.movements.length;
+    const r = await recordStockMovementAction({ variantId, locationId: locA, kind, quantity: 1, requestId: rid(), ...extra } as never);
+    expect(r).toMatchObject({ ok: false, code: "INVALID" });
+    expect(spy).not.toHaveBeenCalled();
+    expect(source.movements.length).toBe(before);
   });
 
   it("restock del colaborador de L en otra tienda -> FORBIDDEN", async () => {
@@ -55,7 +59,7 @@ describe("recordStockMovementAction", () => {
 
   it("manager con tienda operando en otra -> FORBIDDEN", async () => {
     getCurrentUser.mockResolvedValue(user("manager", locA));
-    const r = await recordStockMovementAction({ variantId, locationId: locB, kind: "damage", quantity: 1, reason: "Manchada", requestId: rid() });
+    const r = await recordStockMovementAction({ variantId, locationId: locB, kind: "restock", quantity: 1, requestId: rid() });
     expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
   });
 
@@ -71,7 +75,7 @@ describe("recordStockMovementAction", () => {
   });
 
   it("motivo con un teléfono -> INVALID", async () => {
-    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 1, reason: `llamó ${"0".repeat(10)}`, requestId: rid() });
+    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "restock", quantity: 1, reason: `llamó ${"0".repeat(10)}`, requestId: rid() });
     expect(r).toMatchObject({ ok: false, code: "INVALID" });
   });
 
@@ -92,21 +96,14 @@ describe("recordStockMovementAction", () => {
 
   it("InsufficientStockError -> INSUFFICIENT con available y mensaje", async () => {
     vi.spyOn(source, "recordStockMovement").mockRejectedValue(new InsufficientStockError(variantId, 1, 2));
-    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 2, reason: "Manchada", requestId: rid() });
+    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "restock", quantity: 2, requestId: rid() });
     expect(r).toEqual({ ok: false, code: "INSUFFICIENT", available: 1, message: "Solo hay 1 en esta tienda." });
   });
 
-  it("merma sobre stock insuficiente en el Fixture -> INSUFFICIENT y sin cambio", async () => {
-    const before = (await levelOf(variantId, locA)) ?? 0;
-    const r = await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 200, reason: "Manchada", requestId: rid() });
-    expect(r).toMatchObject({ ok: false, code: "INSUFFICIENT", available: before });
-    expect(await levelOf(variantId, locA)).toBe(before);
-  });
-
   it("revalida /catalogo y /productos al éxito y registra el Movement con userId y tipo", async () => {
-    await recordStockMovementAction({ variantId, locationId: locA, kind: "damage", quantity: 1, reason: "Manchada", requestId: rid() });
+    await recordStockMovementAction({ variantId, locationId: locA, kind: "restock", quantity: 1, reason: "Conteo", requestId: rid() });
     expect(revalidatePath).toHaveBeenCalledWith("/catalogo");
     expect(revalidatePath).toHaveBeenCalledWith("/productos");
-    expect(source.movements.at(-1)).toMatchObject({ type: "DAMAGE", delta: -1, notes: "Manchada", userId: "u1", variantId, locationId: locA });
+    expect(source.movements.at(-1)).toMatchObject({ type: "RESTOCK", delta: 1, notes: "Conteo", userId: "u1", variantId, locationId: locA });
   });
 });

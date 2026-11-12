@@ -8,13 +8,14 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   default: {
     brand: { findUnique: vi.fn().mockResolvedValue({ name: "Lolo", isActive: true }) },
-    department: { findUnique: vi.fn().mockResolvedValue({ isActive: true }) },
+    department: { findUnique: vi.fn().mockResolvedValue({ isActive: true, slug: "accesorios" }) },
+    productType: { findUnique: vi.fn().mockResolvedValue({ slug: "gorra", name: "Gorras", isActive: true, departments: [{ departmentId: "d1" }] }) },
   },
 }));
 vi.mock("@/lib/auth/password", () => ({ changePassword: vi.fn() }));
 vi.mock("@/lib/data/get-source", () => ({ getDataSource: () => source }));
 
-import { addVariantAction, createProductAction, recordStockMovementAction, transferStockAction } from "../actions";
+import { addVariantAction, createProductAction, recordStockMovementAction } from "../actions";
 import { mergeProductsAction, updateVariantPriceAction } from "../products/actions";
 import { FixtureDataSource } from "../data/fixture-source";
 import { DB_TIMEOUT_TEXT, isTransactionTimeout } from "../data/errors";
@@ -55,17 +56,10 @@ describe("P2028 en las acciones: 'La base tardó en responder; reintenta'", () =
     ).toEqual(timeout);
   });
 
-  it("traspaso", async () => {
-    vi.spyOn(source, "transferStock").mockRejectedValue(p2028());
-    expect(
-      await transferStockAction({ variantId, fromLocationId: lomas, toLocationId: club, quantity: 1, requestId: crypto.randomUUID() }),
-    ).toEqual(timeout);
-  });
-
   it("alta", async () => {
     vi.spyOn(source, "createProduct").mockRejectedValue(p2028());
     const res = await createProductAction({
-      title: "Gorra", brandId: "b1", departmentId: "d1", category: "Accesorios", locationId: lomas, mode: "stock",
+      title: "Gorra", description: "Algodón suave", brandId: "b1", departmentId: "d1", productTypeId: "type-gorra", locationId: lomas, mode: "stock",
       sizes: [{ size: "U", barcode: null, price: 100, initialStock: 1 }],
     });
     expect(res).toEqual(timeout);

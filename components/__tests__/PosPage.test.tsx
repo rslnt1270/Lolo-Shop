@@ -50,6 +50,7 @@ const found = (id: string, price: number, title = "Playera") => ({
 
 const sentIds = () => actions.createSaleAction.mock.calls.map((c) => c[0].clientRequestId as string);
 const cobrar = () => fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+const reintentarCobro = () => fireEvent.click(screen.getByRole("button", { name: "Reintentar cobro" }));
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 async function readyWithOneLine() {
@@ -62,7 +63,7 @@ async function readyWithOneLine() {
 async function scan(code: string) {
   fireEvent.change(screen.getByLabelText(/código del producto/i), { target: { value: code } });
   fireEvent.click(screen.getByRole("button", { name: /usar este código/i }));
-  await waitFor(() => expect(actions.lookupCodeAction).toHaveBeenCalledWith(code));
+  await waitFor(() => expect(actions.lookupCodeAction).toHaveBeenCalledWith(code, expect.any(String)));
 }
 
 beforeEach(() => {
@@ -147,7 +148,7 @@ describe("POSPage", () => {
     fireEvent.click(cobrar);
     expect(cobrar).toBeDisabled();
     await screen.findByText(/no se pudo registrar/i);
-    fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+    reintentarCobro();
     await screen.findByText("Venta #7 registrada");
     const [first, second] = actions.createSaleAction.mock.calls.map((c) => c[0]);
     expect(second.clientRequestId).toBe(first.clientRequestId);
@@ -230,9 +231,9 @@ describe("POSPage", () => {
     await screen.findByText("Playera");
     cobrar();
     await screen.findByText(/no se pudo registrar/i);
-    cobrar(); // reintento con el mismo id: el servidor solo responde PRICE_CHANGED si ese id no existe
-    expect(await screen.findByRole("alert")).toHaveTextContent("El precio de Playera cambió a $120.");
-    cobrar();
+    reintentarCobro(); // reintento con el mismo id: el servidor solo responde PRICE_CHANGED si ese id no existe
+    await screen.findByText(/El precio de Playera cambió a \$120\./);
+    reintentarCobro();
     await screen.findByText("Venta #12 registrada");
     const [first, second, third] = sentIds();
     expect(second).toBe(first);
@@ -240,24 +241,25 @@ describe("POSPage", () => {
     expect(actions.createSaleAction).toHaveBeenCalledTimes(3);
   });
 
-  it("conflicto de identificador: conserva el carrito y el siguiente Cobrar usa un id nuevo", async () => {
-    actions.createSaleAction
-      .mockResolvedValueOnce({
-        ok: false,
-        code: "INVALID",
-        reason: "request_conflict",
-        message: "La venta #9 ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.",
-      })
-      .mockResolvedValueOnce({ ok: true, sale: { number: 10 } });
+  it("conflicto de identificador: el carrito queda bloqueado y solo se sale empezando otra venta", async () => {
+    actions.createSaleAction.mockResolvedValueOnce({
+      ok: false,
+      code: "INVALID",
+      reason: "request_conflict",
+      message: "La venta #9 ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.",
+    });
     await readyWithOneLine();
     cobrar();
-    expect(await screen.findByRole("alert")).toHaveTextContent("La venta #9 ya se registró con otros datos.");
+    await screen.findByText(/La venta #9 ya se registró con otros datos\./);
     expect(screen.getByText("Playera")).toBeInTheDocument();
-    cobrar();
-    await screen.findByText("Venta #10 registrada");
-    const [first, second] = sentIds();
-    expect(second).not.toBe(first);
-    expect(second).toMatch(UUID_V4);
+    expect(screen.queryByRole("button", { name: /^cobrar/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reintentar cobro" })).toBeNull();
+    expect(screen.getByRole("button", { name: /sumar una pieza de playera/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /quitar playera/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /ya revisé en ventas/i }));
+    fireEvent.click(screen.getByRole("button", { name: /sí, empezar otra venta/i }));
+    expect(screen.queryByText("Playera")).toBeNull();
+    expect(screen.getByRole("button", { name: /^cobrar/i })).toBeDisabled();
   });
 
   it("tras un rechazo del servidor, editar el carrito cambia el id; sin cambios lo conserva", async () => {
@@ -291,16 +293,43 @@ describe("POSPage", () => {
     expect(b).not.toBe(a);
   });
 
-  it("tras un error de red, editar el carrito conserva el id (el servidor decide si ya existía)", async () => {
+  it("tras un error de red, el carrito y la tienda quedan bloqueados y se reintenta lo mismo", async () => {
     actions.createSaleAction.mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce({ ok: true, sale: { number: 3 } });
     await readyWithOneLine();
     cobrar();
-    await screen.findByText(/no se pudo registrar/i);
-    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
-    cobrar();
+    await screen.findByText("No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas.");
+    expect(screen.getByRole("button", { name: /sumar una pieza de playera/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /restar una pieza de playera/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /quitar playera/i })).toBeDisabled();
+    expect(screen.getByLabelText(/precio unitario de playera/i)).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: /tienda/i })).toBeDisabled();
+    reintentarCobro();
     await screen.findByText("Venta #3 registrada");
     const [a, b] = sentIds();
     expect(b).toBe(a);
+    expect(actions.createSaleAction.mock.calls[1][0]).toEqual(actions.createSaleAction.mock.calls[0][0]);
+  });
+
+  it("incierto: 'Ya revisé en Ventas' pide confirmación, reinicia la venta y renueva el id", async () => {
+    actions.createSaleAction.mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce({ ok: true, sale: { number: 8 } });
+    await readyWithOneLine();
+    cobrar();
+    await screen.findByText(/no sabemos si la venta se registró/i);
+    fireEvent.click(screen.getByRole("button", { name: /ya revisé en ventas: empezar otra venta/i }));
+    expect(screen.getByText("Si la venta sí se registró, no la vuelvas a cobrar.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /cancelar/i }));
+    expect(screen.getByText("Playera")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /ya revisé en ventas: empezar otra venta/i }));
+    fireEvent.click(screen.getByRole("button", { name: /sí, empezar otra venta/i }));
+    expect(screen.queryByText("Playera")).toBeNull();
+    expect(screen.queryByText(/no sabemos si la venta se registró/i)).toBeNull();
+    await scan("111");
+    await screen.findByText("Playera");
+    cobrar();
+    await screen.findByText("Venta #8 registrada");
+    const [a, b] = sentIds();
+    expect(b).not.toBe(a);
+    expect(b).toMatch(UUID_V4);
   });
 
   it("UNAVAILABLE (servidor lento): muestra el mensaje y reintenta con el mismo id", async () => {
@@ -310,27 +339,23 @@ describe("POSPage", () => {
     await readyWithOneLine();
     cobrar();
     await screen.findByText("El servidor tardó en responder. Intenta cobrar de nuevo.");
-    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
-    cobrar();
+    reintentarCobro();
     await screen.findByText("Venta #4 registrada");
     const [a, b] = sentIds();
     expect(b).toBe(a);
   });
 
-  it("error de red, luego INVALID antes del lookup, luego editar y reenviar: conserva el mismo id", async () => {
+  it("error de red, luego INVALID antes del lookup, luego reintentar: conserva el mismo id", async () => {
     actions.createSaleAction
       .mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValueOnce({ ok: false, code: "INVALID", message: "El precio no es válido." })
+      .mockResolvedValueOnce({ ok: false, code: "INVALID", message: "Mal." })
       .mockResolvedValueOnce({ ok: true, sale: { number: 5 } });
     await readyWithOneLine();
     cobrar();
     await screen.findByText(/no se pudo registrar/i);
-    const price = screen.getByLabelText(/precio/i);
-    fireEvent.change(price, { target: { value: "99999999" } });
-    cobrar();
-    await screen.findByText("El precio no es válido.");
-    fireEvent.change(price, { target: { value: "199.95" } });
-    cobrar();
+    reintentarCobro();
+    await screen.findByText("Mal.");
+    reintentarCobro();
     await screen.findByText("Venta #5 registrada");
     const [a, b, c] = sentIds();
     expect(b).toBe(a);
@@ -345,11 +370,9 @@ describe("POSPage", () => {
     await readyWithOneLine();
     cobrar();
     await screen.findByText("Lento. Intenta cobrar de nuevo.");
-    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
-    cobrar();
+    reintentarCobro();
     await screen.findByText("Mal.");
-    fireEvent.click(screen.getByRole("button", { name: /sumar una pieza de playera/i }));
-    cobrar();
+    reintentarCobro();
     await screen.findByText("Venta #6 registrada");
     const [a, b, c] = sentIds();
     expect([b, c]).toEqual([a, a]);

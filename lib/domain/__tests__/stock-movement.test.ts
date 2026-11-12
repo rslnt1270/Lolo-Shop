@@ -21,32 +21,13 @@ describe("validateStockMovement", () => {
     expect(validateStockMovement({ ...base, kind: "restock", quantity: 200 }).ok).toBe(true);
   });
 
-  it("damage sin motivo es inválido", () => {
-    expect(validateStockMovement({ ...base, kind: "damage", quantity: 1 }).ok).toBe(false);
-  });
-
   it("motivo con 7 dígitos es inválido", () => {
-    const r = validateStockMovement({ ...base, kind: "damage", quantity: 1, reason: "ref 1234567" });
+    const r = validateStockMovement({ ...base, kind: "restock", quantity: 1, reason: "ref 1234567" });
     expect(r.ok).toBe(false);
   });
 
-  it("damage 2 resta 2", () => {
-    const r = validateStockMovement({ ...base, kind: "damage", quantity: 2, reason: "Manchada" });
-    expect(r).toEqual({
-      ok: true,
-      value: { ...base, kind: "damage", delta: -2, reason: "Manchada" },
-    });
-  });
-
-  it("adjustment in 3 suma 3 y out 3 resta 3", () => {
-    const i = validateStockMovement({ ...base, kind: "adjustment", direction: "in", quantity: 3, reason: "Conteo" });
-    const o = validateStockMovement({ ...base, kind: "adjustment", direction: "out", quantity: 3, reason: "Conteo" });
-    expect(i.ok && i.value.delta).toBe(3);
-    expect(o.ok && o.value.delta).toBe(-3);
-  });
-
-  it("adjustment sin dirección es inválido", () => {
-    expect(validateStockMovement({ ...base, kind: "adjustment", quantity: 3, reason: "Conteo" }).ok).toBe(false);
+  it.each(["damage", "adjustment"])("%s ya no existe: INVALID", (kind) => {
+    expect(validateStockMovement({ ...base, kind, direction: "in", quantity: 1, reason: "Manchada" }).ok).toBe(false);
   });
 
   it("restock sin motivo es válido con reason null", () => {

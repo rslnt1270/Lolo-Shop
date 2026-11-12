@@ -7,16 +7,16 @@ import type { Location, Product } from "@/lib/domain/types";
 import { filterProducts } from "@/lib/data/filter";
 import { SearchFilter } from "@/components/products/SearchFilter";
 import { ProductCard } from "@/components/products/ProductCard";
-import { ProductPhotoButton } from "@/components/products/ProductPhotoButton";
 import { ProductAdminSheet } from "@/components/products/ProductAdminSheet";
 import { fetchLocationsAction, fetchProductsAction } from "@/lib/actions";
-import { listDepartmentsAction, type DepartmentOption } from "@/lib/catalog/actions";
-import { assignDepartmentAction } from "@/lib/products/actions";
+import { listDepartmentsAction, listProductTypesAction, type DepartmentOption, type ProductTypeOption } from "@/lib/catalog/actions";
+import { assignDepartmentAction, assignProductTypeAction } from "@/lib/products/actions";
+import { classificationIssues, type ClassificationRules } from "@/lib/domain/product-taxonomy";
+import { Button } from "@/components/ui/Button";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
-import { PRODUCT_CATEGORIES } from "@/lib/domain/new-product";
 
-const CATEGORIES = [...PRODUCT_CATEGORIES];
+const plural = (n: number) => (n === 1 ? "producto" : "productos");
 
 export default function ProductosPage() {
   const { state, data, retry, setData } = useStaffData<Product[]>(() => fetchProductsAction());
@@ -26,8 +26,14 @@ export default function ProductosPage() {
   const { data: session } = useSession();
   const role = session?.user?.role;
   const isStaff = role === "owner" || role === "manager";
+  // El colaborador también abre la ficha (fotos en espacios vacíos y precio); el resto sigue siendo de owner/manager.
+  const canOpenSheet = isStaff || role === "collaborator";
   const [locations, setLocations] = useState<Pick<Location, "id" | "name">[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
+  const [onlyReview, setOnlyReview] = useState(false);
+  const [assignKind, setAssignKind] = useState<"department" | "type">("department");
+  const [targetType, setTargetType] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
@@ -35,13 +41,35 @@ export default function ProductosPage() {
   const [assignMsg, setAssignMsg] = useState<{ ok: boolean; text: string; session?: boolean } | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
 
-  const reload = () => fetchProductsAction().then((r) => r && setData(r));
+  const reload = () =>
+    fetchProductsAction().then((r) => {
+      if (r) setData(r);
+      return r;
+    });
 
   useEffect(() => {
-    if (!isStaff) return;
+    listProductTypesAction().then((r) => setProductTypes(r ?? [])).catch(() => undefined);
+  }, []);
+
+  const rules = useMemo<ClassificationRules>(
+    () => ({
+      departments: departments.map((d) => ({ id: d.id, slug: d.slug })),
+      types: productTypes.map((t) => ({ id: t.id, slug: t.slug, departmentIds: t.departmentIds })),
+    }),
+    [departments, productTypes],
+  );
+  const hasIssues = (p: Product) => classificationIssues(
+    { departmentId: p.departmentId ?? null, productTypeId: p.productTypeId ?? null, style: p.style ?? null, audience: p.audience ?? null },
+    rules,
+  ).length > 0;
+  const typeNames = useMemo(() => productTypes.map((t) => t.name), [productTypes]);
+
+  useEffect(() => {
+    if (!canOpenSheet) return;
     fetchLocationsAction().then((r) => setLocations(r ?? [])).catch(() => undefined);
+    if (!isStaff) return;
     listDepartmentsAction().then((r) => setDepartments(r ?? [])).catch(() => undefined);
-  }, [isStaff]);
+  }, [isStaff, canOpenSheet]);
 
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -54,10 +82,43 @@ export default function ProductosPage() {
       const res = withSession(await assignDepartmentAction(selected, targetDept));
       if (res.ok) {
         const name = departments.find((d) => d.id === targetDept)?.name ?? "el departamento";
-        setAssignMsg({ ok: true, text: `${res.updated ?? selected.length} productos pasaron a ${name}.` });
+        const moved = selected;
+        const n = res.updated ?? moved.length;
         setSelected([]);
         setAssigning(false);
         setTargetDept("");
+        const fresh = await reload();
+        const review = fresh ? fresh.filter((p) => moved.includes(p.id) && hasIssues(p)).length : 0;
+        setAssignMsg({
+          ok: true,
+          text: `${n} ${plural(n)} pasaron a ${name}.${review > 0 ? ` ${review} quedaron por revisar: elige su tipo en «Por revisar».` : ""}`,
+        });
+      } else {
+        setAssignMsg({ ok: false, text: res.message, session: res.code === "SESSION" });
+      }
+    } catch {
+      setAssignMsg({ ok: false, text: "No se pudo asignar. Revisa tu conexión e intenta de nuevo." });
+    } finally {
+      setAssignBusy(false);
+    }
+  };
+
+  const assignType = async () => {
+    if (!targetType || selected.length === 0 || assignBusy) return;
+    setAssignBusy(true);
+    setAssignMsg(null);
+    try {
+      const res = withSession(await assignProductTypeAction(selected, targetType));
+      if (res.ok) {
+        const n = res.updated ?? selected.length;
+        const cleared = res.styleCleared ?? 0;
+        setAssignMsg({
+          ok: true,
+          text: `Se asignó el tipo a ${n} ${plural(n)}.${cleared > 0 ? ` Se quitó el estilo a ${cleared} porque no aplica a ese tipo.` : ""}`,
+        });
+        setSelected([]);
+        setAssigning(false);
+        setTargetType("");
         await reload();
       } else {
         setAssignMsg({ ok: false, text: res.message, session: res.code === "SESSION" });
@@ -71,9 +132,15 @@ export default function ProductosPage() {
 
   const openProduct = products.find((p) => p.id === openId) ?? null;
 
-  const visible = useMemo(
-    () => filterProducts(products, query, category),
-    [products, query, category]
+  const visible = useMemo(() => {
+    const base = filterProducts(products, query, category);
+    return isStaff && onlyReview ? base.filter(hasIssues) : base;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products, query, category, isStaff, onlyReview, rules]);
+  const reviewCount = useMemo(
+    () => (isStaff ? products.filter(hasIssues).length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [products, isStaff, rules],
   );
 
   if (state !== "ready") return <StaffLoadState state={state} retry={retry} />;
@@ -89,23 +156,37 @@ export default function ProductosPage() {
           Unir duplicados por talla
         </Link>
       )}
-      <SearchFilter categories={CATEGORIES} onQuery={setQuery} onCategory={setCategory} />
+      <SearchFilter categories={typeNames} onQuery={setQuery} onCategory={setCategory} />
+      {isStaff && (
+        <button
+          type="button"
+          aria-pressed={onlyReview}
+          onClick={() => setOnlyReview((v) => !v)}
+          className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal ${
+            onlyReview ? "border-loloteal bg-loloteal text-white" : "border-gray-300 bg-white text-gray-800"
+          }`}
+        >
+          Por revisar ({reviewCount})
+        </button>
+      )}
       <div className="grid gap-3">
         {visible.map((p) => (
           <div key={p.id} className="space-y-1">
             <ProductCard product={p} />
-            {isStaff && (
+            {canOpenSheet && (
               <div className="flex flex-wrap items-center gap-x-4">
-                <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(p.id)}
-                    onChange={() => toggle(p.id)}
-                    aria-label={`Seleccionar ${p.title}`}
-                    className="h-5 w-5 rounded border-gray-400 accent-loloteal"
-                  />
-                  Seleccionar
-                </label>
+                {isStaff && (
+                  <label className="inline-flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(p.id)}
+                      onChange={() => toggle(p.id)}
+                      aria-label={`Seleccionar ${p.title}`}
+                      className="h-5 w-5 rounded border-gray-400 accent-loloteal"
+                    />
+                    Seleccionar
+                  </label>
+                )}
                 <button
                   type="button"
                   onClick={() => setOpenId(p.id)}
@@ -114,23 +195,10 @@ export default function ProductosPage() {
                 >
                   Ver ficha
                 </button>
-                {p.isActive === false && <span className="text-xs font-semibold text-gray-600">Inactivo</span>}
+                {isStaff && p.isActive === false && <span className="text-xs font-semibold text-gray-600">Inactivo</span>}
               </div>
             )}
             <div className="flex flex-wrap items-center gap-x-2">
-              <ProductPhotoButton
-                productId={p.id}
-                productTitle={p.title}
-                hasImage={!!p.imageUrl}
-                onUpdated={() => void reload()}
-              />
-              <ProductPhotoButton
-                productId={p.id}
-                productTitle={p.title}
-                side="back"
-                hasImage={!!p.backImageUrl}
-                onUpdated={() => void reload()}
-              />
               {!(p.imageUrl && p.backImageUrl) && (
                 <span className="text-xs text-gray-600">
                   {!p.imageUrl && !p.backImageUrl
@@ -161,20 +229,41 @@ export default function ProductosPage() {
         <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-gray-200 bg-white/95 p-3 backdrop-blur">
           {assigning ? (
             <div className="space-y-2">
-              <label htmlFor="asignar-depto" className="block text-sm font-semibold text-gray-800">
-                Departamento para {selected.length} {selected.length === 1 ? "producto" : "productos"}
-              </label>
-              <select
-                id="asignar-depto"
-                value={targetDept}
-                onChange={(e) => setTargetDept(e.target.value)}
-                className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
-              >
-                <option value="">Elige el departamento</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
+              {assignKind === "department" ? (
+                <>
+                  <label htmlFor="asignar-depto" className="block text-sm font-semibold text-gray-800">
+                    Departamento para {selected.length} {plural(selected.length)}
+                  </label>
+                  <select
+                    id="asignar-depto"
+                    value={targetDept}
+                    onChange={(e) => setTargetDept(e.target.value)}
+                    className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+                  >
+                    <option value="">Elige el departamento</option>
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label htmlFor="asignar-tipo" className="block text-sm font-semibold text-gray-800">
+                    Tipo para {selected.length} {plural(selected.length)}
+                  </label>
+                  <select
+                    id="asignar-tipo"
+                    value={targetType}
+                    onChange={(e) => setTargetType(e.target.value)}
+                    className="block min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+                  >
+                    <option value="">Elige el tipo</option>
+                    {productTypes.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -183,32 +272,44 @@ export default function ProductosPage() {
                 >
                   Cancelar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void assign()}
-                  disabled={!targetDept || assignBusy}
-                  className="min-h-[44px] rounded-lg bg-loloteal px-3 text-sm font-semibold text-white active:bg-loloteal-dark disabled:opacity-60"
+                <Button
+                  onClick={() => void (assignKind === "department" ? assign() : assignType())}
+                  disabled={assignKind === "department" ? !targetDept : !targetType}
+                  loading={assignBusy}
                 >
                   {assignBusy ? "Asignando…" : "Asignar"}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setAssignMsg(null);
-                  setAssigning(true);
-                }}
-                className="min-h-[44px] rounded-lg bg-loloteal px-4 text-sm font-semibold text-white active:bg-loloteal-dark"
-              >
-                Asignar departamento ({selected.length})
-              </button>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignMsg(null);
+                    setAssignKind("department");
+                    setAssigning(true);
+                  }}
+                  className="min-h-[44px] rounded-lg bg-loloteal px-3 text-sm font-semibold text-white active:bg-loloteal-dark"
+                >
+                  Asignar departamento ({selected.length})
+                </button>
+                <Button
+                  loading={assignBusy}
+                  onClick={() => {
+                    setAssignMsg(null);
+                    setAssignKind("type");
+                    setAssigning(true);
+                  }}
+                >
+                  Asignar tipo ({selected.length})
+                </Button>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelected([])}
-                className="min-h-[44px] rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800"
+                className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800"
               >
                 Quitar selección
               </button>

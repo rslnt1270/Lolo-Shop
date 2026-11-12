@@ -13,13 +13,13 @@ import { ExistingProductSearch } from "@/components/products/ExistingProductSear
 import { AddSizeForm } from "@/components/products/AddSizeForm";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
 import { sortSizes } from "@/lib/domain/sizes";
+import { SavedCheck } from "@/components/products/SavedCheck";
 import {
   lookupCodeAction,
   fetchLocationsAction,
   type LookupCodeResult,
 } from "@/lib/actions";
 import { isValidGtin } from "@/lib/domain/barcode";
-import { StockMovementPanel } from "@/components/inventory/StockMovementPanel";
 
 type Found = Extract<LookupCodeResult, { found: true }>;
 type LocationOption = { id: string; name: string };
@@ -79,13 +79,15 @@ export default function EscanearPage() {
   const locationId = storeBound ? (session?.user?.locationId ?? "") : chosenLocation;
 
   useEffect(() => {
-    if (status !== "authenticated" || storeBound) return;
+    if (status !== "authenticated") return;
     let cancelled = false;
     fetchLocationsAction()
       .then((res) => {
         if (cancelled) return;
         const list = res ?? [];
         setLocations(list.map((l) => ({ id: l.id, name: l.name })));
+        // Con tienda fija solo se necesita el nombre para "Registrando en".
+        if (storeBound) return;
         let saved = "";
         try {
           saved = sessionStorage.getItem(LOCATION_KEY) ?? "";
@@ -96,7 +98,7 @@ export default function EscanearPage() {
         if (pick) setChosenLocation(pick.id);
       })
       .catch(() => {
-        if (!cancelled) {
+        if (!cancelled && !storeBound) {
           setIsError(true);
           setMessage("No se pudieron cargar las tiendas. Recarga la página.");
         }
@@ -167,15 +169,8 @@ export default function EscanearPage() {
   const stockHere = variant ? (variant.inventory.find((l) => l.locationId === locationId)?.available ?? 0) : null;
   const showScanner = !scannedCode && newCode === undefined;
   const sizesHere = found && locationId ? stockBySize(found.product, locationId) : [];
-  // La etiqueta escaneada tiene piezas en otras tiendas pero ninguna fila en la tuya.
-  const onlyInOtherStore =
-    !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId) && variant.inventory.length > 0;
-  const canTransfer = role === "owner" || role === "manager";
-  // Origen sugerido para traspasar hacia la tienda elegida: la tienda con más piezas de esta etiqueta.
-  const richestOther = onlyInOtherStore
-    ? [...variant!.inventory].sort((a, b) => b.available - a.available)[0]?.locationId
-    : undefined;
-
+  // El servidor solo manda las filas de tu tienda: sin fila aquí, la prenda no está en tu tienda.
+  const notInMyStore = !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId);
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -306,11 +301,9 @@ export default function EscanearPage() {
                     En esta tienda: <span className="font-semibold">{stockHere} pzas</span>
                   </p>
                 )}
-                {onlyInOtherStore ? (
+                {notInMyStore ? (
                   <div className="space-y-2">
-                    <p className="text-sm text-gray-700">
-                      Esta etiqueta está registrada en otra tienda; aquí todavía no tiene piezas.
-                    </p>
+                    <p className="text-sm text-gray-700">Esta prenda no está en tu tienda</p>
                     <SumToMyStore
                       variantId={found.variantId}
                       locationId={locationId}
@@ -320,37 +313,14 @@ export default function EscanearPage() {
                         reset();
                       }}
                     />
-                    {canTransfer && (
-                      <StockMovementPanel
-                        variantId={found.variantId}
-                        locationId={locationId}
-                        role={role as Role}
-                        storeBound={storeBound}
-                        transferOnly
-                        defaultFromId={richestOther}
-                        defaultToId={locationId}
-                        onDone={(available, doneMessage) => {
-                          setIsError(false);
-                          setMessage(
-                            doneMessage ?? `Traspaso registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`,
-                          );
-                          reset();
-                        }}
-                      />
-                    )}
                   </div>
                 ) : (
-                  <StockMovementPanel
+                  <SumToMyStore
                     variantId={found.variantId}
                     locationId={locationId}
-                    role={role as Role}
-                    storeBound={storeBound}
-                    onDone={(available, doneMessage) => {
+                    onDone={(available) => {
                       setIsError(false);
-                      setMessage(
-                        doneMessage ??
-                          `Movimiento registrado: ${found.product.title}. Ahora hay ${available} en esta tienda.`,
-                      );
+                      setMessage(`Piezas sumadas: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
                       reset();
                     }}
                   />
@@ -394,6 +364,7 @@ export default function EscanearPage() {
             <NewProductForm
               scannedCode={newCode}
               locationId={locationId}
+              locationName={locations.find((l) => l.id === locationId)?.name}
               initialMode={entryMode}
               onModeChange={setEntryMode}
               onSuccess={(info) => {
@@ -442,6 +413,10 @@ export default function EscanearPage() {
           <div className="min-w-0 flex-1 text-sm">
             <p className="truncate font-semibold">{lastCreated.title}</p>
             <p className="font-mono text-gray-600">SKU: {lastCreated.sku}</p>
+            <p className="flex items-center gap-2 font-medium text-gray-800">
+              <SavedCheck key={createdCount} />
+              {lastCreated.catalogStatus}
+            </p>
             {lastCreated.noBarcode && (
               <Link href="/etiquetas" className="inline-flex min-h-[44px] items-center font-medium text-loloteal underline">
                 Imprimir etiqueta

@@ -5,6 +5,8 @@ import { UnauthenticatedError } from "@/lib/auth/errors";
 import { DB_TIMEOUT_TEXT, isTransactionTimeout } from "@/lib/data/errors";
 import { INVENTORY_TX_OPTIONS } from "@/lib/data/tx-options";
 import { checkBrandName } from "@/lib/domain/brand";
+import { validateReference } from "@/lib/domain/product-reference";
+import { addColor, listColors } from "./colors";
 import prisma from "@/lib/prisma";
 
 export interface BrandOption {
@@ -18,6 +20,16 @@ export interface DepartmentOption {
   slug: string;
   name: string;
 }
+
+export interface ProductTypeOption {
+  id: string;
+  slug: string;
+  name: string;
+  /** Departamentos que admiten el tipo (puente `DepartmentProductType`). */
+  departmentIds: string[];
+}
+
+export type CreateColorResult = { ok: true; label: string } | { ok: false; message: string };
 
 export type CreateBrandResult = { ok: true; brand: BrandOption } | { ok: false; message: string };
 
@@ -63,6 +75,48 @@ export async function listDepartmentsAction(): Promise<DepartmentOption[] | null
     orderBy: { sortOrder: "asc" },
   });
   return rows.map((d) => ({ id: d.id, slug: d.slug, name: d.name }));
+}
+
+/** Tipos activos con sus departamentos, por `sortOrder`. `null`: la sesión terminó. */
+export async function listProductTypesAction(): Promise<ProductTypeOption[] | null> {
+  if (!(await sessionUser())) return null;
+  const rows = await prisma.productType.findMany({
+    where: { isActive: true },
+    select: { id: true, slug: true, name: true, departments: { select: { departmentId: true } } },
+    orderBy: { sortOrder: "asc" },
+  });
+  return rows.map((t) => ({
+    id: t.id,
+    slug: t.slug,
+    name: t.name,
+    departmentIds: t.departments.map((d) => d.departmentId),
+  }));
+}
+
+/** Colores base más los agregados, sin repetir. `null`: la sesión terminó. */
+export async function listColorsAction(): Promise<string[] | null> {
+  if (!(await sessionUser())) return null;
+  return await listColors();
+}
+
+/**
+ * Agrega un color durante el alta (cualquier rol). "Rosa" y "rosas" caen en la
+ * misma clave y devuelven la etiqueta existente. Nunca lanza por texto inválido.
+ */
+export async function createColorAction(raw: string): Promise<CreateColorResult> {
+  const user = await sessionUser();
+  if (!user) return { ok: false, message: SESSION_EXPIRED };
+  if (typeof raw !== "string") return { ok: false, message: "Escribe un color." };
+  let color: string | null;
+  try {
+    // La marca no interviene: se reutiliza la limpieza y los topes de `validateReference`.
+    color = validateReference({ brand: "-", color: raw, departmentSlug: null, typeSlug: null }).color;
+  } catch (err) {
+    return { ok: false, message: err instanceof Error ? err.message : "Color no válido." };
+  }
+  if (!color) return { ok: false, message: "Escribe un color." };
+  const { label } = await addColor(color, user.id);
+  return { ok: true, label };
 }
 
 /**

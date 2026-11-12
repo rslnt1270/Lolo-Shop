@@ -3,21 +3,27 @@ import { isProductBlobUrl } from "./image/blob-url";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "./auth/current-user";
 import { ForbiddenError } from "./auth/errors";
-import { assertCanOperate, currentUserOrNull, isStoreBound, requireRole } from "./auth/permissions";
+import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
+import { scopeInventory, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
-import { validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput } from "./domain/new-product";
+import {
+  MSG_PHOTOS_NOT_ANALYZED, validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
+} from "./domain/new-product";
+import { productPhotoStatus, validateReference, type PhotoStatus } from "./domain/product-reference";
+import { loadTypeRule } from "./catalog/type-rule";
+import { MSG_PICK_TYPE, validateClassification, type Audience } from "./domain/product-taxonomy";
 import { generatePublicCode } from "./domain/public-code";
 import prisma from "./prisma";
 import { SESSION_EXPIRED_TEXT } from "./session-text";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
-import type { InventoryDataSource, ProductSearchHit, VariantMatch } from "./data/source";
+import type { InventoryDataSource, ProductSearchHit, VariantMatch, VariantStockRow } from "./data/source";
 import {
   DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
 } from "./data/errors";
 import {
-  MAX_STOCK_QUANTITY, MIN_STOCK_QUANTITY, validateReason, validateStockMovement, type StockMovementKind,
+  validateStockMovement, type StockMovementKind,
 } from "./domain/stock-movement";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
@@ -25,7 +31,7 @@ import { changePassword, type ChangePasswordResult } from "./auth/password";
 export async function fetchProductsAction(): Promise<Product[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return await getDataSource().getProducts();
+  return (await getDataSource().getProducts()).map((p) => scopeInventory(p, user));
 }
 
 export async function fetchLocationsAction(): Promise<Location[] | null> {
@@ -45,13 +51,17 @@ export async function createLocationAction(data: { name: string; type?: Location
 }
 
 export async function getProductByBarcodeAction(code: string): Promise<VariantMatch | null> {
-  if (!(await currentUserOrNull())) return null;
-  return await getDataSource().getProductByBarcode(code);
+  const user = await currentUserOrNull();
+  if (!user) return null;
+  const match = await getDataSource().getProductByBarcode(code);
+  return match && scopeVariantMatch(match, user);
 }
 
 export async function getProductByVariantIdAction(id: string): Promise<VariantMatch | null> {
-  if (!(await currentUserOrNull())) return null;
-  return await getDataSource().getProductByVariantId(id);
+  const user = await currentUserOrNull();
+  if (!user) return null;
+  const match = await getDataSource().getProductByVariantId(id);
+  return match && scopeVariantMatch(match, user);
 }
 
 export type StockMovementResult =
@@ -63,18 +73,17 @@ export type StockMovementResult =
       available?: number;
     };
 
-const STOCK_TYPE = { restock: "RESTOCK", damage: "DAMAGE", adjustment: "ADJUSTMENT" } as const;
+const STOCK_TYPE = { restock: "RESTOCK" } as const;
 
 /**
- * Entrada, merma o corrección de stock. Rol y tienda se releen de la base; no
- * hay "salida" (las ventas se registran en /pos). Nunca lanza: devuelve el código.
+ * Entrada de stock (única vía de sumar piezas). Rol y tienda se releen de la base;
+ * no hay "salida" (las ventas se registran en /pos). Nunca lanza: devuelve el código.
  */
 export async function recordStockMovementAction(input: {
   variantId: string;
   locationId: string;
   kind: StockMovementKind;
   quantity: number;
-  direction?: "in" | "out";
   reason?: string;
   requestId: string;
 }): Promise<StockMovementResult> {
@@ -86,7 +95,6 @@ export async function recordStockMovementAction(input: {
     if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
     const v = parsed.value;
 
-    if (v.kind !== "restock") requireRole(user, ["owner", "manager"]);
     assertCanOperate(user, v.locationId);
 
     const res = await getDataSource().recordStockMovement({
@@ -120,103 +128,64 @@ export async function recordStockMovementAction(input: {
   }
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
- * Traspaso de stock entre dos tiendas (owner o manager). El manager con tienda
- * solo traspasa desde o hacia la suya. Nunca lanza: devuelve el código.
- */
-export async function transferStockAction(input: {
-  variantId: string;
-  fromLocationId: string;
-  toLocationId: string;
-  quantity: number;
-  requestId: string;
-  note?: string;
-}): Promise<StockMovementResult> {
-  try {
-    const user = await currentUserOrNull();
-    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
-
-    const invalid = (message: string): StockMovementResult => ({ ok: false, code: "INVALID", message });
-    const { variantId, fromLocationId, toLocationId, quantity, requestId } = input ?? ({} as typeof input);
-    if (typeof variantId !== "string" || !variantId) return invalid("Falta la prenda.");
-    if (typeof fromLocationId !== "string" || !fromLocationId) return invalid("Elige la tienda de origen.");
-    if (typeof toLocationId !== "string" || !toLocationId) return invalid("Elige la tienda de destino.");
-    if (typeof requestId !== "string" || !UUID_RE.test(requestId)) return invalid("Identificador de la operación inválido.");
-    if (fromLocationId === toLocationId) return invalid("El origen y el destino deben ser distintos.");
-    if (
-      typeof quantity !== "number" || !Number.isInteger(quantity) ||
-      quantity < MIN_STOCK_QUANTITY || quantity > MAX_STOCK_QUANTITY
-    ) {
-      return invalid(`La cantidad debe ser un entero entre ${MIN_STOCK_QUANTITY} y ${MAX_STOCK_QUANTITY}.`);
-    }
-    let note: string | null;
-    try {
-      note = validateReason(input.note, false);
-    } catch (err) {
-      return invalid(err instanceof Error ? err.message : "Nota inválida.");
-    }
-
-    requireRole(user, ["owner", "manager"]);
-    if (isStoreBound(user) && user.locationId !== fromLocationId && user.locationId !== toLocationId) {
-      throw new ForbiddenError("Solo puedes traspasar desde o hacia tu tienda asignada.");
-    }
-
-    const source = getDataSource();
-    const res = await source.transferStock({
-      variantId, fromLocationId, toLocationId, quantity, requestId, note, userId: user.id,
-    });
-    const locations = await source.getLocations();
-    const name = (id: string) => locations.find((l) => l.id === id)?.name ?? "otra tienda";
-    revalidatePath("/catalogo");
-    revalidatePath("/productos");
-    return {
-      ok: true,
-      available: res.available,
-      replayed: res.replayed,
-      message: `Se movieron ${quantity} de ${name(fromLocationId)} a ${name(toLocationId)}.`,
-    };
-  } catch (err) {
-    if (err instanceof ForbiddenError) return { ok: false, code: "FORBIDDEN", message: err.message };
-    if (err instanceof InsufficientStockError) {
-      return {
-        ok: false,
-        code: "INSUFFICIENT",
-        available: err.available,
-        message: `Solo hay ${err.available} en esta tienda.`,
-      };
-    }
-    if (err instanceof StockTargetNotFoundError) {
-      return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
-    }
-    console.error("transferStockAction", err);
-    if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
-    return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
-  }
-}
-
 export type LookupCodeResult =
-  | { found: true; product: Product; variantId: string }
+  | { found: true; product: Product; variantId: string; stock?: { available: number; sold: boolean } }
   | { found: false; code: string; error?: string };
 
 /**
  * Busca un código escaneado/tecleado en barcode o sku (con equivalencias
  * UPC-A ↔ EAN-13). Nunca lanza: en error devuelve `found: false` con `error`.
  */
-export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
+export async function lookupCodeAction(raw: string, locationId?: string): Promise<LookupCodeResult> {
   const code = normalizeCode(typeof raw === "string" ? raw : "");
   if (!code) return { found: false, code, error: "El código está vacío. Vuelve a escanear." };
   try {
-    if (!(await currentUserOrNull())) {
+    const user = await currentUserOrNull();
+    if (!user) {
       return { found: false, code, error: SESSION_EXPIRED_TEXT };
     }
-    const match = await getDataSource().getProductByBarcode(code);
-    if (!match) return { found: false, code };
-    return { found: true, product: withVariant(match), variantId: match.variant.id };
+    const store = typeof locationId === "string" && locationId ? locationId : null;
+    if (store) assertCanOperate(user, store);
+    const rawMatch = await getDataSource().getProductByBarcode(code);
+    if (!rawMatch) return { found: false, code };
+    const match = scopeVariantMatch(rawMatch, user);
+    const base = { found: true as const, product: withVariant(match), variantId: match.variant.id };
+    if (!store) return base;
+    try {
+      return { ...base, stock: await getDataSource().getStockAt(match.variant.id, store) };
+    } catch (err) {
+      // Sin existencias confirmadas: el carrito lo trata como "por confirmar".
+      console.error("lookupCodeAction stock", err);
+      return base;
+    }
   } catch (err) {
+    if (err instanceof ForbiddenError) return { found: false, code, error: err.message };
     console.error("lookupCodeAction", err);
     return { found: false, code, error: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." };
+  }
+}
+
+export type { VariantStockRow } from "./data/source";
+
+/**
+ * Tallas de un producto con sus piezas en una tienda. `null` sin sesión; `[]` si la tienda no es del usuario
+ * o si la consulta falla. Única puerta del cliente a `listVariantStockAt`.
+ */
+export async function listVariantStockAtAction(productId: string, locationId: string): Promise<VariantStockRow[] | null> {
+  try {
+    const user = await currentUserOrNull();
+    if (!user) return null;
+    if (typeof productId !== "string" || !productId || typeof locationId !== "string" || !locationId) return [];
+    try {
+      assertCanOperate(user, locationId);
+    } catch (err) {
+      if (err instanceof ForbiddenError) return [];
+      throw err;
+    }
+    return await getDataSource().listVariantStockAt(productId, locationId);
+  } catch (err) {
+    console.error("listVariantStockAtAction", err);
+    return [];
   }
 }
 
@@ -226,22 +195,32 @@ export type CreateProductInput = {
   brandId: string;
   /** `Department.id`, obligatorio en altas nuevas. */
   departmentId: string;
-  category: string;
+  /** `ProductType.id`, obligatorio: el servidor deriva `category` de su nombre. */
+  productTypeId: string;
+  /** Estilo (slug de `STYLE_OPTIONS` del tipo); vacío = sin estilo. */
+  style?: string | null;
+  /** «Para» (solo Calzado): dama, caballero o nino. */
+  audience?: string | null;
   /**
    * Una fila por talla (1 a 12): talla, código escaneado (null = "Sin código"),
    * precio y piezas contadas en `locationId`.
    */
   sizes: SizeRowInput[];
   locationId: string;
-  /** "stock" (por defecto): sin fotos. "catalog": exige imageUrl y backImageUrl. */
+  /** "stock" (por defecto): sin fotos. "catalog": acepta 0, 1 o 2 fotos; el estado sale de las presentes. */
   mode?: EntryMode;
+  /** Obligatoria en todo alta. */
   description?: string | null;
+  /** Color libre; el servidor lo limpia y lo descarta en Accesorios y Perfume. */
+  color?: string | null;
   imageUrl?: string | null;
   backImageUrl?: string | null;
+  /** El cliente revisó el fondo blanco de las fotos enviadas; sin ella las fotos se rechazan. */
+  photosAnalyzed?: boolean;
 };
 
 export type CreateProductResult =
-  | { ok: true; product: Product; variantId: string; sku: string }
+  | { ok: true; product: Product; variantId: string; sku: string; catalogStatus?: PhotoStatus }
   | {
       ok: false;
       code: "SESSION" | "FORBIDDEN" | "INVALID" | "DUPLICATE" | "LOCATION" | "ERROR";
@@ -348,6 +327,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
 
     let data;
     try {
+      // El tipo manda: un cliente viejo con `category` y sin `productTypeId` recibe "Elige el tipo."
       data = validateNewProduct(input);
     } catch (err) {
       return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : "Datos inválidos." };
@@ -364,13 +344,37 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
 
     const [brand, department] = await Promise.all([
       prisma.brand.findUnique({ where: { id: data.brandId }, select: { name: true, isActive: true } }),
-      prisma.department.findUnique({ where: { id: data.departmentId }, select: { isActive: true } }),
+      prisma.department.findUnique({ where: { id: data.departmentId }, select: { isActive: true, slug: true } }),
     ]);
     if (!brand?.isActive) {
       return { ok: false, code: "INVALID", message: "Elige una marca de la lista o créala." };
     }
     if (!department?.isActive) {
       return { ok: false, code: "INVALID", message: "Elige el departamento." };
+    }
+
+    // El servidor decide el tipo: `category` = nombre del tipo, nunca lo que mande el cliente.
+    const type = await loadTypeRule(data.productTypeId ?? "", data.departmentId);
+    let classification: { style: string | null; audience: Audience | null };
+    try {
+      classification = validateClassification({
+        departmentSlug: department.slug,
+        type: type?.rule ?? null,
+        style: data.style,
+        audience: data.audience,
+      });
+    } catch (err) {
+      return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : MSG_PICK_TYPE };
+    }
+
+    let color: string | null;
+    try {
+      // Marca, color y reglas por departamento/tipo (el color se descarta donde no aplica).
+      color = validateReference({
+        brand: brand.name, color: data.color, departmentSlug: department.slug, typeSlug: type?.slug ?? null,
+      }).color;
+    } catch (err) {
+      return { ok: false, code: "INVALID", message: err instanceof Error ? err.message : "Datos inválidos." };
     }
 
     const loc = await checkLocation(user, ds, input.locationId);
@@ -390,12 +394,17 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           brandId: data.brandId,
           departmentId: data.departmentId,
           publicCode: generatePublicCode(),
-          category: data.category,
+          category: type!.name,
+          productTypeId: data.productTypeId,
+          style: classification.style,
+          audience: classification.audience,
           variants: data.sizes.map((r) => ({ ...r, sku: generateInternalSku() })),
           locationId: loc.locationId,
           imageUrl: data.imageUrl,
           backImageUrl: data.backImageUrl,
           description: data.description,
+          color,
+          photosChecked: data.photosChecked,
           userId: user.id,
         });
         revalidateProducts("createProductAction");
@@ -405,6 +414,11 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
           product: { ...created.product, variants: created.product.variants.length ? created.product.variants : created.variants },
           variantId: first.id,
           sku: first.sku,
+          catalogStatus: productPhotoStatus({
+            hasFront: Boolean(data.imageUrl),
+            hasBack: Boolean(data.backImageUrl),
+            hasStock: data.sizes.reduce((sum, r) => sum + r.initialStock, 0) > 0,
+          }),
         };
       } catch (err) {
         const field = uniqueViolationField(err);
@@ -477,7 +491,7 @@ export async function addVariantAction(input: AddVariantInput): Promise<CreatePr
           userId: user.id,
         });
         revalidateProducts("addVariantAction");
-        return { ok: true, product: withVariant(match), variantId: match.variant.id, sku: match.variant.sku };
+        return { ok: true, product: withVariant(scopeVariantMatch(match, user)), variantId: match.variant.id, sku: match.variant.sku };
       } catch (err) {
         if (err instanceof InventoryRuleError) return { ok: false, code: "INVALID", message: err.message };
         const field = uniqueViolationField(err);
@@ -552,11 +566,22 @@ async function checkPhotoAccess(productId: string, side: "front" | "back"): Prom
   return { ok: true };
 }
 
-/** Fija la foto de atrás (URL ya subida con uploadProductImageAction). Nunca lanza. */
-export async function setProductBackImageAction(productId: string, url: string): Promise<PhotoActionResult> {
+const NOT_ANALYZED: PhotoActionResult = { ok: false, code: "INVALID", message: MSG_PHOTOS_NOT_ANALYZED };
+
+/** El servidor no puede analizar píxeles: confía en la bandera del cliente, pero solo si es `true` exacto. */
+const isAnalyzed = (opts: { photosAnalyzed: boolean } | undefined): boolean => opts?.photosAnalyzed === true;
+
+/**
+ * Fija la foto de atrás (URL ya subida con uploadProductImageAction). Cambiar un
+ * lado no toca `catalogPhotosCheckedAt`. Nunca lanza.
+ */
+export async function setProductBackImageAction(
+  productId: string, url: string, opts: { photosAnalyzed: boolean },
+): Promise<PhotoActionResult> {
   try {
     const access = await checkPhotoAccess(productId, "back");
     if (!access.ok) return access;
+    if (!isAnalyzed(opts)) return NOT_ANALYZED;
     if (!isProductBlobUrl(url)) {
       return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
     }
@@ -570,11 +595,14 @@ export async function setProductBackImageAction(productId: string, url: string):
   }
 }
 
-/** Foto de frente: sube el archivo y la fija. Nunca lanza. */
-export async function updateProductImageAction(productId: string, formData: FormData): Promise<PhotoActionResult> {
+/** Foto de frente: sube el archivo y la fija. Cambiar un lado no toca `catalogPhotosCheckedAt`. Nunca lanza. */
+export async function updateProductImageAction(
+  productId: string, formData: FormData, opts: { photosAnalyzed: boolean },
+): Promise<PhotoActionResult> {
   try {
     const access = await checkPhotoAccess(productId, "front");
     if (!access.ok) return access;
+    if (!isAnalyzed(opts)) return NOT_ANALYZED;
     const file = formData?.get("image");
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, code: "INVALID", message: "No se recibió una imagen válida." };
@@ -588,6 +616,36 @@ export async function updateProductImageAction(productId: string, formData: Form
     if (err instanceof ImageUploadError) return { ok: false, code: "INVALID", message: err.message };
     console.error("updateProductImageAction", err);
     return { ok: false, code: "ERROR", message: "No se pudo guardar la foto. Intenta de nuevo." };
+  }
+}
+
+/**
+ * Fija frente y atrás revisadas en una sola escritura y marca
+ * `catalogPhotosCheckedAt`: la vía para que un producto viejo quede listo para
+ * publicarse. Reemplazar una foto ya puesta sigue siendo solo owner o manager. Nunca lanza.
+ */
+export async function setCatalogPhotosAction(
+  productId: string, input: { imageUrl: string; backImageUrl: string; photosAnalyzed: boolean },
+): Promise<PhotoActionResult> {
+  try {
+    const front = await checkPhotoAccess(productId, "front");
+    if (!front.ok) return front;
+    const back = await checkPhotoAccess(productId, "back");
+    if (!back.ok) return back;
+    if (!input || typeof input !== "object") {
+      return { ok: false, code: "INVALID", message: "Faltan las fotos de frente y de atrás." };
+    }
+    if (input.photosAnalyzed !== true) return NOT_ANALYZED;
+    if (!isProductBlobUrl(input.imageUrl) || !isProductBlobUrl(input.backImageUrl)) {
+      return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
+    }
+    await getDataSource().setCatalogPhotos(productId, { imageUrl: input.imageUrl, backImageUrl: input.backImageUrl });
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return { ok: true };
+  } catch (err) {
+    console.error("setCatalogPhotosAction", err);
+    return { ok: false, code: "ERROR", message: "No se pudo guardar las fotos. Intenta de nuevo." };
   }
 }
 

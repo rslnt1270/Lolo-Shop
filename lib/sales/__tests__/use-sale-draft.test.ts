@@ -110,3 +110,63 @@ describe("useSaleDraft", () => {
     expect(c).not.toBe(b);
   });
 });
+
+describe("useSaleDraft: existencias por línea y ×N", () => {
+  const match = (id = "v1", size = "M") =>
+    ({
+      product: { id: "p1", title: "Playera", category: "Ropa", brand: "Acme", imageUrl: null, variants: [] },
+      variant: { id, sku: `SKU-${id}`, title: size, size, color: null, price: 100, barcode: null, inventory: [] },
+    }) as unknown as import("@/lib/data/source").VariantMatch;
+
+  it("add con el mismo variantId suma quantity a 2 y la línea se muestra como ×2", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    act(() => {
+      result.current.add(match(), { available: 5, sold: false });
+      result.current.add(match(), { available: 5, sold: false });
+    });
+    expect(result.current.lines).toHaveLength(1);
+    expect(result.current.lines[0].quantity).toBe(2);
+  });
+
+  it("add rechaza la segunda pieza si available es 1: devuelve NO_STOCK con la talla", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    let second: unknown;
+    act(() => {
+      result.current.add(match(), { available: 1, sold: false });
+      second = result.current.add(match(), { available: 1, sold: false });
+    });
+    expect(second).toEqual({ ok: false, reason: "NO_STOCK", size: "M" });
+    expect(result.current.lines[0].quantity).toBe(1);
+  });
+
+  it("add sin stock confirmado (null) acepta la pieza con available null", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    let r: unknown;
+    act(() => {
+      r = result.current.add(match());
+      result.current.add(match());
+    });
+    expect(r).toEqual({ ok: true });
+    expect(result.current.lines[0]).toMatchObject({ quantity: 2, available: null });
+  });
+
+  it("add con available 0 devuelve NO_STOCK y no crea la línea", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    let r: unknown;
+    act(() => {
+      r = result.current.add(match("v2", "L"), { available: 0, sold: true });
+    });
+    expect(r).toEqual({ ok: false, reason: "NO_STOCK", size: "L" });
+    expect(result.current.lines).toHaveLength(0);
+  });
+
+  it("remove elimina la línea completa aunque tenga quantity 2", () => {
+    const { result } = renderHook(() => useSaleDraft());
+    act(() => {
+      result.current.add(match());
+      result.current.add(match());
+    });
+    act(() => result.current.remove("v1"));
+    expect(result.current.lines).toHaveLength(0);
+  });
+});

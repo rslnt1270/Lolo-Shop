@@ -20,6 +20,8 @@ export interface Location {
   id: string;
   name: string;
   type?: LocationType;
+  /** Tienda visible en el catálogo público (con type store). Ausente se trata como pública. */
+  isPublic?: boolean;
 }
 
 export interface InventoryLevel {
@@ -48,6 +50,12 @@ export interface Product {
   imageUrl: string | null;
   backImageUrl?: string | null;
   description?: string | null;
+  /** Color del producto (texto libre normalizado en el alta, hasta 40). */
+  color?: string | null;
+  /** Publicado en el catálogo público; ausente se trata como no publicado. */
+  isPublished?: boolean;
+  /** Fecha ISO en que el servidor aceptó las fotos blancas de catálogo; nulo si no. */
+  catalogPhotosCheckedAt?: string | null;
   /** Código público corto (ER §2.7); solo los productos dados de alta lo tienen. */
   publicCode?: string | null;
   /** Ausente se trata como activo (fixtures). */
@@ -55,6 +63,12 @@ export interface Product {
   /** Marca canónica y departamento (ER §2.3); ausentes en datos viejos. */
   brandId?: string | null;
   departmentId?: string | null;
+  /** Tipo global (ProductType) y atributos de clasificación; ausentes en datos viejos. */
+  productTypeId?: string | null;
+  /** Estilo (slug de STYLE_OPTIONS del tipo), p. ej. "polo". */
+  style?: string | null;
+  /** «Para» (solo Calzado): dama, caballero o nino. */
+  audience?: string | null;
   /** Departamento resuelto (solo lo traen las lecturas del catálogo); la proyección pública lo recorta. */
   department?: { slug: string; name: string; sortOrder: number; isActive: boolean } | null;
   /** Producto destino si este fue unido a otro (ER §2.8). */

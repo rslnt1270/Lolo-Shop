@@ -1,11 +1,14 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { ForbiddenError } from "@/lib/auth/errors";
-import { currentUserOrNull, requireRole } from "@/lib/auth/permissions";
+import { PRICE_EDIT_ROLES, currentUserOrNull, requireRole } from "@/lib/auth/permissions";
 import { getDataSource } from "@/lib/data/get-source";
 import { DB_TIMEOUT_TEXT, InventoryRuleError, ProductNotFoundError, isTransactionTimeout } from "@/lib/data/errors";
 import type { ProductPatch } from "@/lib/data/source";
-import { MAX_PRICE, MAX_TITLE_LENGTH, PRODUCT_CATEGORIES, roundToCents } from "@/lib/domain/new-product";
+import { loadTypeRule } from "@/lib/catalog/type-rule";
+import { MAX_PRICE, MAX_TITLE_LENGTH, roundToCents } from "@/lib/domain/new-product";
+import { STYLE_OPTIONS } from "@/lib/domain/product-types-catalog";
+import { MSG_PICK_TYPE, MSG_TYPE_INACTIVE, validateClassification } from "@/lib/domain/product-taxonomy";
 import { validateReason } from "@/lib/domain/stock-movement";
 import type { Role } from "@/lib/domain/types";
 import prisma from "@/lib/prisma";
@@ -24,8 +27,8 @@ export type UpdateVariantPriceResult =
 export type PriceChangeRow = { oldPrice: number; newPrice: number; userName: string; createdAt: string };
 
 export type ProductAdminResult =
-  | { ok: true; updated?: number }
-  | { ok: false; code: "SESSION" | "FORBIDDEN" | "INVALID" | "NOT_FOUND"; message: string };
+  | { ok: true; updated?: number; /** Solo si > 0: productos que perdieron un estilo que el tipo nuevo no admite. */ styleCleared?: number }
+  | { ok: false; code: "SESSION" | "FORBIDDEN" | "INVALID" | "NOT_FOUND" | "ERROR"; message: string };
 
 export type MergeResult =
   | { ok: true; movedVariants: number; movedSaleLines: number; alreadyMerged: number }
@@ -67,7 +70,7 @@ export async function updateVariantPriceAction(input: {
   expectedPrice: number;
   reason?: string;
 }): Promise<UpdateVariantPriceResult> {
-  const g = await gate();
+  const g = await gate(PRICE_EDIT_ROLES);
   if (!g.ok) return g;
 
   const { variantId, newPrice, expectedPrice } = input ?? ({} as typeof input);
@@ -109,7 +112,7 @@ export async function updateVariantPriceAction(input: {
 
 /** Últimos 5 cambios de precio de la talla. `null`: sin sesión o sin permiso. */
 export async function listPriceChangesAction(variantId: string): Promise<PriceChangeRow[] | null> {
-  const g = await gate();
+  const g = await gate(PRICE_EDIT_ROLES);
   if (!g.ok) return null;
   if (typeof variantId !== "string" || !variantId) return [];
   return await getDataSource().listPriceChanges(variantId, HISTORY_LIMIT);
@@ -120,7 +123,10 @@ export async function updateProductAction(input: {
   title?: string;
   brandId?: string;
   departmentId?: string;
-  category?: string;
+  /** Bloque de clasificación: con cualquiera de estos cuatro, `departmentId` y `productTypeId` son obligatorios. */
+  productTypeId?: string;
+  style?: string | null;
+  audience?: string | null;
 }): Promise<ProductAdminResult> {
   const g = await gate();
   if (!g.ok) return g;
@@ -135,10 +141,6 @@ export async function updateProductAction(input: {
     if (title.length > MAX_TITLE_LENGTH) return invalid(`El título no puede pasar de ${MAX_TITLE_LENGTH} caracteres.`);
     patch.title = title;
   }
-  if (input.category !== undefined) {
-    if (!(PRODUCT_CATEGORIES as readonly string[]).includes(input.category)) return invalid("Elige una categoría válida.");
-    patch.category = input.category;
-  }
   if (input.brandId !== undefined) {
     const brand =
       typeof input.brandId === "string" && input.brandId
@@ -148,13 +150,33 @@ export async function updateProductAction(input: {
     patch.brandId = input.brandId;
     patch.brand = brand.name;
   }
-  if (input.departmentId !== undefined) {
-    const department =
-      typeof input.departmentId === "string" && input.departmentId
-        ? await prisma.department.findUnique({ where: { id: input.departmentId }, select: { isActive: true } })
-        : null;
+  const hasBlock =
+    input.departmentId !== undefined || input.productTypeId !== undefined ||
+    input.style !== undefined || input.audience !== undefined;
+  if (hasBlock) {
+    // Departamento, tipo, estilo y «para» se validan juntos y se escriben juntos.
+    const departmentId = typeof input.departmentId === "string" ? input.departmentId : "";
+    const productTypeId = typeof input.productTypeId === "string" ? input.productTypeId : "";
+    if (!departmentId || !productTypeId) return invalid("Elige departamento y tipo.");
+    const department = await prisma.department.findUnique({ where: { id: departmentId }, select: { isActive: true, slug: true } });
     if (!department?.isActive) return invalid("Ese departamento ya no está activo. Elige otro de la lista.");
-    patch.departmentId = input.departmentId;
+    const type = await loadTypeRule(productTypeId, departmentId);
+    let classification;
+    try {
+      classification = validateClassification({
+        departmentSlug: department.slug,
+        type: type?.rule ?? null,
+        style: input.style,
+        audience: input.audience,
+      });
+    } catch (err) {
+      return invalid(err instanceof Error ? err.message : MSG_PICK_TYPE);
+    }
+    patch.departmentId = departmentId;
+    patch.productTypeId = productTypeId;
+    patch.category = type!.name;
+    patch.style = classification.style;
+    patch.audience = classification.audience;
   }
   if (Object.keys(patch).length === 0) return invalid("No hay cambios que guardar.");
 
@@ -218,6 +240,39 @@ export async function assignDepartmentAction(productIds: string[], departmentId:
   const updated = await getDataSource().assignDepartment(ids, departmentId);
   refresh();
   return { ok: true, updated };
+}
+
+/**
+ * Reclasifica en lote por tipo (owner o manager). El tipo debe estar activo; si
+ * algún producto con departamento no lo admite, nada cambia. El estilo que el
+ * tipo nuevo no admite se borra (`styleCleared`).
+ */
+export async function assignProductTypeAction(productIds: string[], productTypeId: string): Promise<ProductAdminResult> {
+  const g = await gate();
+  if (!g.ok) return g;
+  if (!Array.isArray(productIds) || productIds.some((id) => typeof id !== "string" || !id)) {
+    return invalid("La selección no es válida.");
+  }
+  const ids = [...new Set(productIds)];
+  if (ids.length === 0) return invalid("Elige al menos un producto.");
+  if (ids.length > MAX_BATCH) return invalid(`Puedes asignar hasta ${MAX_BATCH} productos a la vez.`);
+  const type = await loadTypeRule(typeof productTypeId === "string" ? productTypeId : "", null);
+  if (!type) return invalid(MSG_PICK_TYPE);
+  if (!type.rule.isActive) return invalid(MSG_TYPE_INACTIVE);
+
+  try {
+    const res = await getDataSource().assignProductType(ids, {
+      productTypeId,
+      category: type.name,
+      allowedStyles: (STYLE_OPTIONS[type.slug] ?? []).map((s) => s.slug),
+    });
+    refresh();
+    return { ok: true, updated: res.updated, ...(res.styleCleared > 0 ? { styleCleared: res.styleCleared } : {}) };
+  } catch (err) {
+    if (err instanceof InventoryRuleError) return invalid(err.message);
+    if (isTransactionTimeout(err)) return dbTimeout();
+    throw err;
+  }
 }
 
 /** Une productos duplicados por talla. Solo el dueño, releído de la base. */

@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import { isLocalDatabaseUrl } from './local-db';
+import { DEPARTMENT_TYPE_SLUGS, PRODUCT_TYPE_CATALOG } from '../lib/domain/product-types-catalog';
 
 const PASSWORD_VARS = [
   'SEED_PASSWORD_LOLO',
@@ -89,6 +90,27 @@ async function seed(prisma: PrismaClient, demo: boolean) {
     });
     console.log(`✅ Departamento: ${dept.name}`);
   }
+
+  // 3b. Tipos de producto y puente departamento-tipo (solo local: el seed no corre en producción).
+  for (const t of PRODUCT_TYPE_CATALOG) {
+    await prisma.productType.upsert({
+      where: { slug: t.slug },
+      update: { name: t.name, sortOrder: t.sortOrder },
+      create: { slug: t.slug, name: t.name, sortOrder: t.sortOrder },
+    });
+  }
+  const deptRows = await prisma.department.findMany({ select: { id: true, slug: true } });
+  const typeRows = await prisma.productType.findMany({ select: { id: true, slug: true } });
+  const deptId = new Map(deptRows.map((d) => [d.slug, d.id]));
+  const typeId = new Map(typeRows.map((t) => [t.slug, t.id]));
+  const pairData = Object.entries(DEPARTMENT_TYPE_SLUGS).flatMap(([deptSlug, typeSlugs]) =>
+    typeSlugs.map((typeSlug) => ({
+      departmentId: deptId.get(deptSlug) as string,
+      productTypeId: typeId.get(typeSlug) as string,
+    })),
+  );
+  await prisma.departmentProductType.createMany({ data: pairData, skipDuplicates: true });
+  console.log(`✅ Tipos: ${PRODUCT_TYPE_CATALOG.length}, pares: ${pairData.length}`);
 
   // 4. Producto de demostración (solo con --demo)
   const existing = demo ? await prisma.variant.findUnique({ where: { sku: 'TSH-BLK-M-01' } }) : null;

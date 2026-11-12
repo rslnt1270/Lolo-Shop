@@ -2,8 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { Location, Product, Role, Variant } from "@/lib/domain/types";
-import { PRODUCT_CATEGORIES } from "@/lib/domain/new-product";
-import { listBrandsAction, listDepartmentsAction, type BrandOption, type DepartmentOption } from "@/lib/catalog/actions";
+import {
+  listBrandsAction, listDepartmentsAction, listProductTypesAction,
+  type BrandOption, type DepartmentOption, type ProductTypeOption,
+} from "@/lib/catalog/actions";
+import { isAudience, typesForDepartment, type Audience } from "@/lib/domain/product-taxonomy";
+import { ClassificationFields, type ClassificationValue } from "./ClassificationFields";
 import {
   listPriceChangesAction,
   setProductActiveAction,
@@ -55,14 +59,20 @@ const DANGER = "#9A3B2E";
 const isActive = (x: { isActive?: boolean }) => x.isActive !== false;
 
 export function ProductAdminSheet({ product, locations, role, onClose, onChanged }: Props) {
-  const canEdit = role === "owner" || role === "manager";
+  const canEditData = role === "owner" || role === "manager";
+  const canEditPrice = canEditData || role === "collaborator";
 
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [title, setTitle] = useState(product.title);
   const [brandId, setBrandId] = useState(product.brandId ?? "");
   const [departmentId, setDepartmentId] = useState(product.departmentId ?? "");
-  const [category, setCategory] = useState(product.category);
+  const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
+  const [classification, setClassification] = useState<ClassificationValue>({
+    productTypeId: product.productTypeId ?? "",
+    style: product.style ?? null,
+    audience: isAudience(product.audience) ? product.audience : null,
+  });
   const [dataMsg, setDataMsg] = useState<{ ok: boolean; text: string; session?: boolean } | null>(null);
   const [savingData, setSavingData] = useState(false);
 
@@ -86,15 +96,24 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
 
   const variantKey = product.variants.map((v) => v.id).join(",");
   useEffect(() => {
-    if (!canEdit) return;
+    if (!canEditData) return;
     let cancelled = false;
-    Promise.all([listBrandsAction(), listDepartmentsAction()])
-      .then(([b, d]) => {
+    Promise.all([listBrandsAction(), listDepartmentsAction(), listProductTypesAction()])
+      .then(([b, d, t]) => {
         if (cancelled) return;
         setBrands(b ?? []);
         setDepartments(d ?? []);
+        setProductTypes(t ?? []);
       })
       .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [canEditData]);
+
+  useEffect(() => {
+    if (!canEditPrice) return;
+    let cancelled = false;
     Promise.all(
       variantKey
         .split(",")
@@ -108,7 +127,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
     return () => {
       cancelled = true;
     };
-  }, [canEdit, variantKey]);
+  }, [canEditPrice, variantKey]);
 
   const patchPrice = (id: string, p: Partial<PriceState>) =>
     setPrices((prev) => ({ ...prev, [id]: { ...prev[id], ...p } }));
@@ -149,13 +168,26 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   };
 
   const saveData = async () => {
-    const patch: { productId: string; title?: string; brandId?: string; departmentId?: string; category?: string } = {
+    const patch: {
+      productId: string; title?: string; brandId?: string; departmentId?: string;
+      productTypeId?: string; style?: string | null; audience?: Audience | null;
+    } = {
       productId: product.id,
     };
     if (title.trim() !== product.title) patch.title = title.trim();
     if (brandId && brandId !== (product.brandId ?? "")) patch.brandId = brandId;
-    if (departmentId && departmentId !== (product.departmentId ?? "")) patch.departmentId = departmentId;
-    if (category !== product.category) patch.category = category;
+    const classificationChanged =
+      departmentId !== (product.departmentId ?? "") ||
+      classification.productTypeId !== (product.productTypeId ?? "") ||
+      classification.style !== (product.style ?? null) ||
+      classification.audience !== (isAudience(product.audience) ? product.audience : null);
+    if (classificationChanged) {
+      // Departamento, tipo, estilo y «para» viajan juntos: el servidor los valida como un bloque.
+      patch.departmentId = departmentId;
+      patch.productTypeId = classification.productTypeId;
+      patch.style = classification.style;
+      patch.audience = classification.audience;
+    }
     if (Object.keys(patch).length === 1) {
       setDataMsg({ ok: false, text: "No hay cambios que guardar." });
       return;
@@ -221,9 +253,16 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
   };
 
   const confirmVariant = confirm?.kind === "variant" ? product.variants.find((v) => v.id === confirm.variantId) : undefined;
-  const categories = (PRODUCT_CATEGORIES as readonly string[]).includes(product.category)
-    ? [...PRODUCT_CATEGORIES]
-    : [product.category, ...PRODUCT_CATEGORIES];
+  const selectedDepartment = departments.find((d) => d.id === departmentId) ?? null;
+  const typesForSelected = selectedDepartment ? typesForDepartment(productTypes, selectedDepartment.id) : [];
+  const changeDepartment = (id: string) => {
+    const dept = departments.find((d) => d.id === id) ?? null;
+    const current = productTypes.find((t) => t.id === classification.productTypeId);
+    const audience = dept?.slug === "calzado" ? classification.audience : null;
+    const typeFits = !current || (dept !== null && current.departmentIds.includes(dept.id));
+    setDepartmentId(id);
+    setClassification(typeFits ? { ...classification, audience } : { productTypeId: "", style: null, audience });
+  };
   const productActive = isActive(product);
   const historyVariants = product.variants.filter((v) => (history[v.id]?.length ?? 0) > 0);
 
@@ -266,23 +305,56 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               </span>
             </div>
             <h3 className="text-lg font-bold text-[#16302F]">{product.title}</h3>
-            {canEdit && (
-              <div className="flex flex-wrap items-center gap-x-3">
-                <ProductPhotoButton
-                  productId={product.id}
-                  productTitle={product.title}
-                  hasImage={!!product.imageUrl}
-                  onUpdated={onChanged}
-                />
-                <ProductPhotoButton
-                  productId={product.id}
-                  productTitle={product.title}
-                  side="back"
-                  hasImage={!!product.backImageUrl}
-                  onUpdated={onChanged}
-                />
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-x-3">
+              {canEditData ? (
+                product.catalogPhotosCheckedAt ? (
+                  <>
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      hasImage={!!product.imageUrl}
+                      onUpdated={onChanged}
+                    />
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      side="back"
+                      hasImage={!!product.backImageUrl}
+                      onUpdated={onChanged}
+                    />
+                  </>
+                ) : (
+                  <ProductPhotoButton
+                    productId={product.id}
+                    productTitle={product.title}
+                    hasImage={!!product.imageUrl}
+                    catalogChecked={false}
+                    onUpdated={onChanged}
+                  />
+                )
+              ) : (
+                // Colaborador: solo llena espacios vacíos; cambiar una foto puesta es de owner/manager.
+                <>
+                  {!product.imageUrl && (
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      hasImage={false}
+                      onUpdated={onChanged}
+                    />
+                  )}
+                  {!product.backImageUrl && (
+                    <ProductPhotoButton
+                      productId={product.id}
+                      productTitle={product.title}
+                      side="back"
+                      hasImage={false}
+                      onUpdated={onChanged}
+                    />
+                  )}
+                </>
+              )}
+            </div>
           </section>
 
           <div aria-live="polite">
@@ -293,7 +365,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             )}
           </div>
 
-          {canEdit && (
+          {canEditData && (
             <section aria-label="Datos del producto" className="space-y-3.5 rounded-xl border border-[#E1E9E9] p-3.5">
               <h3 className="border-b border-[#E1E9E9] pb-1 text-sm font-bold text-[#16302F]">Datos del producto</h3>
               <div>
@@ -310,26 +382,23 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label htmlFor="ficha-depto" className={labelCls}>Departamento</label>
-                  <select id="ficha-depto" value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={field}>
-                    {!departmentId && <option value="">Sin departamento</option>}
-                    {departmentId && !departments.some((d) => d.id === departmentId) && <option value={departmentId}>Actual</option>}
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="ficha-categoria" className={labelCls}>Categoría</label>
-                  <select id="ficha-categoria" value={category} onChange={(e) => setCategory(e.target.value)} className={field}>
-                    {categories.map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
+              <div>
+                <label htmlFor="ficha-depto" className={labelCls}>Departamento</label>
+                <select id="ficha-depto" value={departmentId} onChange={(e) => changeDepartment(e.target.value)} className={field}>
+                  {!departmentId && <option value="">Sin departamento</option>}
+                  {departmentId && !departments.some((d) => d.id === departmentId) && <option value={departmentId}>Actual</option>}
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
+              <ClassificationFields
+                idPrefix="ficha"
+                departmentSlug={selectedDepartment?.slug ?? null}
+                types={typesForSelected}
+                value={classification}
+                onChange={setClassification}
+              />
               <div aria-live="polite">
                 {dataMsg && (
                   <p
@@ -347,7 +416,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             </section>
           )}
 
-          {canEdit && (
+          {canEditPrice && (
             <section aria-label="Precio por talla" className="space-y-3">
               <h3 className="text-sm font-bold text-[#16302F]">Precio por talla</h3>
               {product.variants.map((v) => {
@@ -365,7 +434,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                       <span className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg border border-[#E1E9E9] bg-white px-1 font-mono text-sm font-bold text-[#16302F]">
                         {v.size || v.title}
                       </span>
-                      {variantActive ? (
+                      {canEditData && variantActive ? (
                         <button
                           type="button"
                           aria-label={`Desactivar talla ${v.size || v.title}`}
@@ -375,7 +444,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                         >
                           Desactivar talla
                         </button>
-                      ) : (
+                      ) : canEditData ? (
                         <button
                           type="button"
                           aria-label={`Reactivar talla ${v.size || v.title}`}
@@ -385,7 +454,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                         >
                           Reactivar talla
                         </button>
-                      )}
+                      ) : null}
                     </div>
                     {st.conflict !== undefined && (
                       <p role="alert" className="rounded-lg bg-[#FDF2F0] p-2.5 text-xs font-medium leading-tight" style={{ color: DANGER }}>
@@ -474,7 +543,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             </section>
           )}
 
-          {canEdit && (
+          {canEditPrice && (
             <section aria-label="Historial de precios" className="space-y-2.5 rounded-xl border border-[#E1E9E9] p-3.5">
               <div className="flex items-center justify-between border-b border-[#E1E9E9] pb-1">
                 <h3 className="text-sm font-bold text-[#16302F]">Historial de precios</h3>
@@ -520,7 +589,8 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E1E9E9]/40 text-xs">
-                  {locations.map((loc) => {
+                  {/* El servidor ya recorta el stock del colaborador a su tienda; aquí solo se omiten las tiendas sin filas. */}
+                  {locations.filter((loc) => role !== "collaborator" || product.variants.some((v) => v.inventory.some((l) => l.locationId === loc.id))).map((loc) => {
                     const cells = product.variants.map((v) => v.inventory.find((l) => l.locationId === loc.id)?.available);
                     const total = cells.reduce<number>((sum, n) => sum + (n ?? 0), 0);
                     return (
@@ -539,11 +609,11 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               </table>
             </div>
             <p className="pt-1 text-[11px] leading-snug text-[#5C6E6D]">
-              Solo lectura. Para mover piezas usa Entrada o Traspasar.
+              Solo lectura. Para sumar piezas usa Escanear.
             </p>
           </section>
 
-          {canEdit && (
+          {canEditData && (
             <section className="pt-2">
               {productActive ? (
                 <button

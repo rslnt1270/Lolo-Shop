@@ -11,6 +11,9 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: vi.fn().mockResolvedValue([{ id: "b1", name: "Lolo", slug: "lolo" }]),
   createBrandAction: vi.fn(),
   listDepartmentsAction: vi.fn().mockResolvedValue([{ id: "d1", slug: "dama", name: "Dama" }]),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
+  listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 vi.mock("../products/ProductPhotoCapture", () => ({
   ProductPhotoCapture: ({ onCapture }: { onCapture: (f: File) => void }) => (
@@ -22,12 +25,13 @@ import { NewProductForm } from "../products/NewProductForm";
 
 async function fillRest() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
   await waitFor(() => expect(screen.getByRole("option", { name: "Dama", hidden: true })).toBeTruthy());
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "99" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
 }
 
 const render1 = (props = {}) =>
@@ -60,18 +64,13 @@ describe("NewProductForm: dos modos de alta", () => {
     expect(screen.getByLabelText(/descripción/i)).toBeInTheDocument();
   });
 
-  it("en Para catálogo aparecen las dos capturas y el alta se deshabilita hasta tener las dos", () => {
+  it("en Para catálogo aparecen las dos capturas y las fotos son recomendadas, no obligatorias", () => {
     render1();
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
     expect(screen.getByText("Foto de frente")).toBeInTheDocument();
     expect(screen.getByText("Foto de atrás")).toBeInTheDocument();
-    const alta = screen.getByRole("button", { name: /guardar producto/i });
-    expect(alta).toBeDisabled();
-    const [front, back] = screen.getAllByText("capturar");
-    fireEvent.click(front);
-    expect(alta).toBeDisabled();
-    fireEvent.click(back);
-    expect(alta).toBeEnabled();
+    expect(screen.getAllByText("Recomendada")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: /guardar producto/i })).toBeEnabled();
   });
 
   it("en Para catálogo sube las dos fotos y envía mode, imageUrl, backImageUrl y descripción", async () => {
@@ -110,18 +109,15 @@ describe("NewProductForm: dos modos de alta", () => {
     expect(onModeChange).toHaveBeenCalledWith("stock");
   });
 
-  it("el botón deshabilitado por fotos faltantes enlaza la explicación en una región en vivo", () => {
+  it("la explicación de las fotos recomendadas está enlazada al botón de guardar", () => {
     render1();
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
-    const submit = screen.getByRole("button", { name: "Guardar producto" });
-    expect(submit).toBeDisabled();
-    const help = document.getElementById(submit.getAttribute("aria-describedby") ?? "none");
-    expect(help).toHaveTextContent("Para el catálogo se necesitan las dos fotos");
-    expect(help).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByText(/Recomendadas, sobre fondo blanco/)).toBeInTheDocument();
+    expect(screen.getByText(/Falta completar registro fotográfico/)).toBeInTheDocument();
   });
 
-  it('"(opcional)" no usa text-gray-400', () => {
+  it('"(obligatoria)" no usa text-gray-400', () => {
     render1();
-    for (const el of screen.getAllByText("(opcional)")) expect(el.className).not.toMatch(/gray-400/);
+    for (const el of screen.getAllByText("(obligatoria)")) expect(el.className).not.toMatch(/gray-400/);
   });
 });

@@ -17,6 +17,11 @@ vi.mock("@/lib/catalog/actions", () => ({
   listDepartmentsAction: vi.fn().mockResolvedValue([
     { id: "d1", slug: "dama", name: "Dama" },
     { id: "d2", slug: "hombre", name: "Hombre" },
+    { id: "d4", slug: "calzado", name: "Calzado" },
+  ]),
+  listProductTypesAction: vi.fn().mockResolvedValue([
+    { id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1", "d2"] },
+    { id: "t2", slug: "tenis", name: "Tenis", departmentIds: ["d4"] },
   ]),
 }));
 vi.mock("@/components/products/ProductPhotoButton", () => ({
@@ -33,6 +38,9 @@ const product: Product = {
   brandId: "b1",
   departmentId: "d1",
   category: "Playeras",
+  productTypeId: "t1",
+  style: null,
+  audience: null,
   publicCode: "K7Q2M",
   isActive: true,
   imageUrl: null,
@@ -269,7 +277,7 @@ describe("ProductAdminSheet", () => {
     await waitFor(() => expect(products.setVariantActiveAction).toHaveBeenCalledWith("v1", false));
   });
 
-  it("Guardar cambios manda solo lo que cambió", async () => {
+  it("Guardar cambios manda el título y el bloque de clasificación completo", async () => {
     products.updateProductAction.mockResolvedValue({ ok: true });
     open();
     await screen.findAllByRole("button", { name: /^guardar precio/i });
@@ -277,7 +285,9 @@ describe("ProductAdminSheet", () => {
     fireEvent.change(screen.getByLabelText("Departamento"), { target: { value: "d2" } });
     fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
     await waitFor(() =>
-      expect(products.updateProductAction).toHaveBeenCalledWith({ productId: "p1", title: "Playera básica", departmentId: "d2" }),
+      expect(products.updateProductAction).toHaveBeenCalledWith({
+        productId: "p1", title: "Playera básica", departmentId: "d2", productTypeId: "t1", style: null, audience: null,
+      }),
     );
   });
 
@@ -289,7 +299,7 @@ describe("ProductAdminSheet", () => {
     expect(within(lomas).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Lomas", "3", "1", "4"]);
     const club = within(table).getByRole("row", { name: /ClubAlva/ });
     expect(within(club).getAllByRole("cell").map((c) => c.textContent)).toEqual(["ClubAlva", "—", "4", "4"]);
-    expect(screen.getByText("Solo lectura. Para mover piezas usa Entrada o Traspasar.")).toBeInTheDocument();
+    expect(screen.getByText("Solo lectura. Para sumar piezas usa Escanear.")).toBeInTheDocument();
     expect(within(table).queryAllByRole("textbox")).toHaveLength(0);
   });
 
@@ -301,13 +311,67 @@ describe("ProductAdminSheet", () => {
     }
   });
 
-  it("el colaborador no ve controles de edición pero sí el stock", async () => {
+  it("el colaborador ve la sección de precio y puede guardarlo", async () => {
+    open("collaborator");
+    expect(await screen.findByRole("region", { name: "Precio por talla" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /guardar/i }).length).toBeGreaterThan(0);
+    expect(products.listPriceChangesAction).toHaveBeenCalled();
+  });
+
+  it("el colaborador no ve datos del producto ni desactivar, pero sí el stock", async () => {
     open("collaborator");
     expect(await screen.findByRole("table", { name: "Stock por tienda" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /guardar/i })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Datos del producto" })).toBeNull();
     expect(screen.queryByRole("button", { name: /desactivar/i })).toBeNull();
-    expect(screen.queryByRole("textbox")).toBeNull();
     expect(screen.queryByRole("combobox")).toBeNull();
-    expect(products.listPriceChangesAction).not.toHaveBeenCalled();
+  });
+
+  it("el colaborador ve en Stock por tienda solo su tienda", async () => {
+    // El servidor ya recortó: solo llegan filas de l1.
+    const scoped: Product = {
+      ...product,
+      variants: product.variants.map((v) => ({ ...v, inventory: v.inventory.filter((l) => l.locationId === "l1") })),
+    };
+    open("collaborator", scoped);
+    const table = await screen.findByRole("table", { name: "Stock por tienda" });
+    expect(within(table).getByRole("row", { name: /Lomas/ })).toBeInTheDocument();
+    expect(within(table).queryByRole("row", { name: /ClubAlva/ })).toBeNull();
+    expect(within(table).queryByRole("row", { name: /Almacén/ })).toBeNull();
+  });
+
+  it("la ficha muestra Tipo, Estilo y Para según el departamento", async () => {
+    open();
+    const tipo = await screen.findByLabelText("Tipo");
+    await waitFor(() => expect(within(tipo).getByRole("option", { name: "Playeras" })).toBeInTheDocument());
+    expect(screen.getByLabelText("Estilo")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Niño" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Departamento"), { target: { value: "d4" } });
+    expect(screen.getByRole("radio", { name: "Niño" })).toBeInTheDocument();
+  });
+
+  it("guardar un cambio de tipo envía departmentId, productTypeId, style y audience juntos", async () => {
+    products.updateProductAction.mockResolvedValue({ ok: true });
+    const { onChanged } = open();
+    const estilo = await screen.findByLabelText("Estilo");
+    await waitFor(() => expect(within(estilo).getByRole("option", { name: "Polo" })).toBeInTheDocument());
+    fireEvent.change(estilo, { target: { value: "polo" } });
+    fireEvent.click(screen.getByRole("button", { name: /guardar cambios/i }));
+    await waitFor(() =>
+      expect(products.updateProductAction).toHaveBeenCalledWith({
+        productId: "p1", departmentId: "d1", productTypeId: "t1", style: "polo", audience: null,
+      }),
+    );
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it("un tipo que ya no está en la lista muestra 'Actual (no disponible)'", async () => {
+    open("owner", { ...product, productTypeId: "t-viejo", category: "Hoodies" });
+    expect(await screen.findByRole("option", { name: "Actual (no disponible)" })).toBeInTheDocument();
+  });
+
+  it("el colaborador no ve la clasificación", async () => {
+    open("collaborator");
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    expect(screen.queryByLabelText("Tipo")).toBeNull();
   });
 });

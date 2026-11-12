@@ -25,6 +25,9 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
+  listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 vi.mock("@/components/inventory/Scanner", () => ({
   Scanner: ({ onScan }: { onScan: (c: string) => void }) => (
@@ -47,15 +50,17 @@ const hit = {
 
 async function fillProduct() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
   await screen.findByRole("option", { name: "Dama" });
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
 }
 
 beforeEach(() => {
   [lookup, record, createProductAction, addVariantAction, searchProductsAction, fetchLocations].forEach((m) => m.mockReset());
+  fetchLocations.mockResolvedValue([{ id: "loc-1", name: "Centro", type: "store" }]);
   sessionUser = { id: "u1", role: "collaborator", locationId: "loc-1" };
   lookup.mockResolvedValue({ found: false, code: "750999" });
   searchProductsAction.mockResolvedValue([hit]);
@@ -293,7 +298,7 @@ describe("/escanear: código existente", () => {
     fireEvent.click(screen.getByText("simular-escaneo"));
     const list = await screen.findByRole("list", { name: /tallas en tu tienda/i });
     expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["M: 3 pzas", "L: 0 pzas"]);
-    expect(screen.getByRole("button", { name: "Entrada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sumar .* en tu tienda/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Agregar talla" }));
     expect(await screen.findByText("Tallas registradas:")).toBeInTheDocument();
   });
@@ -302,7 +307,7 @@ describe("/escanear: código existente", () => {
     lookup.mockResolvedValue({ found: true, product: { ...product, variants: [{ ...product.variants[1], barcode: "750999" }] }, variantId: "v2" });
     render(<EscanearPage />);
     fireEvent.click(screen.getByText("simular-escaneo"));
-    expect(await screen.findByText(/registrada en otra tienda/i)).toBeInTheDocument();
+    expect(await screen.findByText("Esta prenda no está en tu tienda")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sumar 1 pieza en tu tienda" }));
     await waitFor(() =>
       expect(record).toHaveBeenCalledWith(expect.objectContaining({ variantId: "v2", locationId: "loc-1", kind: "restock", quantity: 1 })),

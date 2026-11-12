@@ -26,6 +26,7 @@ vi.mock("@/lib/products/actions", () => ({
 }));
 vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: vi.fn().mockResolvedValue([]),
+  listProductTypesAction: vi.fn().mockResolvedValue([]),
   listDepartmentsAction: vi.fn().mockResolvedValue([
     { id: "d1", slug: "dama", name: "Dama" },
     { id: "d2", slug: "hombre", name: "Hombre" },
@@ -66,7 +67,7 @@ describe("/productos: ficha y departamento en lote", () => {
     fireEvent.change(await screen.findByLabelText(/^departamento para 2 productos/i), { target: { value: "d2" } });
     fireEvent.click(screen.getByRole("button", { name: "Asignar" }));
     await waitFor(() => expect(base.assignDepartmentAction).toHaveBeenCalledWith(["p1", "p2"], "d2"));
-    expect(await screen.findByText("2 productos pasaron a Hombre.")).toBeInTheDocument();
+    expect(await screen.findByText(/^2 productos pasaron a Hombre\./)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /asignar departamento/i })).toBeNull();
   });
 
@@ -92,12 +93,12 @@ describe("/productos: ficha y departamento en lote", () => {
     expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
   });
 
-  it("el colaborador no ve casillas ni ficha", async () => {
+  it("el colaborador no ve casillas pero sí abre la ficha", async () => {
     session.value = { data: { user: { role: "collaborator" } }, status: "authenticated" };
     render(<ProductosPage />);
     await screen.findByText("Playera");
     expect(screen.queryByRole("checkbox")).toBeNull();
-    expect(screen.queryByRole("button", { name: /ficha/i })).toBeNull();
-    expect(base.fetchLocationsAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Abrir la ficha de Playera" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /asignar departamento/i })).toBeNull();
   });
 });

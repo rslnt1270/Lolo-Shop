@@ -1,10 +1,7 @@
 import { isProductBlobUrl } from "@/lib/image/blob-url";
 import { canonicalCode, isValidGtin } from "./barcode";
 import { normalizeSize, UNIQUE_SIZE } from "./sizes";
-
-export const PRODUCT_CATEGORIES = [
-  "Playeras", "Pantalones", "Hoodies", "Tenis", "Accesorios", "Perfumes", "Raquetas de Padel",
-] as const;
+import { isAudience, MSG_AUDIENCE_INVALID, MSG_PICK_TYPE } from "./product-taxonomy";
 
 export const MAX_TITLE_LENGTH = 120;
 export const MAX_SIZE_LENGTH = 20;
@@ -15,9 +12,18 @@ export const DEFAULT_SIZE = UNIQUE_SIZE;
 export const MAX_SIZES = 12;
 export const MAX_BARCODE_LENGTH = 64;
 export const MAX_DESCRIPTION_LENGTH = 500;
+/** Tope de tamaño por foto de producto (el cliente lo valida antes de subir). */
+export const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+/** Formatos de foto que acepta la subida. */
+export const ALLOWED_IMAGE_TYPES: readonly string[] = ["image/jpeg", "image/png", "image/webp"];
+/** @deprecated El alta ya no exige las dos fotos (el estado sale de las fotos presentes); se conserva por compatibilidad. */
 export const CATALOG_PHOTOS_MESSAGE = "Para el catálogo se necesitan las dos fotos: frente y atrás.";
+export const MSG_TITLE_REQUIRED = "Escribe el título.";
+export const MSG_BRAND_REQUIRED = "Elige la marca.";
+export const MSG_DESCRIPTION_REQUIRED = "Escribe la descripción.";
+export const MSG_PHOTOS_NOT_ANALYZED = "La foto no pasó la revisión de fondo blanco. Tómala de nuevo.";
 
-/** "stock": solo inventario/venta, sin fotos. "catalog": exige foto de frente y de atrás. */
+/** "stock": solo inventario/venta, sin fotos. "catalog": intención inicial de fotografiar; el estado sale de las fotos presentes. */
 export type EntryMode = "stock" | "catalog";
 
 /** Una talla del alta: código escaneado (null = "Sin código"), precio y piezas contadas. */
@@ -37,27 +43,43 @@ export interface NewProductInput {
   brandId: string;
   /** Departamento obligatorio en altas nuevas (ER §2.3, A3). */
   departmentId: string;
-  category: string;
+  /** Tipo global elegido (`ProductType.id`); el servidor deriva `category` de él. */
+  productTypeId: string;
+  /** Estilo (slug de `STYLE_OPTIONS[tipo]`); vacío = sin estilo. */
+  style?: string | null;
+  /** «Para» (solo Calzado): dama, caballero o nino. */
+  audience?: string | null;
   /** Una fila por talla (1 a 12); sustituye `price`, `size` e `initialStock` sueltos. */
   sizes: SizeRowInput[];
   /** Por defecto "stock". */
   mode?: EntryMode;
+  /** Obligatoria en todo alta. */
   description?: string | null;
+  /** Color libre; el servidor lo limpia y lo descarta donde no aplica (`validateReference`). */
+  color?: string | null;
   imageUrl?: string | null;
   backImageUrl?: string | null;
+  /** El cliente revisó el fondo blanco de las fotos enviadas (el servidor no puede analizar píxeles). */
+  photosAnalyzed?: boolean;
 }
 
 export interface NormalizedNewProduct {
   title: string;
   brandId: string;
   departmentId: string;
-  category: string;
+  productTypeId: string;
+  style: string | null;
+  audience: string | null;
   sizes: NormalizedSizeRow[];
   mode: EntryMode;
-  description: string | null;
+  description: string;
+  /** Color crudo recortado (aún sin `validateReference`) o null. */
+  color: string | null;
   /** Null en modo stock (las fotos se ignoran). */
   imageUrl: string | null;
   backImageUrl: string | null;
+  /** Frente y atrás presentes y revisadas en la misma llamada. */
+  photosChecked: boolean;
 }
 
 /** Redondea a centavos sin el error binario de `x * 100` (10.005 → 10.01). */
@@ -135,36 +157,45 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
   const title = (input.title ?? "").trim();
   const brandId = (input.brandId ?? "").trim();
   const departmentId = (input.departmentId ?? "").trim();
-  if (!title || !brandId) {
-    throw new Error("Título y marca son obligatorios.");
-  }
+  if (!title) throw new Error(MSG_TITLE_REQUIRED);
+  if (!brandId) throw new Error(MSG_BRAND_REQUIRED);
   if (title.length > MAX_TITLE_LENGTH) {
     throw new Error(`El título no puede pasar de ${MAX_TITLE_LENGTH} caracteres.`);
   }
   if (!departmentId) {
     throw new Error("Elige el departamento.");
   }
-  if (!(PRODUCT_CATEGORIES as readonly string[]).includes(input.category)) {
-    throw new Error("Elige una categoría válida.");
-  }
+  const productTypeId = typeof input.productTypeId === "string" ? input.productTypeId.trim() : "";
+  if (!productTypeId) throw new Error(MSG_PICK_TYPE);
+  const style = typeof input.style === "string" && input.style.trim() ? input.style.trim() : null;
+  const hasAudience = input.audience !== undefined && input.audience !== null && input.audience !== "";
+  if (hasAudience && !isAudience(input.audience)) throw new Error(MSG_AUDIENCE_INVALID);
+  const audience = hasAudience ? (input.audience as string) : null;
   const sizes = validateSizeRows(input.sizes);
   const description = (typeof input.description === "string" ? input.description : "").trim();
+  if (!description) throw new Error(MSG_DESCRIPTION_REQUIRED);
   if (description.length > MAX_DESCRIPTION_LENGTH) {
     throw new Error(`La descripción no puede pasar de ${MAX_DESCRIPTION_LENGTH} caracteres.`);
   }
   const mode: EntryMode = input.mode === "catalog" ? "catalog" : "stock";
   let imageUrl: string | null = null;
   let backImageUrl: string | null = null;
+  const rawColor = typeof input.color === "string" ? input.color : "";
+  const color = rawColor.trim() ? rawColor : null;
+  let photosChecked = false;
   if (mode === "catalog") {
-    if (!input.imageUrl || !input.backImageUrl) throw new Error(CATALOG_PHOTOS_MESSAGE);
-    if (!isProductBlobUrl(input.imageUrl) || !isProductBlobUrl(input.backImageUrl)) {
-      throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
+    const front = input.imageUrl || null;
+    const back = input.backImageUrl || null;
+    for (const url of [front, back]) {
+      if (url !== null && !isProductBlobUrl(url)) throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
     }
-    imageUrl = input.imageUrl;
-    backImageUrl = input.backImageUrl;
+    if ((front || back) && input.photosAnalyzed !== true) throw new Error(MSG_PHOTOS_NOT_ANALYZED);
+    imageUrl = front;
+    backImageUrl = back;
+    photosChecked = Boolean(front && back);
   }
   return {
-    title, brandId, departmentId, category: input.category, sizes,
-    mode, description: description || null, imageUrl, backImageUrl,
+    title, brandId, departmentId, productTypeId, style, audience, sizes,
+    mode, description, color, imageUrl, backImageUrl, photosChecked,
   };
 }

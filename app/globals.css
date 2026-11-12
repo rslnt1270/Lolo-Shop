@@ -5,6 +5,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Botones: movimiento (spec paleta-botones §3) */
+.lolo-btn {
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+@media (hover: hover) {
+  .lolo-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 14px rgba(22, 48, 47, 0.14);
+  }
+}
+
+.lolo-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.lolo-btn-spinner {
+  animation: lolo-spin 800ms linear infinite;
+}
+
+@keyframes lolo-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.lolo-btn-check path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: lolo-draw 420ms ease forwards;
+}
+
+@keyframes lolo-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Reducir movimiento: transiciones de 1ms (no se eliminan); el giro de carga
+   se hace mas lento y nunca se detiene; el check aparece ya dibujado. */
+@media (prefers-reduced-motion: reduce) {
+  .lolo-btn,
+  .lolo-btn * {
+    transition-duration: 1ms !important;
+  }
+  .lolo-btn:hover:not(:disabled),
+  .lolo-btn:active:not(:disabled) {
+    transform: none !important;
+  }
+  .lolo-btn-spinner {
+    animation-duration: 1600ms !important;
+  }
+  .lolo-btn-check path {
+    animation-duration: 1ms !important;
+    stroke-dashoffset: 0;
+  }
+}
+
 /* Scanner UI Overrides */
 #reader {
   border: none !important;
@@ -31,7 +89,7 @@
 }
 
 #reader button {
-  background-color: #007272 !important;
+  background-color: #0C7C7C !important;
   color: white !important;
   font-weight: 600 !important;
   border: none !important;

@@ -28,6 +28,7 @@ const line = (over: Partial<DraftLine> = {}): DraftLine => ({
   listPrice: 199.95,
   unitPrice: 199.95,
   quantity: 2,
+  available: null,
   ...over,
 });
 

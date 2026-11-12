@@ -10,6 +10,8 @@ type Props = {
   onChannel: (c: SaleChannel) => void;
   onMethod: (m: PaymentMethod) => void;
   onAlias: (a: string) => void;
+  /** Cobro en curso o bloqueado: no se cambia canal, método ni alias. */
+  disabled?: boolean;
 };
 
 const CHANNELS: { value: SaleChannel; label: string }[] = [
@@ -27,11 +29,13 @@ function Choice<T extends string>({
   options,
   value,
   onChange,
+  disabled,
 }: {
   name: string;
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -42,6 +46,7 @@ function Choice<T extends string>({
             name={name}
             value={o.value}
             checked={value === o.value}
+            disabled={disabled}
             onChange={() => onChange(o.value)}
             className="peer sr-only"
           />
@@ -54,7 +59,7 @@ function Choice<T extends string>({
   );
 }
 
-export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onAlias }: Props) {
+export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onAlias, disabled = false }: Props) {
   const uid = useId();
   const aliasHelp = `${uid}-alias-ayuda`;
   const showAlias = channel === "whatsapp" && method === "spay_transfer";
@@ -63,12 +68,12 @@ export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onA
     <div className="space-y-4">
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold text-on-surface">Canal de venta</legend>
-        <Choice name={`${uid}-canal`} options={CHANNELS} value={channel} onChange={onChannel} />
+        <Choice name={`${uid}-canal`} options={CHANNELS} value={channel} onChange={onChannel} disabled={disabled} />
       </fieldset>
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-semibold text-on-surface">Método de pago</legend>
-        <Choice name={`${uid}-pago`} options={METHODS} value={method} onChange={onMethod} />
+        <Choice name={`${uid}-pago`} options={METHODS} value={method} onChange={onMethod} disabled={disabled} />
         {method === "spay_transfer" && (
           <p className="text-sm text-on-surface-variant">
             La venta queda pendiente hasta que el dueño o el encargado confirme la transferencia.
@@ -85,6 +90,7 @@ export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onA
             id={`${uid}-alias`}
             type="text"
             value={alias}
+            disabled={disabled}
             maxLength={MAX_ALIAS_LENGTH}
             onChange={(e) => onAlias(e.target.value)}
             aria-describedby={aliasHelp}

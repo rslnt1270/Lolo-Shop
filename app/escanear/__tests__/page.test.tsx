@@ -3,7 +3,6 @@ import { cleanup, render, screen, fireEvent, waitFor, within } from "@testing-li
 
 const lookup = vi.fn();
 const record = vi.fn();
-const transfer = vi.fn();
 const createProductAction = vi.fn();
 const fetchLocations = vi.fn();
 let sessionUser: Record<string, unknown> = { id: "u1", role: "collaborator", locationId: "loc-1" };
@@ -14,7 +13,6 @@ vi.mock("next-auth/react", () => ({
 vi.mock("@/lib/actions", () => ({
   lookupCodeAction: (...a: unknown[]) => lookup(...a),
   recordStockMovementAction: (...a: unknown[]) => record(...a),
-  transferStockAction: (...a: unknown[]) => transfer(...a),
   createProductAction: (...a: unknown[]) => createProductAction(...a),
   searchProductsAction: vi.fn().mockResolvedValue([]),
   addVariantAction: vi.fn(),
@@ -25,6 +23,9 @@ vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: async () => [{ id: "b1", name: "Lolo", slug: "lolo" }],
   listDepartmentsAction: async () => [{ id: "d1", slug: "dama", name: "Dama" }],
   createBrandAction: vi.fn(),
+  listColorsAction: async () => ["Negro", "Rosa"],
+  createColorAction: vi.fn(),
+  listProductTypesAction: async () => [{ id: "t1", slug: "playera", name: "Playeras", departmentIds: ["d1"] }],
 }));
 // Parcial: el alta usa canonicalCode del módulo real; solo se fuerza isValidGtin.
 vi.mock("@/lib/domain/barcode", async (orig) => ({
@@ -47,19 +48,20 @@ const existingProduct = {
 
 async function fillForm() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
+  fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   fireEvent.change(screen.getByRole("combobox", { name: /marca/i }), { target: { value: "Lolo" } });
   fireEvent.mouseDown(await screen.findByRole("option", { name: "Lolo" }));
   await screen.findByRole("option", { name: "Dama" });
   fireEvent.change(screen.getByLabelText(/departamento/i), { target: { value: "d1" } });
   fireEvent.change(screen.getByLabelText(/precio/i), { target: { value: "50" } });
-  fireEvent.change(screen.getByLabelText(/categor/i), { target: { value: "Accesorios" } });
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
   fireEvent.change(screen.getByLabelText(/piezas/i), { target: { value: "4" } });
   fireEvent.click(screen.getByRole("button", { name: /guardar producto/i }));
 }
 
 describe("/escanear: flujo de alta por lote", () => {
   beforeEach(() => {
-    [lookup, record, transfer, createProductAction, fetchLocations].forEach((m) => m.mockReset());
+    [lookup, record, createProductAction, fetchLocations].forEach((m) => m.mockReset());
     sessionUser = { id: "u1", role: "collaborator", locationId: "loc-1" };
     lookup.mockResolvedValue({ found: false, code: "750999" });
     record.mockResolvedValue({ ok: true, available: 1, replayed: false });
@@ -79,7 +81,7 @@ describe("/escanear: flujo de alta por lote", () => {
 
     await waitFor(() => expect(screen.getByTestId("scanner")).toBeTruthy());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({
-      category: "Accesorios", locationId: "loc-1", sizes: [{ barcode: "750999", initialStock: 4 }],
+      productTypeId: "t1", locationId: "loc-1", sizes: [{ barcode: "750999", initialStock: 4 }],
     });
     expect(screen.getByText(/1 alta en esta sesión/i)).toBeTruthy();
     expect(screen.getByText(/escanea la siguiente/i)).toBeTruthy();
@@ -92,7 +94,7 @@ describe("/escanear: flujo de alta por lote", () => {
     fireEvent.click(screen.getByText("simular-escaneo"));
     expect(await screen.findByText("Playera X")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /guardar producto/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+    fireEvent.click(screen.getByRole("button", { name: /sumar .* en tu tienda/i }));
     await waitFor(() =>
       expect(record).toHaveBeenCalledWith(
         expect.objectContaining({ variantId: "v1", locationId: "loc-1", kind: "restock", quantity: 1 }),
@@ -149,114 +151,30 @@ describe("/escanear: flujo de alta por lote", () => {
     expect(sessionStorage.getItem("loloshop:escanear:location")).toBe("loc-B");
   });
 
-  describe("producto existente: panel de movimientos", () => {
+  describe("producto existente: sumar piezas", () => {
+    it("prenda en la tienda: ofrece Sumar piezas y no ofrece merma ni corrección", async () => {
+      await openExisting();
+      expect(screen.getByRole("button", { name: "Sumar 1 pieza en tu tienda" })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /merma|corrección/i })).toBeNull();
+    });
+
     async function openExisting() {
       lookup.mockResolvedValue({ found: true, product: existingProduct, variantId: "v1" });
       record.mockResolvedValue({ ok: true, available: 5, replayed: false });
       render(<EscanearPage />);
       fireEvent.click(screen.getByText("simular-escaneo"));
       await screen.findByText("Playera X");
-      return screen.getByTestId("stock-panel");
     }
-
-    it("no hay ningún botón Salida y Entrada es el primero del panel", async () => {
-      const panel = await openExisting();
-      expect(screen.queryByRole("button", { name: /salida/i })).toBeNull();
-      expect(within(panel).getAllByRole("button")[0]).toHaveAccessibleName("Entrada");
-    });
-
-    it("el aviso '¿Vendiste la prenda? Regístrala en Vender.' enlaza a /pos", async () => {
-      await openExisting();
-      expect(screen.getByRole("link", { name: /regístrala en vender/i })).toHaveAttribute("href", "/pos");
-      expect(screen.getByText(/¿vendiste la prenda\?/i)).toBeTruthy();
-    });
-
-    it("colaborador no ve 'Merma o corrección'", async () => {
-      await openExisting();
-      expect(screen.queryByRole("button", { name: /merma o corrección/i })).toBeNull();
-    });
-
-    it("manager con tienda sí lo ve; sin motivo muestra el error sin llamar a la acción", async () => {
-      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
-      fireEvent.click(screen.getByRole("button", { name: /registrar merma/i }));
-      expect(await screen.findByText("Escribe el motivo.")).toBeTruthy();
-      expect(record).not.toHaveBeenCalled();
-    });
-
-    it("merma con motivo llama a la acción con kind damage", async () => {
-      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
-      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Manchada" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar merma/i }));
-      await waitFor(() =>
-        expect(record).toHaveBeenCalledWith(
-          expect.objectContaining({ variantId: "v1", locationId: "loc-1", kind: "damage", quantity: 1, reason: "Manchada" }),
-        ),
-      );
-    });
 
     it("sesión vencida: Entrada que resuelve undefined avisa con enlace a iniciar sesión y no lanza", async () => {
       await openExisting();
       record.mockResolvedValue(undefined);
-      fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+      fireEvent.click(screen.getByRole("button", { name: /sumar .* en tu tienda/i }));
       expect(await screen.findByText(/Tu sesión terminó/)).toBeTruthy();
       expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
     });
 
-    it("sesión vencida: un traspaso que resuelve undefined también avisa", async () => {
-      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
-      fetchLocations.mockResolvedValue([
-        { id: "loc-1", name: "Lomas", type: "store" },
-        { id: "loc-2", name: "ClubAlva", type: "store" },
-      ]);
-      transfer.mockResolvedValue(undefined);
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
-      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
-      await within(origen).findByRole("option", { name: "ClubAlva" });
-      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-2" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
-      expect(await screen.findByText(/Tu sesión terminó/)).toBeTruthy();
-      expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeTruthy();
-    });
-
-    it("owner con ClubAlva elegida y stock solo en Lomas ve 'Traspasar' de Lomas a ClubAlva", async () => {
-      sessionUser = { id: "o1", role: "owner", locationId: null };
-      fetchLocations.mockResolvedValue([
-        { id: "loc-lomas", name: "Lomas", type: "store" },
-        { id: "loc-club", name: "ClubAlva", type: "store" },
-      ]);
-      lookup.mockResolvedValue({
-        found: true,
-        product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-lomas", available: 4 }] }] },
-        variantId: "v1",
-      });
-      transfer.mockResolvedValue({ ok: true, available: 1, replayed: false, message: "Se movió 1 de Lomas a ClubAlva." });
-      render(<EscanearPage />);
-      const sel = (await screen.findByLabelText(/^tienda$/i)) as HTMLSelectElement;
-      await within(sel).findByRole("option", { name: "ClubAlva" });
-      fireEvent.change(sel, { target: { value: "loc-club" } });
-      fireEvent.click(screen.getByText("simular-escaneo"));
-      await screen.findByText("Playera X");
-      expect(screen.getByText(/registrada en otra tienda/)).toBeTruthy();
-      expect(screen.getByRole("button", { name: /sumar .* en tu tienda/i })).toBeTruthy();
-      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
-      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
-      await within(origen).findByRole("option", { name: "Lomas" });
-      expect(origen.value).toBe("loc-lomas");
-      expect((screen.getByLabelText(/^destino$/i) as HTMLSelectElement).value).toBe("loc-club");
-      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
-      await waitFor(() =>
-        expect(transfer).toHaveBeenCalledWith(
-          expect.objectContaining({ variantId: "v1", fromLocationId: "loc-lomas", toLocationId: "loc-club", quantity: 1 }),
-        ),
-      );
-    });
-
-    it("colaborador con stock solo en otra tienda no ve 'Traspasar'", async () => {
+    it("prenda fuera de tu tienda: avisa sin nombrar otra tienda y no ofrece traspasar", async () => {
       lookup.mockResolvedValue({
         found: true,
         product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-9", available: 4 }] }] },
@@ -264,8 +182,10 @@ describe("/escanear: flujo de alta por lote", () => {
       });
       render(<EscanearPage />);
       fireEvent.click(screen.getByText("simular-escaneo"));
-      await screen.findByText(/registrada en otra tienda/);
-      expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();
+      expect(await screen.findByText("Esta prenda no está en tu tienda")).toBeInTheDocument();
+      expect(screen.queryByText(/otra tienda/i)).toBeNull();
+      expect(screen.queryByRole("button", { name: /registrar traspaso/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: /traspas/i })).toBeNull();
     });
 
     it("el precio usa el formato de pesos: $350.50 y $1,250", async () => {
@@ -288,118 +208,13 @@ describe("/escanear: flujo de alta por lote", () => {
       expect(await screen.findByText("Precio: $1,250")).toBeTruthy();
     });
 
-    it("colaborador no ve 'Traspasar'", async () => {
-      await openExisting();
-      expect(screen.queryByRole("button", { name: /traspasar/i })).toBeNull();
-    });
-
-    it("manager: Traspasar pide origen, destino, cantidad y nota y muestra el mensaje de éxito", async () => {
-      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
-      fetchLocations.mockResolvedValue([
-        { id: "loc-1", name: "Lomas", type: "store" },
-        { id: "loc-2", name: "ClubAlva", type: "store" },
-      ]);
-      transfer.mockResolvedValue({ ok: true, available: 3, replayed: false, message: "Se movieron 2 de Lomas a ClubAlva." });
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
-      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
-      await within(origen).findByRole("option", { name: "ClubAlva" });
-      expect(origen.value).toBe("loc-1");
-      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-2" } });
-      fireEvent.change(screen.getByLabelText(/^cantidad$/i), { target: { value: "2" } });
-      fireEvent.change(screen.getByLabelText(/^nota/i), { target: { value: "Reposición" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
-      await waitFor(() =>
-        expect(transfer).toHaveBeenCalledWith(
-          expect.objectContaining({
-            variantId: "v1", fromLocationId: "loc-1", toLocationId: "loc-2", quantity: 2, note: "Reposición",
-          }),
-        ),
-      );
-      expect(await screen.findByText("Se movieron 2 de Lomas a ClubAlva.")).toBeTruthy();
-    });
-
-    it("el almacén aparece como origen y como destino, y se etiqueta como bodega", async () => {
-      sessionUser = { id: "o1", role: "owner", locationId: null };
-      fetchLocations.mockResolvedValue([
-        { id: "loc-1", name: "Lomas", type: "store" },
-        { id: "loc-w", name: "Almacén", type: "warehouse" },
-      ]);
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
-      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
-      const destino = screen.getByLabelText(/^destino$/i) as HTMLSelectElement;
-      await within(origen).findByRole("option", { name: "Almacén (bodega)" });
-      expect(within(destino).getByRole("option", { name: "Almacén (bodega)" })).toBeTruthy();
-    });
-
-    it("si la ubicación actual es el almacén, el origen preseleccionado es el almacén y se envía", async () => {
-      sessionUser = { id: "o1", role: "owner", locationId: null };
-      fetchLocations.mockResolvedValue([
-        { id: "loc-w", name: "Almacén", type: "warehouse" },
-        { id: "loc-1", name: "Lomas", type: "store" },
-      ]);
-      transfer.mockResolvedValue({ ok: true, available: 0, replayed: false, message: "ok" });
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
-      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
-      await within(origen).findByRole("option", { name: "Lomas" });
-      expect(origen.value).toBe("loc-w");
-      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-1" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
-      await waitFor(() =>
-        expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ fromLocationId: "loc-w", toLocationId: "loc-1" })),
-      );
-    });
-
-    it("origen = destino muestra el error sin llamar a la acción", async () => {
-      sessionUser = { id: "o1", role: "owner", locationId: null };
-      fetchLocations.mockResolvedValue([
-        { id: "loc-1", name: "Lomas", type: "store" },
-        { id: "loc-2", name: "ClubAlva", type: "store" },
-      ]);
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /^traspasar$/i }));
-      const origen = (await screen.findByLabelText(/^origen$/i)) as HTMLSelectElement;
-      await within(origen).findByRole("option", { name: "ClubAlva" });
-      fireEvent.change(screen.getByLabelText(/^destino$/i), { target: { value: "loc-1" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar traspaso/i }));
-      expect(await screen.findByText(/origen y el destino/i)).toBeTruthy();
-      expect(transfer).not.toHaveBeenCalled();
-    });
-
-    it("corrección pide dirección y el botón cambia a 'Registrar corrección'", async () => {
-      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
-      await openExisting();
-      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
-      fireEvent.click(screen.getByRole("radio", { name: "Corrección" }));
-      fireEvent.click(screen.getByRole("radio", { name: "Resta" }));
-      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Conteo" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar corrección/i }));
-      await waitFor(() =>
-        expect(record).toHaveBeenCalledWith(
-          expect.objectContaining({ kind: "adjustment", direction: "out", reason: "Conteo" }),
-        ),
-      );
-    });
-
-    it("INSUFFICIENT muestra el mensaje del servidor", async () => {
-      sessionUser = { id: "m1", role: "manager", locationId: "loc-1" };
-      await openExisting();
-      record.mockResolvedValue({ ok: false, code: "INSUFFICIENT", available: 1, message: "Solo hay 1 en esta tienda." });
-      fireEvent.click(screen.getByRole("button", { name: /merma o corrección/i }));
-      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "Manchada" } });
-      fireEvent.click(screen.getByRole("button", { name: /registrar merma/i }));
-      expect(await screen.findByText("Solo hay 1 en esta tienda.")).toBeTruthy();
-    });
-
     it("un reintento tras un error de red lleva el mismo requestId", async () => {
       await openExisting();
       record.mockResolvedValueOnce({ ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." });
-      const entrada = screen.getByRole("button", { name: "Entrada" });
+      const entrada = screen.getByRole("button", { name: /sumar .* en tu tienda/i });
       fireEvent.click(entrada);
       await screen.findByText(/no se pudo registrar/i);
-      fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+      fireEvent.click(screen.getByRole("button", { name: /sumar .* en tu tienda/i }));
       await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
       const [a, b] = record.mock.calls.map((c) => (c[0] as { requestId: string }).requestId);
       expect(a).toBe(b);
@@ -410,7 +225,7 @@ describe("/escanear: flujo de alta por lote", () => {
       await openExisting();
       let release!: (v: unknown) => void;
       record.mockReturnValue(new Promise((r) => (release = r)));
-      const entrada = screen.getByRole("button", { name: "Entrada" });
+      const entrada = screen.getByRole("button", { name: /sumar .* en tu tienda/i });
       fireEvent.click(entrada);
       fireEvent.click(entrada);
       expect(record).toHaveBeenCalledTimes(1);
@@ -426,10 +241,10 @@ describe("/escanear: flujo de alta por lote", () => {
       record.mockResolvedValue({ ok: true, available: 1, replayed: false });
       render(<EscanearPage />);
       expect(screen.queryByLabelText(/^tienda$/i)).toBeNull();
-      expect(fetchLocations).not.toHaveBeenCalled();
+      // La tienda fija no se elige: solo se consulta el nombre para «Registrando en».
       fireEvent.click(screen.getByText("simular-escaneo"));
       await screen.findByText("Playera X");
-      fireEvent.click(screen.getByRole("button", { name: "Entrada" }));
+      fireEvent.click(screen.getByRole("button", { name: /sumar .* en tu tienda/i }));
       await waitFor(() => expect(record).toHaveBeenCalledWith(expect.objectContaining({ locationId: "loc-1" })));
     });
 

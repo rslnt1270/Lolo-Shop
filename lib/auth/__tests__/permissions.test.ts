@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getCurrentUser = vi.fn();
 vi.mock("@/lib/auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
 
-import { assertCanOperate, requireRole, isStoreBound, currentUserOrNull } from "../permissions";
+import { assertCanOperate, requireRole, isStoreBound, currentUserOrNull, PRICE_EDIT_ROLES } from "../permissions";
 import { ForbiddenError, UnauthenticatedError } from "../errors";
 import type { CurrentUser } from "../current-user";
 
@@ -57,5 +57,11 @@ describe("currentUserOrNull", () => {
   it("devuelve el usuario", async () => {
     getCurrentUser.mockResolvedValue(u("owner", null));
     expect(await currentUserOrNull()).toMatchObject({ id: "u1" });
+  });
+});
+
+describe("PRICE_EDIT_ROLES", () => {
+  it("incluye owner, manager y collaborator; excluye cualquier otro valor", () => {
+    expect([...PRICE_EDIT_ROLES].sort()).toEqual(["collaborator", "manager", "owner"]);
   });
 });

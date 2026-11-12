@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
-import { SaleCart } from "@/components/sales/SaleCart";
+import { SaleCart, type PendingScan } from "@/components/sales/SaleCart";
+import { Button } from "@/components/ui/Button";
 import { PaymentPicker } from "@/components/sales/PaymentPicker";
-import { fetchLocationsAction, lookupCodeAction } from "@/lib/actions";
+import { fetchLocationsAction, lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
 import { createSaleAction } from "@/lib/sales/actions";
-import { isValidGtin } from "@/lib/domain/barcode";
+import { isValidGtin, normalizeCode } from "@/lib/domain/barcode";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
 import { formatPrice } from "@/lib/public/format";
@@ -35,12 +36,23 @@ export default function POSPage() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [stockError, setStockError] = useState<StockError | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [scannerKey, setScannerKey] = useState(0);
+  const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
+  // Códigos con consulta en curso o fallida: una segunda lectura del mismo código no crea otra fila.
+  const pendingRef = useRef(new Map<string, "loading" | "error" | "queued">());
+  // Resultados que llegaron con un cobro en curso (o incierto): esperan para no alterar el carrito que se cobra.
+  const heldRef = useRef(new Map<string, Extract<LookupCodeResult, { found: true }>>());
   const [cameraReady, setCameraReady] = useState(false);
   const [locationsFailed, setLocationsFailed] = useState(false);
   const [locationsAttempt, setLocationsAttempt] = useState(0);
   const submittingRef = useRef(false);
+  // Carrito bloqueado: "uncertain" = no sabemos si la venta se registró; "conflict" = el id ya era otra venta.
+  const [lock, setLockState] = useState<"uncertain" | "conflict" | null>(null);
+  const lockRef = useRef<"uncertain" | "conflict" | null>(null);
+  const [confirmingNew, setConfirmingNew] = useState(false);
+  const setLock = useCallback((v: "uncertain" | "conflict" | null) => {
+    lockRef.current = v;
+    setLockState(v);
+  }, []);
 
   const role = session?.user?.role;
   const isCollaborator = role === "collaborator";
@@ -89,35 +101,131 @@ export default function POSPage() {
     }
   };
 
-  const { add } = draft;
-  const handleScan = useCallback(
-    async (code: string) => {
-      setNotice(null);
-      setSearching(true);
+  const { add, quantityOf, clearAvailability } = draft;
+  const locationRef = useRef(locationId);
+  locationRef.current = locationId;
+
+  const setPending = useCallback((code: string, status: "loading" | "error" | "queued" | null) => {
+    if (status) pendingRef.current.set(code, status);
+    else pendingRef.current.delete(code);
+    setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
+  }, []);
+
+  // Otra tienda: las existencias conocidas y las lecturas en espera ya no aplican.
+  useEffect(() => {
+    clearAvailability();
+    for (const code of heldRef.current.keys()) setPending(code, null);
+    heldRef.current.clear();
+  }, [locationId, clearAvailability, setPending]);
+
+  const applyFound = useCallback(
+    (result: Extract<LookupCodeResult, { found: true }>) => {
+      const variant = result.product.variants.find((v) => v.id === result.variantId);
+      if (!variant) return;
+      const added = add({ product: result.product, variant }, result.stock);
+      if (added.ok) {
+        setNotice({ kind: "ok", text: `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}` });
+      } else {
+        setNotice({ kind: "error", text: `Sin existencias de la talla ${added.size} en esta tienda` });
+      }
+    },
+    [add, quantityOf],
+  );
+
+  /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
+  const flushHeld = useCallback(() => {
+    if (submittingRef.current || lockRef.current) return;
+    const items = Array.from(heldRef.current.entries());
+    heldRef.current.clear();
+    for (const [code, result] of items) {
+      setPending(code, null);
+      applyFound(result);
+    }
+  }, [applyFound, setPending]);
+
+  const runLookup = useCallback(
+    async (code: string, store: string) => {
+      setPending(code, "loading");
       try {
-        const result = await lookupCodeAction(code);
+        const result = await lookupCodeAction(code, store);
+        // Cambió la tienda mientras llegaba la consulta: su resultado ya no corresponde.
+        if (store !== locationRef.current) {
+          setPending(code, null);
+          return;
+        }
         if (!result) {
+          setPending(code, null);
           setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
           const variant = result.product.variants.find((v) => v.id === result.variantId);
-          if (variant) {
-            add({ product: result.product, variant });
-            setNotice({ kind: "ok", text: `Agregado: ${result.product.title} (${variant.title})` });
+          if (!variant) {
+            setPending(code, null);
+            setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
+          } else if (submittingRef.current || lockRef.current) {
+            // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
+            heldRef.current.set(code, result);
+            setPending(code, "queued");
+          } else {
+            setPending(code, null);
+            applyFound(result);
           }
+        } else if (result.error) {
+          // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
+          setPending(code, "error");
+          setNotice({ kind: "error", text: result.error, login: result.error === SESSION_EXPIRED_TEXT });
         } else {
-          setNotice({
-            kind: "error",
-            text: result.error ?? `No encontramos el código ${result.code}. Revisa que esté dado de alta.`,
-          });
+          setPending(code, null);
+          setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
         }
       } catch {
+        if (store !== locationRef.current) {
+          setPending(code, null);
+          return;
+        }
+        setPending(code, "error");
         setNotice({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
-      } finally {
-        setSearching(false);
-        setScannerKey((k) => k + 1);
       }
     },
-    [add],
+    [applyFound, setPending],
+  );
+
+  const handleScan = useCallback(
+    (raw: string) => {
+      const code = normalizeCode(raw);
+      if (!code) return;
+      if (!locationId) {
+        setNotice({ kind: "error", text: "Elige la tienda de la venta." });
+        return;
+      }
+      // Mientras haya una consulta en curso de este código no se abre otra. Si quedó en error, releer es reintentar.
+      const state = pendingRef.current.get(code);
+      if (state === "loading" || state === "queued") return;
+      setNotice(null);
+      void runLookup(code, locationId);
+    },
+    [locationId, runLookup],
+  );
+
+  /** Quita las filas de lecturas fallidas: no deben pasar a la venta siguiente. */
+  const clearErrorRows = useCallback(() => {
+    for (const [code, st] of Array.from(pendingRef.current)) if (st === "error") pendingRef.current.delete(code);
+    setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
+  }, []);
+
+  const discardScan = useCallback(
+    (code: string) => {
+      if (pendingRef.current.get(code) === "error") setPending(code, null);
+    },
+    [setPending],
+  );
+
+  const retryScan = useCallback(
+    (code: string) => {
+      if (!locationId || pendingRef.current.get(code) === "loading") return;
+      setNotice(null);
+      void runLookup(code, locationId);
+    },
+    [locationId, runLookup],
   );
 
   const signature = lines.map((l) => `${l.variantId}:${l.quantity}`).join(",");
@@ -175,6 +283,8 @@ export default function POSPage() {
               : `Venta #${result.sale.number} registrada`,
         });
         setAlias("");
+        setLock(null);
+        clearErrorRows();
         draft.reset();
       } else if (result.code === "PRICE_CHANGED" && result.lines?.length) {
         // El precio cambió con el carrito abierto: se cobra al vigente. El carrito cambió, así que es otro cobro.
@@ -192,12 +302,15 @@ export default function POSPage() {
       } else if (result.reason === "request_conflict") {
         // Ese identificador ya es otra venta: el siguiente Cobrar registra una nueva con este carrito.
         draft.renewRequestId();
+        // El carrito queda bloqueado: un Cobrar simple no debe volver a cobrar las líneas originales.
+        setLock("conflict");
         setNotice({ kind: "error", text: result.message });
       } else if (result.reason === "session_expired") {
         setNotice({ kind: "error", text: result.message, login: true });
       } else if (result.code === "UNAVAILABLE") {
         // Resultado incierto: se reintenta con el mismo identificador.
         draft.markUncertain();
+        setLock("uncertain");
         setNotice({ kind: "error", text: result.message });
       } else {
         draft.markRejected(requestSignature);
@@ -209,6 +322,7 @@ export default function POSPage() {
       }
     } catch {
       draft.markUncertain();
+      setLock("uncertain");
       setNotice({
         kind: "error",
         text: "No se pudo registrar la venta. Revisa tu conexión y vuelve a pulsar Cobrar: no se duplicará.",
@@ -216,7 +330,20 @@ export default function POSPage() {
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+      // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
+      flushHeld();
     }
+  };
+
+  const startNewSale = () => {
+    setConfirmingNew(false);
+    setLock(null);
+    clearErrorRows();
+    setStockError(null);
+    setAlias("");
+    draft.reset();
+    setNotice(null);
+    flushHeld();
   };
 
   if (status === "loading") {
@@ -246,8 +373,7 @@ export default function POSPage() {
       </header>
 
 <div aria-live="polite" className="sticky top-2 z-30 space-y-2">
-            {searching && <p className="rounded-lg bg-surface-container-low p-3 text-sm shadow-sm">Buscando…</p>}
-            {notice && !searching && (
+            {notice && (
               <p
                 role={notice.kind === "error" ? "alert" : "status"}
                 className={`rounded-lg p-3 text-sm font-semibold shadow-sm ${
@@ -275,6 +401,7 @@ export default function POSPage() {
               <select
                 id="tienda"
                 value={chosenLocation}
+                disabled={lock !== null}
                 onChange={(e) => chooseLocation(e.target.value)}
                 className="mt-1 block min-h-[44px] w-full rounded-lg border border-outline bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
@@ -299,7 +426,7 @@ export default function POSPage() {
             </div>
           )}
           <Scanner
-            key={scannerKey}
+            continuous
             onScan={handleScan}
             validate={isValidGtin}
             autoStart={cameraReady}
@@ -315,6 +442,31 @@ export default function POSPage() {
             </p>
           )}
 
+          {lock && (
+            <div role="alert" className="space-y-3 rounded-2xl border border-error bg-error-container p-4 text-on-error-container">
+              <p className="text-sm font-semibold">
+                {lock === "uncertain"
+                  ? "No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas."
+                  : "Esta venta quedó bloqueada: verifica en Ventas antes de empezar otra."}
+              </p>
+              {confirmingNew ? (
+                <div className="space-y-3">
+                  <p className="text-sm">Si la venta sí se registró, no la vuelvas a cobrar.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button disabled={submitting} onClick={startNewSale}>Sí, empezar otra venta</Button>
+                    <Button variant="outline" onClick={() => setConfirmingNew(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" disabled={submitting} onClick={() => setConfirmingNew(true)}>
+                  Ya revisé en Ventas: empezar otra venta
+                </Button>
+              )}
+            </div>
+          )}
+
           <SaleCart
             lines={lines}
             canEditPrice={canEditPrice}
@@ -322,6 +474,10 @@ export default function POSPage() {
             onSetQty={draft.setQty}
             onSetPrice={draft.setPrice}
             onRemove={draft.remove}
+            locked={lock !== null || submitting}
+            pendingScans={pendingScans}
+            onRetry={retryScan}
+            onDiscard={discardScan}
           />
 
           <div className="rounded-2xl border border-outline-variant bg-white p-4">
@@ -332,20 +488,27 @@ export default function POSPage() {
               onChannel={setChannel}
               onMethod={setMethod}
               onAlias={setAlias}
+              disabled={lock !== null || submitting}
             />
           </div>
 
           <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
-            <button
-              type="button"
-              onClick={() => void charge()}
-              disabled={lines.length === 0 || submitting}
-              aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
-              className="min-h-[52px] w-full rounded-xl bg-loloteal px-4 text-lg font-bold text-white transition-transform duration-150 hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal focus-visible:ring-offset-2 disabled:bg-outline-variant disabled:text-on-surface-variant disabled:active:scale-100"
-            >
-              {submitting ? "Cobrando…" : lines.length ? `Cobrar ${formatPrice(saleTotal(lines))}` : "Cobrar"}
-            </button>
-            {lines.length === 0 && (
+            {lock === "uncertain" ? (
+              <Button onClick={() => void charge()} loading={submitting} className="min-h-[52px] w-full text-lg">
+                {submitting ? "Cobrando…" : "Reintentar cobro"}
+              </Button>
+            ) : lock === "conflict" ? null : (
+              <Button
+                onClick={() => void charge()}
+                disabled={lines.length === 0 || pendingScans.some((p) => p.status === "loading" || p.status === "error")}
+                loading={submitting}
+                aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
+                className="min-h-[52px] w-full text-lg"
+              >
+                {submitting ? "Cobrando…" : lines.length ? `Cobrar ${formatPrice(saleTotal(lines))}` : "Cobrar"}
+              </Button>
+            )}
+            {lines.length === 0 && !lock && (
               <p id="cobrar-ayuda" className="mt-2 text-center text-sm text-on-surface-variant">
                 Agrega al menos una prenda para cobrar.
               </p>

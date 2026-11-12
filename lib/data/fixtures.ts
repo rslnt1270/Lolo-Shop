@@ -1,4 +1,5 @@
 import type { Location, Product } from "@/lib/domain/types";
+import { DEPARTMENT_TYPE_SLUGS, PRODUCT_TYPE_CATALOG } from "@/lib/domain/product-types-catalog";
 
 export const fixtureLocations: Location[] = [
   { id: "loc-1", name: "Tienda 1", type: "store" },
@@ -81,3 +82,15 @@ export const FIXTURE_DEPARTMENTS: { id: string; slug: string; name: string; sort
   { id: "dep-calzado", slug: "calzado", name: "Calzado", sortOrder: 4, isActive: true },
   { id: "dep-accesorios", slug: "accesorios", name: "Accesorios", sortOrder: 5, isActive: true },
 ];
+
+/** Tipos del doble de pruebas, desde el catálogo en código; ids `type-<slug>`. Los `fixtureProducts` no se clasifican. */
+export const FIXTURE_PRODUCT_TYPES = PRODUCT_TYPE_CATALOG.map((t) => ({
+  id: `type-${t.slug}`,
+  ...t,
+  isActive: true,
+}));
+
+/** Puente departamento ↔ tipo del doble: ids `dep-<slug>` y `type-<slug>`. */
+export const FIXTURE_DEPARTMENT_PRODUCT_TYPES: { departmentId: string; productTypeId: string }[] = Object.entries(
+  DEPARTMENT_TYPE_SLUGS,
+).flatMap(([dept, slugs]) => slugs.map((slug) => ({ departmentId: `dep-${dept}`, productTypeId: `type-${slug}` })));
