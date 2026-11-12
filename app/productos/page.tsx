@@ -226,7 +226,7 @@ export default function ProductosPage() {
       </div>
 
       {isStaff && selected.length > 0 && (
-        <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-gray-200 bg-white/95 p-3 backdrop-blur">
+        <div className="sticky bottom-[var(--bottom-nav-offset)] md:bottom-0 z-10 -mx-4 space-y-2 border-t border-gray-200 bg-white/95 p-3 pb-[max(0.75rem,var(--sticky-safe-pb))] backdrop-blur">
           {assigning ? (
             <div className="space-y-2">
               {assignKind === "department" ? (

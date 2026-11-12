@@ -780,7 +780,7 @@ export function NewProductForm({
         <p role="status" className="rounded-md bg-green-50 p-3 text-sm font-medium text-green-800">{stockAdded}</p>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-gray-100 bg-white px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="sticky bottom-[var(--bottom-nav-offset)] md:bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-gray-100 bg-white px-4 pb-[max(0.5rem,var(--sticky-safe-pb))] pt-2">
         <Button type="submit" loading={loading} disabled={photoBusy} className="w-full">
           {loading ? "Guardando…" : photoBusy ? "Procesando foto…" : "Guardar producto"}
         </Button>

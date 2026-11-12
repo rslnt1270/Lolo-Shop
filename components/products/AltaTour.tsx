@@ -34,7 +34,7 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
   const dur = t.stepMs / 1000;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 pb-[max(1rem,var(--safe-bottom))] sm:items-center">
       <div
         ref={dialogRef}
         role="dialog"

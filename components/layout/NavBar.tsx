@@ -23,9 +23,11 @@ export function NavBar() {
 
   return (
     <>
-      {/* Desktop Top Bar (Hidden on Mobile) */}
-      <nav className="hidden md:flex items-center justify-between border-b border-gray-100 bg-white px-6 py-3">
-        <div className="flex items-center gap-3">
+      {/* Barra superior md+ (iPad vertical 768 px en adelante, escritorio).
+          Entre md y lg solo iconos (con nombre accesible): con textos los 7
+          destinos no caben en 768–1023 px (iPad vertical, iPhone horizontal). */}
+      <nav className="hidden md:flex items-center justify-between gap-4 border-b border-gray-100 bg-white px-4 py-3 lg:px-6">
+        <div className="flex shrink-0 items-center gap-3">
           <img
             src="/loloshop-logo.png"
             alt="LoloShop"
@@ -33,7 +35,7 @@ export function NavBar() {
           />
           <span className="font-bold text-lg text-[#18181B] tracking-tight">LoloShop</span>
         </div>
-        <div className="flex items-center gap-6 text-sm font-medium">
+        <div className="flex items-center gap-1 text-sm font-medium lg:gap-6">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
@@ -41,35 +43,46 @@ export function NavBar() {
                 key={item.name} 
                 href={item.href} 
                 aria-current={isActive ? "page" : undefined}
-                className={`flex min-h-11 items-center gap-2 rounded-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal ${isActive ? 'text-loloteal' : 'text-gray-600 hover:text-gray-900'}`}
+                title={item.name}
+                className={`flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal ${isActive ? 'text-loloteal' : 'text-gray-600 hover:text-gray-900'}`}
               >
-                <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} />
-                {item.name}
+                <item.icon aria-hidden="true" size={18} strokeWidth={isActive ? 2.5 : 2} />
+                <span className="sr-only lg:not-sr-only">{item.name}</span>
               </Link>
             )
           })}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="ml-4 flex min-h-11 items-center gap-2 rounded-md text-gray-600 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
+            title="Salir"
+            className="ml-2 flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md text-gray-600 lg:ml-4 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
           >
-            <LogOut size={18} />
-            Salir
+            <LogOut aria-hidden="true" size={18} />
+            <span className="sr-only lg:not-sr-only">Salir</span>
           </button>
         </div>
       </nav>
 
       {/* Mobile Top Header (Just Logo) */}
-      <header className="md:hidden flex items-center justify-center border-b border-gray-100 bg-white/80 backdrop-blur-md px-4 py-3 sticky top-0 z-40">
+      {/* pt con --safe-top: en la PWA instalada / Android de borde a borde el
+          encabezado no queda bajo la barra de estado (0 donde no aplica). */}
+      <header className="md:hidden flex items-center justify-center border-b border-gray-100 bg-white/80 backdrop-blur-md px-4 pb-3 pt-[calc(0.75rem+var(--safe-top))] sticky top-0 z-40">
         <div className="flex items-center gap-2">
           <img src="/loloshop-logo.png" alt="LoloShop" className="h-7 w-7 rounded-full shadow-sm" />
           <span className="font-bold text-[#18181B] tracking-tight">LoloShop</span>
         </div>
       </header>
 
-      {/* Mobile Bottom Navigation */}
-      {/* 8 destinos: cada uno flex-1 (≈ 44.9 px a 375 px; ≈ 43 px a 360 px) con mínimo de 44 px */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/90 backdrop-blur-xl pb-6 pt-2 px-2 z-50 shadow-[0_-4px_24px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center max-w-md mx-auto">
+      {/* Barra inferior móvil (< md, incluye iPad en Split View / Slide Over).
+          Alto = --nav-h + área segura inferior (globals.css); el relleno
+          inferior es exactamente el área segura (indicador de inicio / gestos)
+          y el lateral respeta la muesca en horizontal. data-bottom-nav activa
+          --bottom-nav-offset, que usan el body y las barras pegajosas.
+          7 destinos flex-1 con mínimo de 44 px: 7 × 44 = 308 px caben en 320 px. */}
+      <nav
+        data-bottom-nav=""
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-[calc(var(--nav-h)+var(--safe-bottom))] border-t border-gray-100 bg-white/90 pb-[var(--safe-bottom)] pl-[max(0.375rem,var(--safe-left))] pr-[max(0.375rem,var(--safe-right))] shadow-[0_-4px_24px_rgba(0,0,0,0.02)] backdrop-blur-xl"
+      >
+        <div className="mx-auto flex h-full max-w-md items-center">
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             return (
