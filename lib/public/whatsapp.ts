@@ -1,5 +1,8 @@
 import type { PublicProduct } from "@/lib/data/public-projection";
 
+// Pendiente de confirmar con el dueño (spec paleta §5). Poner true para revertir.
+export const SHOW_WHATSAPP_CTA = false;
+
 export const NO_WHATSAPP_TEXT = "Consulta disponibilidad en tienda.";
 export const EMPTY_CATALOG_TEXT = "Pronto verás aquí las prendas de la tienda.";
 export const CATALOG_ERROR_TEXT = "No pudimos cargar el catálogo. Intenta de nuevo en un momento.";

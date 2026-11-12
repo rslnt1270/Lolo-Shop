@@ -99,14 +99,25 @@ describe("CatalogGrid: tallas y precio por producto", () => {
     expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument();
   });
 
-  it("todas agotadas: 'Agotado'", () => {
-    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", false, 300)])]} onSelect={() => {}} />);
-    expect(screen.getByText("Agotado")).toBeInTheDocument();
+  it("no muestra la palabra Agotado en ninguna tarjeta", () => {
+    const { container } = render(
+      <CatalogGrid
+        products={[
+          withSizes([sz("S", false, 300), sz("M", true, 300)]),
+          withSizes([sz("S", false, 300), sz("M", false, 300)]),
+        ]}
+        onSelect={() => {}}
+      />,
+    );
+    expect(container.textContent).not.toMatch(/agotado/i);
   });
 
-  it("con alguna disponible no dice 'Agotado'", () => {
-    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", true, 300)])]} onSelect={() => {}} />);
-    expect(screen.queryByText("Agotado")).not.toBeInTheDocument();
+  it("la talla sin stock se muestra tachada y sin cifras", () => {
+    render(<CatalogGrid products={[withSizes([sz("M", false, 300), sz("L", true, 300)])]} onSelect={() => {}} />);
+    const chip = screen.getByLabelText("M, agotada");
+    expect(chip.className).toContain("line-through");
+    expect(chip.textContent).toBe("M");
+    expect(screen.getByLabelText("L").className).not.toContain("line-through");
   });
 
   it("usa un solo formato de precio MXN, con miles y centavos solo si hacen falta", () => {
@@ -135,30 +146,24 @@ describe("VirtualStoreCatalog sin bandera de recorrido", () => {
     expect(screen.getByText(EMPTY_CATALOG_TEXT)).toBeInTheDocument();
   });
 
-  it("con número válido el modal enlaza a wa.me con código y talla, sin id ni SKU", () => {
+  it("con número válido el modal NO muestra CTA de WhatsApp ni texto de respaldo (SHOW_WHATSAPP_CTA = false)", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", NUM);
     const { container } = render(<VirtualStoreCatalog initialProducts={twelve} isLoggedIn={false} />);
     fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
-    fireEvent.click(screen.getByRole("button", { name: "L" }));
-    const link = screen.getByRole("link", { name: /Consultar por WhatsApp/ });
-    const href = link.getAttribute("href") ?? "";
-    expect(href.startsWith(`https://wa.me/${NUM}?text=`)).toBe(true);
-    const text = decodeURIComponent(href.split("?text=")[1]);
-    expect(text).toContain("Código K7Q2M");
-    expect(text).toContain("en talla L");
-    expect(text).not.toMatch(/sku|barcode|id-interno/i);
-    expectNoInternalData(container.innerHTML);
+    expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
+    expect(screen.queryByRole("link", { name: /WhatsApp/ })).toBeNull();
     expect(screen.queryByText(NO_WHATSAPP_TEXT)).not.toBeInTheDocument();
+    expectNoInternalData(container.innerHTML);
   });
 
-  it("sin número válido no hay enlace a wa.me y se pide consultar en tienda", () => {
+  it("sin número válido tampoco hay enlace ni texto de respaldo", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", "");
     const { container } = render(<VirtualStoreCatalog initialProducts={twelve} isLoggedIn={false} />);
     fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
     expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
-    expect(screen.getByText(NO_WHATSAPP_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(NO_WHATSAPP_TEXT)).not.toBeInTheDocument();
   });
 });
 
@@ -174,8 +179,7 @@ describe("Modal: precio por talla", () => {
     fireEvent.click(dialog.getByRole("button", { name: "M" }));
     expect(dialog.getByText("$350")).toBeInTheDocument();
     expect(dialog.queryByText("$300")).not.toBeInTheDocument();
-    const href = dialog.getByRole("link", { name: /Consultar por WhatsApp/ }).getAttribute("href") ?? "";
-    expect(decodeURIComponent(href.split("?text=")[1])).toContain("talla M");
+    expect(dialog.queryByRole("link", { name: /WhatsApp/ })).toBeNull();
   });
 
   it("la talla agotada tiene nombre accesible '{talla}, agotada'", () => {

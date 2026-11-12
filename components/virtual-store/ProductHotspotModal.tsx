@@ -6,7 +6,7 @@ import { X, MapPin, Check } from "lucide-react";
 import { ProductCard3D } from "@/components/products/ProductCard3D";
 import type { PublicProduct } from "@/lib/data/public-projection";
 import { useDialog } from "./useDialog";
-import { getWhatsAppNumber, productInquiryMessage, whatsAppLink } from "@/lib/public/whatsapp";
+import { SHOW_WHATSAPP_CTA, getWhatsAppNumber, productInquiryMessage, whatsAppLink } from "@/lib/public/whatsapp";
 
 interface Props {
   product: PublicProduct | null;
@@ -33,7 +33,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
   const available = currentSize?.available ?? false;
 
   const number = getWhatsAppNumber();
-  const waLink = number ? whatsAppLink(number, productInquiryMessage(product, currentSize?.size)) : null;
+  const waLink = SHOW_WHATSAPP_CTA && number ? whatsAppLink(number, productInquiryMessage(product, currentSize?.size)) : null;
 
   return (
     <div

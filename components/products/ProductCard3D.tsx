@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate, useReducedMotion } from "framer-motion";
-import { NO_WHATSAPP_TEXT } from "@/lib/public/whatsapp";
 import { formatPrice } from "@/lib/public/format";
 
 interface Props {
@@ -128,9 +127,7 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
                 </svg>
                 Consultar por WhatsApp
               </a>
-            ) : (
-              <p className="rounded-xl border border-gray-100 bg-gray-50 p-3.5 text-sm text-gray-600">{NO_WHATSAPP_TEXT}</p>
-            )}
+            ) : null}
           </div>
         </div>
       </motion.div>
