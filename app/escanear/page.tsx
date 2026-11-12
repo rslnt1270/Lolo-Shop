@@ -171,8 +171,8 @@ export default function EscanearPage() {
   const sizesHere = found && locationId ? stockBySize(found.product, locationId) : [];
   // El servidor solo manda las filas de tu tienda: sin fila aquí, la prenda no está en tu tienda.
   const notInMyStore = !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId);
-  // Prenda ya vendida y sin piezas en esta tienda: se ofrece "Agregar nuevamente" (mismo producto).
-  const soldOut = !!found?.stock?.sold && found.stock.available === 0;
+  // (notInMyStore tiene precedencia: "sold" cuenta todas las tiendas y no se revela.) Prenda ya vendida y sin piezas en esta tienda: se ofrece "Agregar nuevamente" (mismo producto).
+  const soldOut = !notInMyStore && !!found?.stock?.sold && found.stock.available === 0;
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-2">
