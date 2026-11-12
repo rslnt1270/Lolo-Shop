@@ -6,10 +6,12 @@ import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
 import { SaleCart, type PendingScan } from "@/components/sales/SaleCart";
 import { Button } from "@/components/ui/Button";
+import { SaleProductSearch } from "@/components/sales/SaleProductSearch";
 import { PaymentPicker } from "@/components/sales/PaymentPicker";
 import { fetchLocationsAction, lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
 import { createSaleAction } from "@/lib/sales/actions";
 import { isValidGtin, normalizeCode } from "@/lib/domain/barcode";
+import type { VariantMatch } from "@/lib/data/source";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
 import { formatPrice } from "@/lib/public/format";
@@ -49,6 +51,7 @@ export default function POSPage() {
   const [lock, setLockState] = useState<"uncertain" | "conflict" | null>(null);
   const lockRef = useRef<"uncertain" | "conflict" | null>(null);
   const [confirmingNew, setConfirmingNew] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const setLock = useCallback((v: "uncertain" | "conflict" | null) => {
     lockRef.current = v;
     setLockState(v);
@@ -130,6 +133,19 @@ export default function POSPage() {
       }
     },
     [add, quantityOf],
+  );
+
+  /** Talla elegida en "Sin código": entra al carrito igual que una lectura, con su existencia conocida. */
+  const addFromSearch = useCallback(
+    (match: VariantMatch, stock: { available: number; sold: boolean }) => {
+      if (submittingRef.current || lockRef.current) {
+        setNotice({ kind: "error", text: "Hay un cobro en curso: espera a que termine para agregar prendas." });
+        return;
+      }
+      setNotice(null);
+      applyFound({ found: true, product: match.product, variantId: match.variant.id, stock });
+    },
+    [applyFound],
   );
 
   /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
@@ -432,7 +448,19 @@ export default function POSPage() {
             autoStart={cameraReady}
             onStarted={() => setCameraReady(true)}
           />
-          <ManualCodeEntry onSubmit={handleScan} onNoBarcode={() => setNotice({ kind: "error", text: "Una prenda sin código no se puede vender aquí: dala de alta primero en Escanear." })} />
+          <ManualCodeEntry
+            onSubmit={handleScan}
+            onNoBarcode={() => setSearchOpen((open) => !open)}
+            noBarcodeLabel="Sin código"
+            noBarcodeDisabled={lock !== null || submitting}
+          />
+          {searchOpen && locationId && (
+            <SaleProductSearch
+              locationId={locationId}
+              disabled={lock !== null || submitting}
+              onAdd={addFromSearch}
+            />
+          )}
         </section>
 
         <section aria-label="Venta" className="space-y-4">

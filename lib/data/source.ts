@@ -260,8 +260,9 @@ export interface InventoryDataSource {
    */
   addVariant(data: AddVariantData): Promise<VariantMatch>;
   /**
-   * Búsqueda interna: código público exacto (`normalizePublicCode`) o título o
-   * marca que contiene `query` sin distinguir mayúsculas. Solo productos
+   * Búsqueda interna: código público exacto (`normalizePublicCode`), o título,
+   * marca, tipo (`category`) o color que contiene `query` sin distinguir
+   * mayúsculas, o SKU interno de una talla activa (`codeCandidates`). Solo productos
    * activos y sin unir; máximo `MAX_SEARCH_RESULTS`.
    */
   searchProducts(query: string): Promise<ProductSearchHit[]>;

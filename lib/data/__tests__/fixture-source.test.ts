@@ -178,4 +178,13 @@ describe("FixtureDataSource: catálogo público y departamentos", () => {
     expect(cat.find((p) => p.publicCode === "BBBB1")?.department).toEqual({ slug: "calzado", name: "Calzado", sortOrder: 4 });
     expect(cat.find((p) => p.publicCode === "CCCC1")?.department).toBeNull();
   });
+  describe("searchProducts (paridad con Prisma, «Sin código»)", () => {
+    it("encuentra por tipo, marca, título o SKU interno; texto que no es producto no devuelve nada", async () => {
+      const f = new FixtureDataSource();
+      expect((await f.searchProducts("hoodies")).map((h) => h.title)).toEqual(["Hoodie NY Yankees"]);
+      expect((await f.searchProducts("guess")).map((h) => h.title)).toEqual(["Playera Guess"]);
+      expect((await f.searchProducts("ls-pla-gue-m-bla")).map((h) => h.title)).toEqual(["Playera Guess"]);
+      expect(await f.searchProducts("zzzz-no-existe")).toEqual([]);
+    });
+  });
 });

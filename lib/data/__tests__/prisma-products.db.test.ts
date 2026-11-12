@@ -35,3 +35,48 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.getProducts (campos de control)", 
     expect(m.brandId).toBeNull();
   });
 });
+
+describe.skipIf(!hasTestDb)("PrismaDataSource.searchProducts («Sin código»)", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  async function product(title: string, extra: { category?: string; color?: string; brand?: string; sku: string }) {
+    return await testPrisma.product.create({
+      data: {
+        title,
+        brand: extra.brand ?? "Marca",
+        category: extra.category ?? "General",
+        color: extra.color ?? null,
+        variants: { create: [{ title: "M", size: "M", sku: extra.sku, price: 100 }] },
+      },
+    });
+  }
+
+  it("C21 (db): \"Sin código\" encuentra por tipo, marca, color o código interno", async () => {
+    const a = await product("Prenda uno", { category: "Hoodies", brand: "Nike", color: "Verde olivo", sku: "LS-ABC123-0" });
+    await product("Prenda dos", { category: "Playeras", brand: "Guess", color: "Rojo", sku: "LS-ZZZ999-1" });
+    const ds = new PrismaDataSource();
+
+    expect((await ds.searchProducts("hoodies")).map((h) => h.productId)).toEqual([a.id]);
+    expect((await ds.searchProducts("nike")).map((h) => h.productId)).toEqual([a.id]);
+    expect((await ds.searchProducts("olivo")).map((h) => h.productId)).toEqual([a.id]);
+    expect((await ds.searchProducts("ls-abc123-0")).map((h) => h.productId)).toEqual([a.id]);
+    expect((await ds.searchProducts("LS-ABC123-0")).map((h) => h.productId)).toEqual([a.id]);
+  });
+
+  it("C21 (db): una talla inactiva no encuentra el producto por su SKU", async () => {
+    const a = await product("Prenda uno", { sku: "LS-OFF000-0" });
+    await testPrisma.variant.updateMany({ where: { productId: a.id }, data: { isActive: false } });
+    expect(await new PrismaDataSource().searchProducts("LS-OFF000-0")).toEqual([]);
+  });
+
+  it("C21 (db): texto que no es producto no devuelve nada", async () => {
+    await product("Prenda uno", { category: "Hoodies", color: "Verde", sku: "LS-ABC123-0" });
+    const ds = new PrismaDataSource();
+    expect(await ds.searchProducts("pantalón inventado")).toEqual([]);
+    expect(await ds.searchProducts("%")).toEqual([]);
+    expect(await ds.searchProducts("_")).toEqual([]);
+    expect(await ds.searchProducts("\\")).toEqual([]);
+  });
+});

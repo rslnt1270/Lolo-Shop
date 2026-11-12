@@ -296,8 +296,17 @@ export class FixtureDataSource implements InventoryDataSource {
     const code = normalizePublicCode(q);
     const exact = code ? live.find((p) => p.publicCode === code) : undefined;
     const needle = q.toLowerCase();
+    const candidates = codeCandidates(q);
     const rest = live
-      .filter((p) => p !== exact && (p.title.toLowerCase().includes(needle) || p.brand.toLowerCase().includes(needle)))
+      .filter(
+        (p) =>
+          p !== exact &&
+          (p.title.toLowerCase().includes(needle) ||
+            p.brand.toLowerCase().includes(needle) ||
+            p.category.toLowerCase().includes(needle) ||
+            (p.color ?? "").toLowerCase().includes(needle) ||
+            p.variants.some((v) => v.isActive !== false && candidates.includes(v.sku))),
+      )
       .reverse()
       .slice(0, MAX_SEARCH_RESULTS - (exact ? 1 : 0));
     return [...(exact ? [exact] : []), ...rest].map((p) => ({

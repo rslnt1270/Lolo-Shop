@@ -268,7 +268,8 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.searchProducts", () => {
     expect(byCode).toEqual([{
       productId: a.product.id, title: "Playera Logo", brand: "Guess", publicCode: "K7Q2M", imageUrl: null, sizes: ["S", "M", "L"],
     }]);
-    expect((await ds.searchProducts("playera")).map((h) => h.publicCode)).toEqual(["K7Q2M"]);
+    // "playera" también es el tipo (category) de la sudadera del seed: título o tipo, más recientes primero.
+    expect((await ds.searchProducts("playera")).map((h) => h.publicCode)).toEqual(["EEEEE", "K7Q2M"]);
     expect((await ds.searchProducts("GUESS")).length).toBe(2);
     expect(await ds.searchProducts("  ")).toEqual([]);
   });

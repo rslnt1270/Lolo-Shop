@@ -502,6 +502,8 @@ export class PrismaDataSource implements InventoryDataSource {
       variants: { where: { isActive: true }, select: { size: true } },
     } as const;
     const live = { isActive: true, mergedIntoId: null };
+    // `%` y `_` del texto buscado son literales: sin esto «%» devolvería todo el catálogo.
+    const like = q.replace(/[\\%_]/g, "\\$&");
     // El código público exacto va en una consulta aparte para que el corte a 8 no lo deje fuera.
     const code = normalizePublicCode(q);
     const exact = code ? await this.db.product.findFirst({ where: { ...live, publicCode: code }, select }) : null;
@@ -510,8 +512,11 @@ export class PrismaDataSource implements InventoryDataSource {
         ...live,
         ...(exact ? { id: { not: exact.id } } : {}),
         OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { brand: { contains: q, mode: "insensitive" } },
+          { title: { contains: like, mode: "insensitive" } },
+          { brand: { contains: like, mode: "insensitive" } },
+          { category: { contains: like, mode: "insensitive" } },
+          { color: { contains: like, mode: "insensitive" } },
+          { variants: { some: { isActive: true, sku: { in: codeCandidates(q) } } } },
         ],
       },
       orderBy: { createdAt: "desc" },

@@ -4,9 +4,12 @@ import { useState } from "react";
 type Props = {
   onSubmit: (code: string) => void;
   onNoBarcode: () => void;
+  /** Texto del botón de prenda sin código (por defecto «Prenda sin código»). */
+  noBarcodeLabel?: string;
+  noBarcodeDisabled?: boolean;
 };
 
-export function ManualCodeEntry({ onSubmit, onNoBarcode }: Props) {
+export function ManualCodeEntry({ onSubmit, onNoBarcode, noBarcodeLabel = "Prenda sin código", noBarcodeDisabled = false }: Props) {
   const [code, setCode] = useState("");
   const trimmed = code.trim();
 
@@ -47,9 +50,10 @@ export function ManualCodeEntry({ onSubmit, onNoBarcode }: Props) {
       <button
         type="button"
         onClick={onNoBarcode}
-        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium"
+        disabled={noBarcodeDisabled}
+        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium disabled:opacity-50"
       >
-        Prenda sin código
+        {noBarcodeLabel}
       </button>
     </div>
   );
