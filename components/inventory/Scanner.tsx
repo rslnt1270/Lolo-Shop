@@ -11,6 +11,11 @@ type Props = {
   autoStart?: boolean;
   /** Se llama cuando la cámara quedó corriendo (hubo gesto y permiso). */
   onStarted?: () => void;
+  /**
+   * Modo continuo (opt-in, p. ej. ventas): la cámara sigue corriendo tras cada lectura y `onScan` se llama
+   * una vez por presentación de la prenda. Sin él, una lectura detiene la cámara (`/escanear`).
+   */
+  continuous?: boolean;
 };
 
 type Facing = "environment" | "user";
@@ -19,6 +24,11 @@ type Status = "idle" | "starting" | "running" | "error";
 const READER_ID = "loloshop-reader";
 const FORMATS = SCAN_FORMAT_NAMES.map((name) => Html5QrcodeSupportedFormats[name]);
 const GTIN_LENGTHS = [8, 12, 13, 14];
+/**
+ * Modo continuo: un código ya emitido solo se emite de nuevo si pasó al menos este tiempo sin leerlo
+ * (la prenda salió del cuadro y se presentó otra vez).
+ */
+export const SAME_CODE_GAP_MS = 1000;
 
 export function cameraErrorMessage(err: unknown): string {
   if (typeof window !== "undefined" && (!window.isSecureContext || !navigator.mediaDevices)) {
@@ -38,7 +48,7 @@ export function cameraErrorMessage(err: unknown): string {
   return "No se pudo iniciar la cámara. Reintenta o escribe el código a mano.";
 }
 
-export function Scanner({ onScan, validate, autoStart = false, onStarted }: Props) {
+export function Scanner({ onScan, validate, autoStart = false, onStarted, continuous = false }: Props) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handledRef = useRef(false);
   const lastRef = useRef<{ code: string; count: number } | null>(null);
@@ -46,6 +56,9 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted }: Prop
   const validateRef = useRef(validate);
   const onStartedRef = useRef(onStarted);
   const generationRef = useRef(0);
+  const continuousRef = useRef(continuous);
+  /** Modo continuo: código emitido → última vez que se leyó. */
+  const emittedRef = useRef(new Map<string, number>());
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [facing, setFacing] = useState<Facing>("environment");
@@ -56,6 +69,7 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted }: Prop
     onScanRef.current = onScan;
     validateRef.current = validate;
     onStartedRef.current = onStarted;
+    continuousRef.current = continuous;
   });
 
   const stopScanner = useCallback(async () => {
@@ -85,6 +99,19 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted }: Prop
           return;
         }
       }
+      const isContinuous = continuousRef.current;
+      if (isContinuous) {
+        const now = Date.now();
+        const seenAt = emittedRef.current.get(code);
+        if (seenAt !== undefined) {
+          emittedRef.current.set(code, now);
+          if (now - seenAt < SAME_CODE_GAP_MS) return; // sigue en cuadro: no suma otra vez
+          // salió del cuadro y volvió: nueva presentación, se confirma de nuevo
+          emittedRef.current.delete(code);
+          lastRef.current = { code, count: 1 };
+          return;
+        }
+      }
       const last = lastRef.current;
       if (last && last.code === code) {
         last.count += 1;
@@ -92,12 +119,20 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted }: Prop
         lastRef.current = { code, count: 1 };
       }
       if ((lastRef.current?.count ?? 0) < 2) return;
-      handledRef.current = true;
       try {
         navigator.vibrate?.(80);
       } catch {
         /* sin vibración */
       }
+      if (isContinuous) {
+        const now = Date.now();
+        emittedRef.current.set(code, now);
+        for (const [c, t] of emittedRef.current) if (now - t > 60_000) emittedRef.current.delete(c);
+        lastRef.current = null;
+        onScanRef.current(code);
+        return;
+      }
+      handledRef.current = true;
       void stopScanner().then(() => {
         setStatus("idle");
         setTorchAvailable(false);
@@ -117,6 +152,7 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted }: Prop
       setTorchAvailable(false);
       handledRef.current = false;
       lastRef.current = null;
+      emittedRef.current.clear();
       await stopScanner();
       if (generation !== generationRef.current) return;
       if (typeof window !== "undefined" && (!window.isSecureContext || !navigator.mediaDevices)) {
