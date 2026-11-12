@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
-import { findPublicByCode, getPublicCatalog, toPublicProduct } from "../public-projection";
+import { findPublicByCode, getPublicCatalog, publicStoreIds, toPublicProduct } from "../public-projection";
 import { parsePublicCodeRequest } from "@/lib/domain/public-code";
-import type { Product } from "@/lib/domain/types";
+import type { Location, Product } from "@/lib/domain/types";
 import type { InventoryDataSource } from "../source";
 
 const base = {
@@ -18,7 +18,7 @@ describe("proyección pública (B1)", () => {
   it("no expone sku, barcode, inventory, locationId ni cifras de stock", async () => {
     const ds = new FixtureDataSource();
     const store = (await ds.getLocations()).find((l) => l.type === "store")!;
-    await ds.createProduct({ ...base, locationId: store.id });
+    (await ds.createProduct({ ...base, locationId: store.id, description: "d" })).product.isPublished = true;
     const json = JSON.stringify(await getPublicCatalog(ds));
     for (const k of ["sku", "barcode", "inventory", "locationId", "LS-000001-1", "7501", '"available":7']) {
       expect(json).not.toContain(k);
@@ -45,6 +45,7 @@ describe("proyección pública (B1)", () => {
     });
     const product = (id: string, publicCode: string, variants: ReturnType<typeof variant>[], isActive?: boolean) => ({
       id, title: `t-${id}`, brand: "b", category: "c", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg", publicCode, variants,
+      description: "d", isPublished: true,
       ...(isActive === undefined ? {} : { isActive }),
     });
     const products: Product[] = [
@@ -112,12 +113,16 @@ describe("catálogo público: solo productos con las dos fotos", () => {
   it("un producto de solo stock no aparece; con frente y atrás sí, con backImageUrl", async () => {
     const ds = new FixtureDataSource();
     const store = (await ds.getLocations()).find((l) => l.type === "store")!;
-    await ds.createProduct({ ...base, imageUrl: null, backImageUrl: null, locationId: store.id, publicCode: "AAAA1", variants: one("S-1", "9001") });
-    await ds.createProduct({
+    const pub = async (data: Parameters<typeof ds.createProduct>[0]) => {
+      const { product } = await ds.createProduct({ ...data, description: "d" });
+      product.isPublished = true;
+    };
+    await pub({ ...base, imageUrl: null, backImageUrl: null, locationId: store.id, publicCode: "AAAA1", variants: one("S-1", "9001") });
+    await pub({
       ...base, locationId: store.id, publicCode: "BBBB2", variants: one("S-2", "9002"),
       imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg",
     });
-    await ds.createProduct({
+    await pub({
       ...base, locationId: store.id, publicCode: "CCCC3", variants: one("S-3", "9003"), imageUrl: "https://a/f.jpg", backImageUrl: null,
     });
     const codes = (await getPublicCatalog(ds)).map((p) => p.publicCode);
@@ -134,8 +139,10 @@ describe("findPublicByCode", () => {
     const ds = new FixtureDataSource();
     const store = (await ds.getLocations()).find((l) => l.type === "store")!;
     const photos = { imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" };
-    const a = await ds.createProduct({ ...base, ...photos, locationId: store.id, publicCode: "AAAA1", variants: one("S-1", "9001") });
-    const b = await ds.createProduct({ ...base, ...photos, locationId: store.id, publicCode: "BBBB2", variants: one("S-2", "9002") });
+    const a = await ds.createProduct({ ...base, ...photos, description: "d", locationId: store.id, publicCode: "AAAA1", variants: one("S-1", "9001") });
+    const b = await ds.createProduct({ ...base, ...photos, description: "d", locationId: store.id, publicCode: "BBBB2", variants: one("S-2", "9002") });
+    a.product.isPublished = true;
+    b.product.isPublished = true;
     return { ds, a: a.product, b: b.product };
   }
 
@@ -199,5 +206,106 @@ describe("clasificación fuera de lo público", () => {
       ["backImageUrl", "brand", "category", "department", "id", "imageUrl", "price", "publicCode", "sizes", "title"],
     );
     expect(JSON.stringify(p)).not.toMatch(/productTypeId|style|audience|type-playera|polo/);
+  });
+});
+
+describe("stock sincronizado con el catálogo", () => {
+  const variant = (available: number, size = "M", id = "v") => ({
+    id, sku: `S-${id}`, title: size, size, color: "x", price: 100, barcode: null,
+    inventory: [{ locationId: "st", available }],
+  });
+  const product = (id: string, code: string, variants: ReturnType<typeof variant>[]): Product => ({
+    id, title: `t-${id}`, brand: "b", category: "c", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg",
+    publicCode: code, description: "desc", isPublished: true, variants,
+  });
+  const dsWith = (products: Product[], locations: Location[]) =>
+    ({ getCatalogProducts: async () => products, getLocations: async () => locations }) as unknown as InventoryDataSource;
+  const store: Location = { id: "st", name: "Tienda", type: "store" };
+
+  it("tienda con isPublic false no cuenta para la disponibilidad", async () => {
+    const ds = dsWith([product("a", "AAAAA", [variant(3)])], [{ ...store, isPublic: false }]);
+    expect(await getPublicCatalog(ds)).toEqual([]);
+  });
+  it("bodega pública no cuenta: solo type store", async () => {
+    const ds = dsWith([product("a", "AAAAA", [variant(3)])], [{ id: "st", name: "B", type: "warehouse", isPublic: true }]);
+    expect(await getPublicCatalog(ds)).toEqual([]);
+  });
+  it("sin tiendas públicas, getPublicCatalog devuelve [] sin lanzar", async () => {
+    await expect(getPublicCatalog(dsWith([product("a", "AAAAA", [variant(3)])], []))).resolves.toEqual([]);
+  });
+  it("una prenda con todas sus tallas sin stock no aparece en getPublicCatalog", async () => {
+    const ds = dsWith([product("a", "AAAAA", [variant(0, "M", "1"), variant(0, "L", "2")])], [store]);
+    expect(await getPublicCatalog(ds)).toEqual([]);
+  });
+  it("una prenda con una talla con stock aparece y las demás conservan available false", async () => {
+    const ds = dsWith([product("a", "AAAAA", [variant(0, "M", "1"), variant(2, "L", "2")])], [store]);
+    const [p] = await getPublicCatalog(ds);
+    expect(p.sizes).toEqual([
+      { size: "M", available: false, price: 100 },
+      { size: "L", available: true, price: 100 },
+    ]);
+  });
+  it("publicStoreIds excluye bodegas y tiendas con isPublic false", () => {
+    const ids = publicStoreIds([
+      store,
+      { id: "priv", name: "P", type: "store", isPublic: false },
+      { id: "wh", name: "W", type: "warehouse" },
+      { id: "def", name: "D", type: "store", isPublic: true },
+    ]);
+    expect([...ids].sort()).toEqual(["def", "st"]);
+  });
+  it("C16: producto con fotos y sin existencias no entra al catálogo público", async () => {
+    const ds = new FixtureDataSource();
+    const st = (await ds.getLocations()).find((l) => l.type === "store")!;
+    const { product: p } = await ds.createProduct({ ...base, locationId: st.id, description: "d", variants: [{ ...base.variants[0], initialStock: 0 }] });
+    p.isPublished = true;
+    expect(await getPublicCatalog(ds)).toEqual([]);
+  });
+});
+
+describe("publicación y elegibilidad en el sitio", () => {
+  async function seed() {
+    const ds = new FixtureDataSource();
+    const st = (await ds.getLocations()).find((l) => l.type === "store")!;
+    const { product } = await ds.createProduct({ ...base, locationId: st.id, description: "Playera de algodón" });
+    return { ds, product, st };
+  }
+
+  it("producto con fotos y existencias sin publicar no aparece en el sitio", async () => {
+    const { ds } = await seed();
+    expect(await getPublicCatalog(ds)).toEqual([]);
+  });
+  it("publicado y completo aparece", async () => {
+    const { ds, product } = await seed();
+    product.isPublished = true;
+    expect((await getPublicCatalog(ds)).map((p) => p.publicCode)).toEqual(["K7Q2M"]);
+  });
+  it("producto publicado sin descripción no aparece", async () => {
+    const { ds, product } = await seed();
+    product.isPublished = true;
+    product.description = "  ";
+    expect(await getPublicCatalog(ds)).toEqual([]);
+  });
+  it("producto publicado que se queda sin existencias desaparece sin despublicar", async () => {
+    const { ds, product } = await seed();
+    product.isPublished = true;
+    expect(await getPublicCatalog(ds)).toHaveLength(1);
+    for (const v of product.variants) for (const l of v.inventory) l.available = 0;
+    expect(await getPublicCatalog(ds)).toEqual([]);
+    expect(product.isPublished).toBe(true);
+  });
+  it("findPublicByCode no devuelve un producto sin publicar ni uno sin existencias", async () => {
+    const { ds, product } = await seed();
+    expect(await findPublicByCode(ds, "K7Q2M")).toBeNull();
+    product.isPublished = true;
+    expect((await findPublicByCode(ds, "K7Q2M"))?.publicCode).toBe("K7Q2M");
+    for (const v of product.variants) for (const l of v.inventory) l.available = 0;
+    expect(await findPublicByCode(ds, "K7Q2M")).toBeNull();
+  });
+  it("findPublicByCode: sin descripción tampoco", async () => {
+    const { ds, product } = await seed();
+    product.isPublished = true;
+    product.description = null;
+    expect(await findPublicByCode(ds, "K7Q2M")).toBeNull();
   });
 });

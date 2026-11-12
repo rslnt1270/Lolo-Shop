@@ -42,6 +42,7 @@ describe.skipIf(!hasTestDb)("precio por talla, desactivar y departamento en lote
       data: {
         title: "Playera", brand: "Guess", brandId, departmentId, category: "Playeras",
         publicCode: "K7Q2M", imageUrl: "https://x.invalid/f.jpg", backImageUrl: "https://x.invalid/b.jpg",
+        description: "Descripción", isPublished: true,
         variants: {
           create: [
             { id: V1, title: "M", sku: "SKU-M", size: "M", price: 899 },

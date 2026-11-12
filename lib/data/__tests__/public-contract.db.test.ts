@@ -42,6 +42,7 @@ describe.skipIf(!hasTestDb)("contrato público: Prisma y Fixture devuelven la mi
     return testPrisma.product.create({
       data: {
         title, brand: "Marca", category: "Polos", publicCode: code, imageUrl: FRONT, backImageUrl: BACK, createdAt,
+        description: "Descripción", isPublished: true,
         ...over,
         variants: {
           create: sizes.map((s) => ({
@@ -56,11 +57,13 @@ describe.skipIf(!hasTestDb)("contrato público: Prisma y Fixture devuelven la mi
   async function seedFixture(code: string, sizes: { size: string; price: number; stock: number }[]) {
     const fx = new FixtureDataSource();
     const store = (await fx.getLocations()).find((l) => l.type === "store")!;
-    await fx.createProduct({
+    const { product } = await fx.createProduct({
+      description: "Descripción",
       title: "Uno", brand: "Marca", brandId: "b", departmentId: "dep-dama", category: "Polos", publicCode: code,
       imageUrl: FRONT, backImageUrl: BACK, locationId: store.id, userId: "u",
       variants: sizes.map((s) => ({ size: s.size, price: s.price, initialStock: s.stock, sku: `SKU-${code}-${s.size}`, barcode: `${code}${s.size}` })),
     });
+    product.isPublished = true;
     return fx;
   }
 
@@ -94,6 +97,21 @@ describe.skipIf(!hasTestDb)("contrato público: Prisma y Fixture devuelven la mi
     await seedPrisma("Sin frente", "FFFF1", new Date("2026-01-05T00:00:00Z"), { imageUrl: null });
     const codes = (await getPublicCatalog(new PrismaDataSource(testPrisma))).map((p) => p.publicCode);
     expect(codes).toEqual(["TTTT1"]);
+  });
+
+  it("getCatalogProducts solo trae publicados con las dos fotos", async () => {
+    await seedPrisma("Publicado", "PPPP1", new Date("2026-01-01T00:00:00Z"));
+    await seedPrisma("Sin publicar", "NNNN1", new Date("2026-01-02T00:00:00Z"), { isPublished: false });
+    await seedPrisma("Sin atras", "SSSS2", new Date("2026-01-03T00:00:00Z"), { backImageUrl: null });
+    const ds = new PrismaDataSource(testPrisma);
+    expect((await ds.getCatalogProducts()).map((p) => p.publicCode)).toEqual(["PPPP1"]);
+    expect((await getPublicCatalog(ds)).map((p) => p.publicCode)).toEqual(["PPPP1"]);
+  });
+
+  it("tienda con isPublic false: catálogo vacío sin error", async () => {
+    await seedPrisma("Uno", "PPPP2", new Date("2026-01-01T00:00:00Z"));
+    await testPrisma.location.update({ where: { id: storeId }, data: { isPublic: false } });
+    expect(await getPublicCatalog(new PrismaDataSource(testPrisma))).toEqual([]);
   });
 
   it("orden createdAt desc y, en empate, id asc", async () => {

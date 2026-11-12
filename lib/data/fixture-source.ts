@@ -116,7 +116,7 @@ export class FixtureDataSource implements InventoryDataSource {
 
   async getCatalogProducts(): Promise<Product[]> {
     return this.products
-      .filter((p) => p.isActive !== false && !p.mergedIntoId && !!p.imageUrl && !!p.backImageUrl)
+      .filter((p) => p.isActive !== false && !p.mergedIntoId && p.isPublished === true && !!p.imageUrl && !!p.backImageUrl)
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "") || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   }
 

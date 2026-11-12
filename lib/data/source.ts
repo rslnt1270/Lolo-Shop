@@ -222,7 +222,7 @@ export interface InventoryDataSource {
   getLocations(): Promise<Location[]>;
   createLocation(data: CreateLocationData): Promise<Location>;
   getProducts(): Promise<Product[]>;
-  /** Base del catálogo público: activos, sin unir, con frente y atrás; `createdAt` desc, `id` asc. */
+  /** Base del catálogo público: activos, sin unir, publicados (`isPublished`), con frente y atrás; `createdAt` desc, `id` asc. */
   getCatalogProducts(): Promise<Product[]>;
   getProductByVariantId(variantId: string): Promise<VariantMatch | null>;
   /**
