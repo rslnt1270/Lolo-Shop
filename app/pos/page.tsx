@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
-import { SaleCart } from "@/components/sales/SaleCart";
+import { SaleCart, type PendingScan } from "@/components/sales/SaleCart";
+import { Button } from "@/components/ui/Button";
 import { PaymentPicker } from "@/components/sales/PaymentPicker";
 import { fetchLocationsAction, lookupCodeAction } from "@/lib/actions";
 import { createSaleAction } from "@/lib/sales/actions";
-import { isValidGtin } from "@/lib/domain/barcode";
+import { isValidGtin, normalizeCode } from "@/lib/domain/barcode";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
 import { formatPrice } from "@/lib/public/format";
@@ -35,8 +36,9 @@ export default function POSPage() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [stockError, setStockError] = useState<StockError | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [scannerKey, setScannerKey] = useState(0);
+  const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
+  // Códigos con consulta en curso o fallida: una segunda lectura del mismo código no crea otra fila.
+  const pendingRef = useRef(new Map<string, "loading" | "error">());
   const [cameraReady, setCameraReady] = useState(false);
   const [locationsFailed, setLocationsFailed] = useState(false);
   const [locationsAttempt, setLocationsAttempt] = useState(0);
@@ -89,35 +91,76 @@ export default function POSPage() {
     }
   };
 
-  const { add } = draft;
-  const handleScan = useCallback(
-    async (code: string) => {
-      setNotice(null);
-      setSearching(true);
+  const { add, quantityOf } = draft;
+  const setPending = useCallback((code: string, status: "loading" | "error" | null) => {
+    if (status) pendingRef.current.set(code, status);
+    else pendingRef.current.delete(code);
+    setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
+  }, []);
+
+  const runLookup = useCallback(
+    async (code: string, store: string) => {
+      setPending(code, "loading");
       try {
-        const result = await lookupCodeAction(code);
+        const result = await lookupCodeAction(code, store);
         if (!result) {
+          setPending(code, null);
           setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
+          setPending(code, null);
           const variant = result.product.variants.find((v) => v.id === result.variantId);
-          if (variant) {
-            add({ product: result.product, variant });
-            setNotice({ kind: "ok", text: `Agregado: ${result.product.title} (${variant.title})` });
+          if (!variant) {
+            setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
+            return;
           }
+          const added = add({ product: result.product, variant }, result.stock);
+          if (added.ok) {
+            setNotice({
+              kind: "ok",
+              text: `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}`,
+            });
+          } else {
+            setNotice({ kind: "error", text: `Sin existencias de la talla ${added.size} en esta tienda` });
+          }
+        } else if (result.error) {
+          // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
+          setPending(code, "error");
+          setNotice({ kind: "error", text: result.error, login: result.error === SESSION_EXPIRED_TEXT });
         } else {
-          setNotice({
-            kind: "error",
-            text: result.error ?? `No encontramos el código ${result.code}. Revisa que esté dado de alta.`,
-          });
+          setPending(code, null);
+          setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
         }
       } catch {
+        setPending(code, "error");
         setNotice({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
-      } finally {
-        setSearching(false);
-        setScannerKey((k) => k + 1);
       }
     },
-    [add],
+    [add, quantityOf, setPending],
+  );
+
+  const handleScan = useCallback(
+    (raw: string) => {
+      const code = normalizeCode(raw);
+      if (!code) return;
+      if (!locationId) {
+        setNotice({ kind: "error", text: "Elige la tienda de la venta." });
+        return;
+      }
+      // Mientras haya una consulta en curso de este código no se abre otra. Si quedó en error, releer es reintentar.
+      if (pendingRef.current.get(code) === "loading") return;
+      setNotice(null);
+      void runLookup(code, locationId);
+    },
+    [locationId, runLookup],
+  );
+
+  const retryScan = useCallback(
+    (code: string) => {
+      if (!locationId || pendingRef.current.get(code) === "loading") return;
+      setNotice(null);
+      void runLookup(code, locationId);
+    },
+    [locationId, runLookup],
   );
 
   const signature = lines.map((l) => `${l.variantId}:${l.quantity}`).join(",");
@@ -246,8 +289,7 @@ export default function POSPage() {
       </header>
 
 <div aria-live="polite" className="sticky top-2 z-30 space-y-2">
-            {searching && <p className="rounded-lg bg-surface-container-low p-3 text-sm shadow-sm">Buscando…</p>}
-            {notice && !searching && (
+            {notice && (
               <p
                 role={notice.kind === "error" ? "alert" : "status"}
                 className={`rounded-lg p-3 text-sm font-semibold shadow-sm ${
@@ -299,7 +341,7 @@ export default function POSPage() {
             </div>
           )}
           <Scanner
-            key={scannerKey}
+            continuous
             onScan={handleScan}
             validate={isValidGtin}
             autoStart={cameraReady}
@@ -322,6 +364,8 @@ export default function POSPage() {
             onSetQty={draft.setQty}
             onSetPrice={draft.setPrice}
             onRemove={draft.remove}
+            pendingScans={pendingScans}
+            onRetry={retryScan}
           />
 
           <div className="rounded-2xl border border-outline-variant bg-white p-4">
@@ -336,15 +380,15 @@ export default function POSPage() {
           </div>
 
           <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
-            <button
-              type="button"
+            <Button
               onClick={() => void charge()}
-              disabled={lines.length === 0 || submitting}
+              disabled={lines.length === 0}
+              loading={submitting}
               aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
-              className="min-h-[52px] w-full rounded-xl bg-loloteal px-4 text-lg font-bold text-white transition-transform duration-150 hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:transition-none motion-reduce:active:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal focus-visible:ring-offset-2 disabled:bg-outline-variant disabled:text-on-surface-variant disabled:active:scale-100"
+              className="min-h-[52px] w-full text-lg"
             >
               {submitting ? "Cobrando…" : lines.length ? `Cobrar ${formatPrice(saleTotal(lines))}` : "Cobrar"}
-            </button>
+            </Button>
             {lines.length === 0 && (
               <p id="cobrar-ayuda" className="mt-2 text-center text-sm text-on-surface-variant">
                 Agrega al menos una prenda para cobrar.

@@ -132,6 +132,9 @@ export function useSaleDraft() {
     [commit],
   );
 
+  /** Cantidad actual de la talla en el borrador (0 si no está). */
+  const quantityOf = useCallback((variantId: string) => linesRef.current.find((l) => l.variantId === variantId)?.quantity ?? 0, []);
+
   const setQty = useCallback((variantId: string, qty: number) => {
     if (!Number.isFinite(qty)) return;
     const quantity = Math.floor(qty);
@@ -153,5 +156,5 @@ export function useSaleDraft() {
     renewRequestId();
   }, [renewRequestId, commit]);
 
-  return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, isUncertain, requestIdFor };
+  return { lines, add, quantityOf, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, isUncertain, requestIdFor };
 }

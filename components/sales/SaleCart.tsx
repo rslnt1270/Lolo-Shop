@@ -4,7 +4,11 @@ import Image from "next/image";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { saleTotal } from "@/lib/domain/sale";
 import { formatPrice } from "@/lib/public/format";
+import { Button } from "@/components/ui/Button";
 import type { DraftLine } from "@/lib/sales/use-sale-draft";
+
+/** Lectura en curso, por código normalizado (no por variantId: aún no se sabe qué prenda es). */
+export type PendingScan = { code: string; status: "loading" | "error" };
 
 type Props = {
   lines: DraftLine[];
@@ -14,6 +18,9 @@ type Props = {
   onSetQty: (variantId: string, qty: number) => void;
   onSetPrice: (variantId: string, price: number) => void;
   onRemove: (variantId: string) => void;
+  /** Lecturas con la consulta en curso o fallida; se muestran arriba de las líneas. */
+  pendingScans?: PendingScan[];
+  onRetry?: (code: string) => void;
 };
 
 const stepBtn =
@@ -63,20 +70,46 @@ function PriceField({ line, onCommit }: { line: DraftLine; onCommit: (price: num
   );
 }
 
-export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSetPrice, onRemove }: Props) {
+function PendingRows({ pendingScans, onRetry }: { pendingScans: PendingScan[]; onRetry?: (code: string) => void }) {
+  if (pendingScans.length === 0) return null;
+  return (
+    <ul aria-label="Lecturas en curso" className="divide-y divide-outline-variant border-b border-outline-variant">
+      {pendingScans.map((p) => (
+        <li key={p.code} className="flex items-center justify-between gap-3 p-4">
+          {p.status === "loading" ? (
+            <p className="text-sm text-on-surface-variant">{`Buscando ${p.code}…`}</p>
+          ) : (
+            <>
+              <p role="alert" className="text-sm font-semibold text-on-error-container">{`No se pudo buscar ${p.code}.`}</p>
+              <Button variant="outline" onClick={() => onRetry?.(p.code)} aria-label={`Reintentar ${p.code}`}>
+                Reintentar
+              </Button>
+            </>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSetPrice, onRemove, pendingScans = [], onRetry }: Props) {
   const total = saleTotal(lines);
 
   if (lines.length === 0) {
     return (
-      <div className="rounded-2xl border border-dashed border-outline bg-white p-6 text-center text-on-surface-variant">
-        <p className="font-semibold text-on-surface">Aún no hay prendas en la venta</p>
-        <p className="mt-1 text-sm">Escanea una prenda o escribe su código para agregarla.</p>
+      <div className="rounded-2xl border border-dashed border-outline bg-white text-center text-on-surface-variant">
+        <PendingRows pendingScans={pendingScans} onRetry={onRetry} />
+        <div className="p-6">
+          <p className="font-semibold text-on-surface">Aún no hay prendas en la venta</p>
+          <p className="mt-1 text-sm">Escanea una prenda o escribe su código para agregarla.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="rounded-2xl border border-outline-variant bg-white shadow-sm">
+      <PendingRows pendingScans={pendingScans} onRetry={onRetry} />
       <ul className="divide-y divide-outline-variant">
         {lines.map((line) => {
           const error = lineErrors[line.variantId];
@@ -102,7 +135,10 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                   </div>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-on-surface">{line.productTitle}</p>
+                  <p className="font-semibold text-on-surface">
+                    {line.productTitle}
+                    {line.quantity > 1 && <span className="ml-2 font-data-mono text-primary">{`×${line.quantity}`}</span>}
+                  </p>
                   <p className="text-sm text-on-surface-variant">{line.variantTitle}</p>
                   <p className="font-data-mono text-xs text-on-surface-variant">{line.sku}</p>
                 </div>
@@ -133,6 +169,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                   <button
                     type="button"
                     onClick={() => onSetQty(line.variantId, line.quantity + 1)}
+                    disabled={line.available !== null && line.quantity >= line.available}
                     aria-label={`Sumar una pieza de ${line.productTitle}`}
                     className={stepBtn}
                   >

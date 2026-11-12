@@ -62,7 +62,7 @@ async function readyWithOneLine() {
 async function scan(code: string) {
   fireEvent.change(screen.getByLabelText(/código del producto/i), { target: { value: code } });
   fireEvent.click(screen.getByRole("button", { name: /usar este código/i }));
-  await waitFor(() => expect(actions.lookupCodeAction).toHaveBeenCalledWith(code));
+  await waitFor(() => expect(actions.lookupCodeAction).toHaveBeenCalledWith(code, expect.any(String)));
 }
 
 beforeEach(() => {
