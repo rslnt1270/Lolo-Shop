@@ -762,7 +762,7 @@ export function NewProductForm({
             />
           )}
           {duplicateId && onDuplicate && (
-            <Button variant="danger"
+            <Button variant="outline"
               onClick={() => onDuplicate(duplicateId)} className="w-full">
               Ver producto y registrar entrada
             </Button>

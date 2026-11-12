@@ -137,6 +137,19 @@ describe("SaleCart", () => {
   });
 });
 
+describe("SaleCart controles deshabilitados", () => {
+  const handlers = { onSetQty: vi.fn(), onSetPrice: vi.fn(), onRemove: vi.fn() };
+  it("con el carrito bloqueado, restar, sumar y quitar llevan el estilo deshabilitado", () => {
+    render(<SaleCart lines={[line()]} canEditPrice locked {...handlers} />);
+    for (const name of [/Restar una pieza/, /Sumar una pieza/, /Quitar Playera/]) {
+      const b = screen.getByRole("button", { name });
+      expect(b).toBeDisabled();
+      expect(b.className).toMatch(/disabled:text-\[#5C6E6D\]/);
+      expect(b.className).toMatch(/disabled:cursor-not-allowed/);
+    }
+  });
+});
+
 describe("SaleCart filas pendientes con piezas extra", () => {
   it("fila en espera con extra muestra ×N en espera", () => {
     render(

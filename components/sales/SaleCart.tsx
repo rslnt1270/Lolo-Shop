@@ -5,7 +5,7 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { saleTotal } from "@/lib/domain/sale";
 import { formatPrice } from "@/lib/public/format";
 import { Button } from "@/components/ui/Button";
-import { buttonClasses } from "@/components/ui/button-classes";
+import { buttonClasses, disabledClasses } from "@/components/ui/button-classes";
 import type { DraftLine } from "@/lib/sales/use-sale-draft";
 
 /** Lectura en curso, por código normalizado (no por variantId: aún no se sabe qué prenda es). */
@@ -28,7 +28,7 @@ type Props = {
   locked?: boolean;
 };
 
-const stepBtn = `${buttonClasses("outline")} h-11 w-11 shrink-0 !px-0`;
+const stepBtn = `${buttonClasses("outline")} ${disabledClasses("outline")} h-11 w-11 shrink-0 !px-0`;
 
 /** Campo de precio con texto local para poder borrar y reescribir sin saltos. */
 function PriceField({ line, onCommit, locked }: { line: DraftLine; onCommit: (price: number) => void; locked: boolean }) {
@@ -175,7 +175,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                   onClick={() => onRemove(line.variantId)}
                   disabled={locked}
                   aria-label={`Quitar ${line.productTitle}`}
-                  className={`${buttonClasses("danger")} h-11 w-11 shrink-0 !px-0`}
+                  className={`${buttonClasses("danger")} ${disabledClasses("danger")} h-11 w-11 shrink-0 !px-0`}
                 >
                   <Trash2 aria-hidden="true" size={20} />
                 </button>
