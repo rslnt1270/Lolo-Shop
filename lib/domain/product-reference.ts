@@ -82,6 +82,13 @@ export function displayColor(raw: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/** Etiqueta de la lista con la misma clave (normalizeColorKey); si no hay, displayColor(typed); vacío o sin clave → null. */
+export function resolveColorLabel(typed: string, options: readonly string[]): string | null {
+  const key = normalizeColorKey(typed);
+  if (!key) return null;
+  return options.find((o) => normalizeColorKey(o) === key) ?? displayColor(typed);
+}
+
 export function buildSuggestedTitle(parts: {
   typeName: string;
   brand: string;

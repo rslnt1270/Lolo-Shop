@@ -264,14 +264,14 @@ describe("NewProductForm (alta): guardado", () => {
   });
 
   it("G12(b): el color escrito se guarda con la etiqueta de la lista, antes de subir fotos", async () => {
-    createColorAction.mockResolvedValue({ ok: true, label: "Rosa" });
+    createColorAction.mockResolvedValue({ ok: true, label: "Verde lima" });
     mount();
     await fillAll({ mode: "catalog" });
     fireEvent.click(screen.getByRole("button", { name: /capturar front/ }));
-    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "verde lima" } });
     save();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
-    expect(createColorAction).toHaveBeenCalledWith("rosas");
+    expect(createColorAction).toHaveBeenCalledWith("verde lima");
     expect(createColorAction.mock.invocationCallOrder[0]).toBeLessThan(uploadProductImageAction.mock.invocationCallOrder[0]);
   });
 
@@ -280,7 +280,7 @@ describe("NewProductForm (alta): guardado", () => {
     mount();
     await fillAll({ mode: "catalog" });
     fireEvent.click(screen.getByRole("button", { name: /capturar front/ }));
-    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "verde lima" } });
     save();
     expect(await screen.findByText("El color puede tener máximo 40 caracteres.")).toBeInTheDocument();
     expect(uploadProductImageAction).not.toHaveBeenCalled();
@@ -355,5 +355,25 @@ describe("NewProductForm (alta): guardado", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(uploadProductImageAction).toHaveBeenCalledTimes(2);
     expect(createProductAction.mock.calls[1][0]).toMatchObject({ imageUrl: FRONT, backImageUrl: BACK });
+  });
+
+  it("el título sugerido usa la etiqueta de la lista: 'rosas' → '… rosa'", async () => {
+    mount();
+    await dept("d1");
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
+    await pickBrand();
+    await screen.findByRole("option", { name: "Rosa", hidden: true }).catch(() => null);
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveValue("Playeras ALO rosa"));
+  });
+
+  it("color que ya está en la lista con otra forma no llama createColorAction", async () => {
+    mount();
+    await fillAll();
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    save();
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled());
+    expect(createColorAction).not.toHaveBeenCalled();
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ color: "Rosa" });
   });
 });

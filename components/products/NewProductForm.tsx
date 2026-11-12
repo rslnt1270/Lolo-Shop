@@ -7,7 +7,7 @@ import {
   ALLOWED_IMAGE_TYPES, MAX_DESCRIPTION_LENGTH, MAX_IMAGE_BYTES, MAX_SIZES, validateNewProduct, type EntryMode,
 } from "@/lib/domain/new-product";
 import {
-  buildSuggestedTitle, colorApplies, productPhotoStatus, validateReference, type PhotoStatus,
+  buildSuggestedTitle, colorApplies, resolveColorLabel, productPhotoStatus, validateReference, type PhotoStatus,
 } from "@/lib/domain/product-reference";
 import { canonicalCode, isValidGtin } from "@/lib/domain/barcode";
 import { Scanner } from "@/components/inventory/Scanner";
@@ -359,8 +359,8 @@ export function NewProductForm({
       let color: string | null = null;
       const typed = colorRaw.trim();
       if (typed) {
-        const known = colors.find((c) => c.toLowerCase() === typed.toLowerCase());
-        if (known) color = known;
+        const resolved = resolveColorLabel(typed, colors);
+        if (resolved && colors.includes(resolved)) color = resolved;
         else {
           const made = await createColorAction(typed);
           if (!made?.ok) {
@@ -504,10 +504,10 @@ export function NewProductForm({
     const suggested = buildSuggestedTitle({
       typeName: selectedType?.name ?? "",
       brand: brand?.name ?? "",
-      color: showColor ? colorText.trim() || null : null,
+      color: showColor ? resolveColorLabel(colorText, colors) : null,
     });
     setFormData((prev) => (prev.title === suggested ? prev : { ...prev, title: suggested }));
-  }, [titleEdited, selectedType?.name, brand?.name, showColor, colorText]);
+  }, [titleEdited, selectedType?.name, brand?.name, showColor, colorText, colors]);
 
   const changeDepartment = (departmentId: string) => {
     const dept = departments.find((d) => d.id === departmentId) ?? null;
