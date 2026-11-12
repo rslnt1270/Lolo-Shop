@@ -50,7 +50,7 @@ function Choice<T extends string>({
             onChange={() => onChange(o.value)}
             className="peer sr-only"
           />
-          <span className="flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border border-outline bg-white px-3 text-center text-sm font-semibold text-on-surface peer-checked:border-primary peer-checked:bg-primary peer-checked:text-on-primary peer-focus-visible:ring-2 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2">
+          <span className="flex min-h-[44px] cursor-pointer items-center justify-center rounded-lg border-2 border-turquesa-texto bg-white px-3 text-center text-sm font-semibold text-turquesa-texto peer-checked:border-turquesa peer-checked:bg-turquesa peer-checked:text-tinta peer-focus-visible:ring-2 peer-focus-visible:ring-turquesa-texto peer-focus-visible:ring-offset-2">
             {o.label}
           </span>
         </label>
@@ -67,15 +67,15 @@ export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onA
   return (
     <div className="space-y-4">
       <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-on-surface">Canal de venta</legend>
+        <legend className="text-sm font-semibold text-tinta">Canal de venta</legend>
         <Choice name={`${uid}-canal`} options={CHANNELS} value={channel} onChange={onChannel} disabled={disabled} />
       </fieldset>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-on-surface">Método de pago</legend>
+        <legend className="text-sm font-semibold text-tinta">Método de pago</legend>
         <Choice name={`${uid}-pago`} options={METHODS} value={method} onChange={onMethod} disabled={disabled} />
         {method === "spay_transfer" && (
-          <p className="text-sm text-on-surface-variant">
+          <p className="text-sm text-tinta">
             La venta queda pendiente hasta que el dueño o el encargado confirme la transferencia.
           </p>
         )}
@@ -83,8 +83,8 @@ export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onA
 
       {showAlias && (
         <div>
-          <label htmlFor={`${uid}-alias`} className="block text-sm font-semibold text-on-surface">
-            Alias del pedido <span className="font-normal text-on-surface-variant">(opcional)</span>
+          <label htmlFor={`${uid}-alias`} className="block text-sm font-semibold text-tinta">
+            Alias del pedido <span className="font-normal text-tinta">(opcional)</span>
           </label>
           <input
             id={`${uid}-alias`}
@@ -95,9 +95,9 @@ export function PaymentPicker({ channel, method, alias, onChannel, onMethod, onA
             onChange={(e) => onAlias(e.target.value)}
             aria-describedby={aliasHelp}
             autoComplete="off"
-            className="mt-1 min-h-[44px] w-full rounded-lg border border-outline bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="mt-1 min-h-[44px] w-full rounded-lg border border-borde-control bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
           />
-          <p id={aliasHelp} className="mt-1 text-sm text-on-surface-variant">
+          <p id={aliasHelp} className="mt-1 text-sm text-tinta">
             Máximo 40 caracteres. Sin teléfono ni nombre completo.
           </p>
         </div>

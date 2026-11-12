@@ -490,10 +490,10 @@ export default function POSPage() {
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
       <header className="flex items-center justify-between gap-3">
-        <h1 className="text-lg font-bold text-on-surface">Nueva venta</h1>
+        <h1 className="text-lg font-bold text-tinta">Nueva venta</h1>
         <Link
           href="/"
-          className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-turquesa-texto underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
         >
           Volver al inicio
         </Link>
@@ -504,7 +504,7 @@ export default function POSPage() {
               <p
                 role={notice.kind === "error" ? "alert" : "status"}
                 className={`rounded-lg p-3 text-sm font-semibold shadow-sm ${
-                  notice.kind === "error" ? "bg-error-container text-on-error-container" : "bg-primary/10 text-on-primary-container"
+                  notice.kind === "error" ? "border border-agotado bg-white text-agotado" : "bg-niebla text-tinta"
                 }`}
               >
                 {notice.text}
@@ -519,10 +519,10 @@ export default function POSPage() {
           </div>
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
-        <section aria-label="Agregar prendas" className="space-y-4 rounded-2xl border border-outline-variant bg-white p-4">
+        <section aria-label="Agregar prendas" className="space-y-4 rounded-2xl border border-borde-control/40 bg-white p-4">
           {!isCollaborator && (
             <div>
-              <label htmlFor="tienda" className="block text-sm font-semibold text-on-surface">
+              <label htmlFor="tienda" className="block text-sm font-semibold text-tinta">
                 Tienda
               </label>
               <select
@@ -530,7 +530,7 @@ export default function POSPage() {
                 value={chosenLocation}
                 disabled={lock !== null}
                 onChange={(e) => chooseLocation(e.target.value)}
-                className="mt-1 block min-h-[44px] w-full rounded-lg border border-outline bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="mt-1 block min-h-[44px] w-full rounded-lg border border-borde-control bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
               >
                 {locations.length === 0 && (
                   <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
@@ -542,13 +542,9 @@ export default function POSPage() {
                 ))}
               </select>
               {locationsFailed && (
-                <button
-                  type="button"
-                  onClick={() => setLocationsAttempt((n) => n + 1)}
-                  className="mt-2 min-h-11 rounded-xl border border-outline px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                >
+                <Button variant="outline" onClick={() => setLocationsAttempt((n) => n + 1)} className="mt-2">
                   Reintentar
-                </button>
+                </Button>
               )}
             </div>
           )}
@@ -566,7 +562,7 @@ export default function POSPage() {
             noBarcodeDisabled={lock !== null || submitting || !locationId}
           />
           {!locationId && (
-            <p className="text-sm text-on-surface-variant">Elige la tienda de la venta.</p>
+            <p className="text-sm text-tinta">Elige la tienda de la venta.</p>
           )}
           {searchOpen && locationId && (
             <SaleProductSearch
@@ -579,13 +575,13 @@ export default function POSPage() {
 
         <section aria-label="Venta" className="space-y-4">
           {activeStockError && !stockLineId && (
-            <p role="alert" className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">
+            <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado">
               {activeStockError.message} Revisa las cantidades de la venta.
             </p>
           )}
 
           {lock && (
-            <div role="alert" className="space-y-3 rounded-2xl border border-error bg-error-container p-4 text-on-error-container">
+            <div role="alert" className="space-y-3 rounded-2xl border-2 border-agotado bg-white p-4 text-agotado">
               <p className="text-sm font-semibold">
                 {lock === "uncertain"
                   ? "No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas."
@@ -622,7 +618,7 @@ export default function POSPage() {
             onDiscard={discardScan}
           />
 
-          <div className="rounded-2xl border border-outline-variant bg-white p-4">
+          <div className="rounded-2xl border border-borde-control/40 bg-white p-4">
             <PaymentPicker
               channel={channel}
               method={method}
@@ -634,7 +630,7 @@ export default function POSPage() {
             />
           </div>
 
-          <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
+          <div className="sticky bottom-0 -mx-4 border-t border-borde-control/40 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
             {lock === "uncertain" ? (
               <Button onClick={() => void charge()} loading={submitting} className="min-h-[52px] w-full text-lg">
                 {submitting ? "Cobrando…" : "Reintentar cobro"}
@@ -651,7 +647,7 @@ export default function POSPage() {
               </Button>
             )}
             {lines.length === 0 && !lock && (
-              <p id="cobrar-ayuda" className="mt-2 text-center text-sm text-on-surface-variant">
+              <p id="cobrar-ayuda" className="mt-2 text-center text-sm text-tinta">
                 Agrega al menos una prenda para cobrar.
               </p>
             )}

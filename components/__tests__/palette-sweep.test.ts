@@ -59,4 +59,13 @@ describe("barrido de paleta (plan B, zonas)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("sales files use turquesa primary and agotado danger", () => {
+    expect(
+      offenders(["components/sales", "app/pos/page.tsx", "app/ventas/page.tsx"], [
+        /#C23A2B|#9B2C20|#B7791F|#8A5A12|#147E7E|#12211F|#3A4D4A|#007272/,
+        /loloteal|bg-primary|text-primary|ring-primary|error-container|bg-\[#/,
+      ]),
+    ).toEqual([]);
+  });
 });

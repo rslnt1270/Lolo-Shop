@@ -62,7 +62,7 @@ export function SaleProductSearch({ locationId, disabled = false, onAdd }: SaleP
         )}
       />
       {problem && (
-        <p role="alert" className="rounded-lg bg-error-container p-3 text-sm font-semibold text-on-error-container">
+        <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado">
           {problem.text}
           {problem.login && (
             <>
@@ -106,7 +106,7 @@ function HitSizes({
     };
   }, [productId, locationId]);
 
-  if (failed) return <p className="mt-2 text-sm text-error">No se pudieron cargar las tallas.</p>;
+  if (failed) return <p className="mt-2 text-sm text-agotado">No se pudieron cargar las tallas.</p>;
   if (rows === null) return <p className="mt-2 text-sm text-gray-600">Cargando tallas…</p>;
   if (rows.length === 0) return <p className="mt-2 text-sm text-gray-600">Sin tallas en esta tienda.</p>;
   return (
