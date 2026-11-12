@@ -26,7 +26,7 @@ export function NavBar() {
         <header aria-hidden="true" className={MOBILE_HEADER}>
           <div className="flex items-center gap-2">
             <div className="h-7 w-7 rounded-full bg-gray-100" />
-            <span className="font-bold text-[#18181B] tracking-tight">LoloShop</span>
+            <span className="font-bold text-tinta tracking-tight">LoloShop</span>
           </div>
         </header>
         <nav data-bottom-nav="" data-loading="" aria-hidden="true" className={BOTTOM_NAV} />
@@ -55,7 +55,7 @@ export function NavBar() {
             alt="LoloShop"
             className="h-9 w-9 rounded-full border border-gray-100 shadow-sm"
           />
-          <span className="font-bold text-lg text-[#18181B] tracking-tight">LoloShop</span>
+          <span className="font-bold text-lg text-tinta tracking-tight">LoloShop</span>
         </div>
         <div className="flex items-center gap-1 text-sm font-medium lg:gap-6">
           {navItems.map((item) => {
@@ -66,7 +66,7 @@ export function NavBar() {
                 href={item.href} 
                 aria-current={isActive ? "page" : undefined}
                 title={item.name}
-                className={`flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal ${isActive ? 'text-loloteal' : 'text-gray-600 hover:text-gray-900'}`}
+                className={`flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto ${isActive ? 'bg-turquesa px-3 text-tinta' : 'text-gray-600 hover:text-gray-900'}`}
               >
                 <item.icon aria-hidden="true" size={18} strokeWidth={isActive ? 2.5 : 2} />
                 <span className="sr-only lg:not-sr-only">{item.name}</span>
@@ -76,7 +76,7 @@ export function NavBar() {
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             title="Salir"
-            className="ml-2 flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md text-gray-600 lg:ml-4 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
+            className="ml-2 flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md text-gray-600 lg:ml-4 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto"
           >
             <LogOut aria-hidden="true" size={18} />
             <span className="sr-only lg:not-sr-only">Salir</span>
@@ -90,7 +90,7 @@ export function NavBar() {
       <header className={MOBILE_HEADER}>
         <div className="flex items-center gap-2">
           <img src="/loloshop-logo.png" alt="LoloShop" className="h-7 w-7 rounded-full shadow-sm" />
-          <span className="font-bold text-[#18181B] tracking-tight">LoloShop</span>
+          <span className="font-bold text-tinta tracking-tight">LoloShop</span>
         </div>
       </header>
 
@@ -113,13 +113,13 @@ export function NavBar() {
                 href={item.href}
                 aria-label={item.name}
                 aria-current={isActive ? "page" : undefined}
-                className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+                className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-turquesa-texto"
               >
-                <div className={`transition-all duration-300 ${isActive ? '-translate-y-1 text-loloteal' : 'text-gray-500'}`}>
+                <div className={`transition-all duration-300 ${isActive ? '-translate-y-1 rounded-full bg-turquesa px-3 py-0.5 text-tinta' : 'text-gray-500'}`}>
                   <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
                 </div>
                 {isActive && (
-                  <span aria-hidden="true" className="absolute bottom-0 text-[10px] font-bold text-loloteal opacity-100 transition-opacity">
+                  <span aria-hidden="true" className="absolute bottom-0 text-[10px] font-bold text-turquesa-texto opacity-100 transition-opacity">
                     {item.name}
                   </span>
                 )}
@@ -130,7 +130,7 @@ export function NavBar() {
             type="button"
             aria-label="Salir"
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg text-gray-500 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+            className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg text-gray-500 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-turquesa-texto"
           >
             <LogOut size={22} />
           </button>

@@ -4,6 +4,7 @@ import { StaffLoadState, useStaffData } from "@/components/layout/StaffLoadState
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { KeyRound, ShoppingCart } from "lucide-react";
+import { buttonClasses } from "@/components/ui/button-classes";
 import type { Location, Product } from "@/lib/domain/types";
 import { fetchProductsAction, fetchLocationsAction, createLocationAction } from "@/lib/actions";
 import { getLowStockThresholdAction } from "@/lib/sales/dashboard-actions";
@@ -34,8 +35,8 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-2xl">
-      {/* Teal gradient hero */}
-      <div className="flex items-center gap-3 bg-gradient-to-br from-loloteal to-[#147E7E] px-5 pb-8 pt-6 text-white">
+      {/* Encabezado: blanco sobre turquesa-texto (#0C7C7C, 5.01:1) es texto permitido; el relleno de botón sigue siendo turquesa con tinta. */}
+      <div className="flex items-center gap-3 bg-gradient-to-br from-turquesa-texto to-tinta px-5 pb-8 pt-6 text-white">
         <img
           src="/loloshop-logo.png"
           alt="LoloShop"
@@ -43,7 +44,7 @@ export default function Home() {
         />
         <div>
           <p className="text-lg font-extrabold leading-tight">Inventario</p>
-          <p className="mt-0.5 font-mono text-[0.74rem] tracking-wide text-white/85">
+          <p className="mt-0.5 font-mono text-[0.74rem] tracking-wide text-white">
             Resumen de inventario
           </p>
         </div>
@@ -60,26 +61,26 @@ export default function Home() {
       </div>
 
       {/* Body lifted over header bottom */}
-      <div className="-mt-3 space-y-5 rounded-t-2xl bg-[#F4FBFA] px-4 pb-6 pt-4">
+      <div className="-mt-3 space-y-5 rounded-t-2xl bg-niebla px-4 pb-6 pt-4">
         {/* KPIs — solo datos reales: sin métricas de ventas/movimientos */}
         <div className="grid grid-cols-3 gap-2.5">
-          <div className="rounded-[14px] border border-[rgba(18,33,31,0.12)] bg-white p-3 text-center">
-            <p className="text-2xl font-extrabold leading-none text-[#147E7E]">{stockTotal}</p>
-            <p className="mt-1 text-[0.62rem] tracking-wide text-[#3A4D4A]">Stock total</p>
+          <div className="rounded-[14px] border border-borde-control bg-white p-3 text-center">
+            <p className="text-2xl font-extrabold leading-none text-turquesa-texto">{stockTotal}</p>
+            <p className="mt-1 text-[0.62rem] tracking-wide text-tinta">Stock total</p>
           </div>
-          <div className="rounded-[14px] border border-[rgba(18,33,31,0.12)] bg-white p-3 text-center">
-            <p className="text-2xl font-extrabold leading-none text-[#147E7E]">{products.length}</p>
-            <p className="mt-1 text-[0.62rem] tracking-wide text-[#3A4D4A]">Productos</p>
+          <div className="rounded-[14px] border border-borde-control bg-white p-3 text-center">
+            <p className="text-2xl font-extrabold leading-none text-turquesa-texto">{products.length}</p>
+            <p className="mt-1 text-[0.62rem] tracking-wide text-tinta">Productos</p>
           </div>
-          <div className="rounded-[14px] border border-[#F4CFC8] bg-[#FFE7E2] p-3 text-center">
-            <p className="text-2xl font-extrabold leading-none text-[#C23A2B]">{enAlerta}</p>
-            <p className="mt-1 text-[0.62rem] tracking-wide text-[#3A4D4A]">En alerta</p>
+          <div className="rounded-[14px] border-2 border-agotado bg-white p-3 text-center">
+            <p className="text-2xl font-extrabold leading-none text-agotado">{enAlerta}</p>
+            <p className="mt-1 text-[0.62rem] tracking-wide text-tinta">En alerta</p>
           </div>
         </div>
 
         <Link
           href="/pos"
-          className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[14px] bg-[#0B5E5E] px-4 text-base font-extrabold text-white shadow-sm transition-colors hover:bg-[#084848] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B5E5E]"
+          className={`${buttonClasses("primary")} min-h-[52px] w-full text-base font-extrabold`}
         >
           <ShoppingCart size={20} strokeWidth={2.5} aria-hidden="true" />
           Vender
@@ -87,7 +88,7 @@ export default function Home() {
 
         {/* Link al catálogo público */}
         <div>
-          <a href="/catalogo" target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#147E7E] p-3 text-sm font-extrabold text-white shadow-sm transition-all hover:bg-[#106666] active:scale-95">
+          <a href="/catalogo" target="_blank" rel="noopener noreferrer" className={`${buttonClasses("outline")} w-full font-extrabold`}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
             </svg>
@@ -98,9 +99,9 @@ export default function Home() {
         {/* Stock por tienda */}
         <section>
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold text-[#12211F]">Stock por tienda</h2>
+            <h2 className="text-sm font-bold text-tinta">Stock por tienda</h2>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[0.6rem] text-[#3A4D4A]">{stockTotal} unidades</span>
+              <span className="font-mono text-[0.6rem] text-tinta">{stockTotal} unidades</span>
               {role === "owner" && (
                 <AddLocationForm
                   onCreate={createLocationAction}
@@ -115,8 +116,8 @@ export default function Home() {
         {/* Alertas de stock bajo */}
         <section>
           <div className="mb-2 flex items-baseline justify-between">
-            <h2 className="text-sm font-bold text-[#12211F]">Alertas de stock bajo</h2>
-            <span className="font-mono text-[0.6rem] text-[#3A4D4A]">umbral ≤ {threshold}</span>
+            <h2 className="text-sm font-bold text-tinta">Alertas de stock bajo</h2>
+            <span className="font-mono text-[0.6rem] text-tinta">umbral ≤ {threshold}</span>
           </div>
           <LowStockList products={products} threshold={threshold} />
         </section>

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
+import { Button } from "@/components/ui/Button";
 
 export type StaffLoadStatus = "loading" | "ready" | "session" | "error";
 
@@ -61,13 +62,7 @@ export function StaffLoadState({ state, retry }: { state: StaffLoadStatus; retry
       {state === "error" && (
         <div role="alert" className="space-y-3">
           <p className="text-base font-semibold text-gray-800">No hay conexión.</p>
-          <button
-            type="button"
-            onClick={retry}
-            className="min-h-[44px] rounded-lg bg-loloteal px-5 text-sm font-semibold text-white active:bg-loloteal-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal focus-visible:ring-offset-2"
-          >
-            Reintentar
-          </button>
+          <Button onClick={retry}>Reintentar</Button>
         </div>
       )}
     </main>
