@@ -1,11 +1,22 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
+import { useMotionTiming } from "@/lib/motion/use-reduced-motion";
 import { defaultProcessFile, type ProcessFile } from "@/lib/image/process-file";
 
 export const FRAMING_GUIDE = "Coloca la prenda sobre una superficie blanca y céntrala en el marco.";
 export const BACKGROUND_REJECTED =
   "El fondo no está en blanco. Repite la foto con la prenda sobre una superficie blanca.";
+
+/** Desplazamiento horizontal repetido `count` veces; con 0 no se mueve. */
+export function shakeKeyframes(count: number): number[] {
+  if (count <= 0) return [0];
+  const out = [0];
+  for (let i = 0; i < count; i += 1) out.push(-6, 6);
+  out.push(0);
+  return out;
+}
 
 interface ProductPhotoCaptureProps {
   onCapture: (file: File) => void;
@@ -23,6 +34,8 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [shakeKey, setShakeKey] = useState(0);
+  const t = useMotionTiming();
   const sideWord = side === "back" ? "atrás" : side === "front" ? "frente" : null;
   const forSide = sideWord ? ` de ${sideWord}` : "";
 
@@ -45,6 +58,7 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
       if (!analysis.ok) {
         // Foto rechazada: no se conserva ni se entrega; solo se puede repetir.
         setError(BACKGROUND_REJECTED);
+        setShakeKey((k) => k + 1);
         return;
       }
       if (preview) URL.revokeObjectURL(preview);
@@ -88,8 +102,14 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
       />
       {preview ? (
         <div className="space-y-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview} alt={`Vista previa de la foto${forSide}`} className="w-32 h-32 rounded-lg object-cover border" />
+          <motion.img
+            src={preview}
+            alt={`Vista previa de la foto${forSide}`}
+            className="w-32 h-32 rounded-lg object-cover border"
+            initial={{ scale: t.photoScaleFrom }}
+            animate={{ scale: 1 }}
+            transition={{ duration: t.photoMs / 1000, ease: "easeOut" }}
+          />
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" onClick={() => inputRef.current?.click()} disabled={busy} aria-label={`Retomar foto${forSide}`}>
               Retomar
@@ -101,12 +121,15 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
         </div>
       ) : (
         <div className="space-y-2">
-          <div
+          <motion.div
+            key={shakeKey}
             data-testid="framing-guide"
+            animate={{ x: shakeKeyframes(shakeKey > 0 && error ? t.rejectShakeCount : 0) }}
+            transition={{ duration: t.rejectShakeMs / 1000, ease: "linear" }}
             className="relative mx-auto flex aspect-square w-full max-w-[200px] items-center justify-center rounded-lg border-2 border-dashed border-borde-control bg-white"
           >
             <div aria-hidden="true" className="h-3/5 w-3/5 rounded-md border-2 border-turquesa-texto/60" />
-          </div>
+          </motion.div>
           <p className="text-sm text-gray-700">{FRAMING_GUIDE}</p>
           <Button
             onClick={() => inputRef.current?.click()}

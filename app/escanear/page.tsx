@@ -13,6 +13,7 @@ import { ExistingProductSearch } from "@/components/products/ExistingProductSear
 import { AddSizeForm } from "@/components/products/AddSizeForm";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
 import { sortSizes } from "@/lib/domain/sizes";
+import { SavedCheck } from "@/components/products/SavedCheck";
 import {
   lookupCodeAction,
   fetchLocationsAction,
@@ -412,7 +413,10 @@ export default function EscanearPage() {
           <div className="min-w-0 flex-1 text-sm">
             <p className="truncate font-semibold">{lastCreated.title}</p>
             <p className="font-mono text-gray-600">SKU: {lastCreated.sku}</p>
-            <p className="font-medium text-gray-800">{lastCreated.catalogStatus}</p>
+            <p className="flex items-center gap-2 font-medium text-gray-800">
+              <SavedCheck key={createdCount} />
+              {lastCreated.catalogStatus}
+            </p>
             {lastCreated.noBarcode && (
               <Link href="/etiquetas" className="inline-flex min-h-[44px] items-center font-medium text-loloteal underline">
                 Imprimir etiqueta
