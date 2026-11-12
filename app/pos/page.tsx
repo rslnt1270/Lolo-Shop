@@ -45,6 +45,14 @@ export default function POSPage() {
   const [locationsFailed, setLocationsFailed] = useState(false);
   const [locationsAttempt, setLocationsAttempt] = useState(0);
   const submittingRef = useRef(false);
+  // Carrito bloqueado: "uncertain" = no sabemos si la venta se registró; "conflict" = el id ya era otra venta.
+  const [lock, setLockState] = useState<"uncertain" | "conflict" | null>(null);
+  const lockRef = useRef<"uncertain" | "conflict" | null>(null);
+  const [confirmingNew, setConfirmingNew] = useState(false);
+  const setLock = useCallback((v: "uncertain" | "conflict" | null) => {
+    lockRef.current = v;
+    setLockState(v);
+  }, []);
 
   const role = session?.user?.role;
   const isCollaborator = role === "collaborator";
@@ -93,7 +101,7 @@ export default function POSPage() {
     }
   };
 
-  const { add, quantityOf, clearAvailability, isUncertain } = draft;
+  const { add, quantityOf, clearAvailability } = draft;
   const locationRef = useRef(locationId);
   locationRef.current = locationId;
 
@@ -126,14 +134,14 @@ export default function POSPage() {
 
   /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
   const flushHeld = useCallback(() => {
-    if (submittingRef.current || isUncertain()) return;
+    if (submittingRef.current || lockRef.current) return;
     const items = Array.from(heldRef.current.entries());
     heldRef.current.clear();
     for (const [code, result] of items) {
       setPending(code, null);
       applyFound(result);
     }
-  }, [applyFound, isUncertain, setPending]);
+  }, [applyFound, setPending]);
 
   const runLookup = useCallback(
     async (code: string, store: string) => {
@@ -153,7 +161,7 @@ export default function POSPage() {
           if (!variant) {
             setPending(code, null);
             setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
-          } else if (submittingRef.current || isUncertain()) {
+          } else if (submittingRef.current || lockRef.current) {
             // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
             heldRef.current.set(code, result);
             setPending(code, "queued");
@@ -178,7 +186,7 @@ export default function POSPage() {
         setNotice({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
       }
     },
-    [applyFound, isUncertain, setPending],
+    [applyFound, setPending],
   );
 
   const handleScan = useCallback(
@@ -262,6 +270,7 @@ export default function POSPage() {
               : `Venta #${result.sale.number} registrada`,
         });
         setAlias("");
+        setLock(null);
         draft.reset();
       } else if (result.code === "PRICE_CHANGED" && result.lines?.length) {
         // El precio cambió con el carrito abierto: se cobra al vigente. El carrito cambió, así que es otro cobro.
@@ -279,12 +288,15 @@ export default function POSPage() {
       } else if (result.reason === "request_conflict") {
         // Ese identificador ya es otra venta: el siguiente Cobrar registra una nueva con este carrito.
         draft.renewRequestId();
+        // El carrito queda bloqueado: un Cobrar simple no debe volver a cobrar las líneas originales.
+        setLock("conflict");
         setNotice({ kind: "error", text: result.message });
       } else if (result.reason === "session_expired") {
         setNotice({ kind: "error", text: result.message, login: true });
       } else if (result.code === "UNAVAILABLE") {
         // Resultado incierto: se reintenta con el mismo identificador.
         draft.markUncertain();
+        setLock("uncertain");
         setNotice({ kind: "error", text: result.message });
       } else {
         draft.markRejected(requestSignature);
@@ -296,6 +308,7 @@ export default function POSPage() {
       }
     } catch {
       draft.markUncertain();
+      setLock("uncertain");
       setNotice({
         kind: "error",
         text: "No se pudo registrar la venta. Revisa tu conexión y vuelve a pulsar Cobrar: no se duplicará.",
@@ -306,6 +319,16 @@ export default function POSPage() {
       // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
       flushHeld();
     }
+  };
+
+  const startNewSale = () => {
+    setConfirmingNew(false);
+    setLock(null);
+    setStockError(null);
+    setAlias("");
+    draft.reset();
+    setNotice(null);
+    flushHeld();
   };
 
   if (status === "loading") {
@@ -363,6 +386,7 @@ export default function POSPage() {
               <select
                 id="tienda"
                 value={chosenLocation}
+                disabled={lock !== null}
                 onChange={(e) => chooseLocation(e.target.value)}
                 className="mt-1 block min-h-[44px] w-full rounded-lg border border-outline bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
@@ -403,6 +427,31 @@ export default function POSPage() {
             </p>
           )}
 
+          {lock && (
+            <div role="alert" className="space-y-3 rounded-2xl border border-error bg-error-container p-4 text-on-error-container">
+              <p className="text-sm font-semibold">
+                {lock === "uncertain"
+                  ? "No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas."
+                  : "Esta venta quedó bloqueada: verifica en Ventas antes de empezar otra."}
+              </p>
+              {confirmingNew ? (
+                <div className="space-y-3">
+                  <p className="text-sm">Si la venta sí se registró, no la vuelvas a cobrar.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={startNewSale}>Sí, empezar otra venta</Button>
+                    <Button variant="outline" onClick={() => setConfirmingNew(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" onClick={() => setConfirmingNew(true)}>
+                  Ya revisé en Ventas: empezar otra venta
+                </Button>
+              )}
+            </div>
+          )}
+
           <SaleCart
             lines={lines}
             canEditPrice={canEditPrice}
@@ -410,6 +459,7 @@ export default function POSPage() {
             onSetQty={draft.setQty}
             onSetPrice={draft.setPrice}
             onRemove={draft.remove}
+            locked={lock !== null}
             pendingScans={pendingScans}
             onRetry={retryScan}
           />
@@ -426,16 +476,22 @@ export default function POSPage() {
           </div>
 
           <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
-            <Button
-              onClick={() => void charge()}
-              disabled={lines.length === 0 || pendingScans.some((p) => p.status === "loading")}
-              loading={submitting}
-              aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
-              className="min-h-[52px] w-full text-lg"
-            >
-              {submitting ? "Cobrando…" : lines.length ? `Cobrar ${formatPrice(saleTotal(lines))}` : "Cobrar"}
-            </Button>
-            {lines.length === 0 && (
+            {lock === "uncertain" ? (
+              <Button onClick={() => void charge()} loading={submitting} className="min-h-[52px] w-full text-lg">
+                {submitting ? "Cobrando…" : "Reintentar cobro"}
+              </Button>
+            ) : lock === "conflict" ? null : (
+              <Button
+                onClick={() => void charge()}
+                disabled={lines.length === 0 || pendingScans.some((p) => p.status === "loading")}
+                loading={submitting}
+                aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
+                className="min-h-[52px] w-full text-lg"
+              >
+                {submitting ? "Cobrando…" : lines.length ? `Cobrar ${formatPrice(saleTotal(lines))}` : "Cobrar"}
+              </Button>
+            )}
+            {lines.length === 0 && !lock && (
               <p id="cobrar-ayuda" className="mt-2 text-center text-sm text-on-surface-variant">
                 Agrega al menos una prenda para cobrar.
               </p>

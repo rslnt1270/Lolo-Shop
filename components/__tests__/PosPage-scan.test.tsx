@@ -180,7 +180,7 @@ describe("/pos escaneo continuo", () => {
       await screen.findByText(/no se duplicará/i);
       expect(screen.getByText("Pendiente para la siguiente venta: 222")).toBeInTheDocument();
       expect(screen.queryByText("Camisa")).toBeNull();
-      cobrar();
+      fireEvent.click(screen.getByRole("button", { name: "Reintentar cobro" }));
       await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(2));
       const [first, second] = actions.createSaleAction.mock.calls.map((c) => c[0]);
       expect(second).toEqual(first);
@@ -223,5 +223,23 @@ describe("/pos escaneo continuo", () => {
     await waitFor(() => expect(screen.queryByText("Buscando 222…")).toBeNull());
     expect(screen.queryByText("Camisa")).toBeNull();
     expect(screen.getByRole("button", { name: /sumar una pieza de playera/i })).toBeEnabled();
+  });
+
+  it("incierto: las lecturas en espera entran al carrito nuevo al empezar otra venta", async () => {
+    actions.createSaleAction.mockRejectedValueOnce(new Error("red"));
+    await ready();
+    scan("111");
+    await screen.findByText("Agregado: Playera (M) · ×1");
+    fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+    await screen.findByText(/no sabemos si la venta se registró/i);
+    actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "L", { available: 3, sold: false }, "Camisa"));
+    scan("222");
+    await screen.findByText("Pendiente para la siguiente venta: 222");
+    expect(screen.queryByText("Camisa")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /ya revisé en ventas/i }));
+    fireEvent.click(screen.getByRole("button", { name: /sí, empezar otra venta/i }));
+    expect(await screen.findByText("Camisa")).toBeInTheDocument();
+    expect(screen.queryByText("Playera")).toBeNull();
+    expect(screen.queryByText(/Pendiente para la siguiente venta/)).toBeNull();
   });
 });

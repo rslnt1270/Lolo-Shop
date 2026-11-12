@@ -21,13 +21,15 @@ type Props = {
   /** Lecturas con la consulta en curso o fallida; se muestran arriba de las líneas. */
   pendingScans?: PendingScan[];
   onRetry?: (code: string) => void;
+  /** Cobro incierto o en conflicto: no se editan cantidades, precios ni líneas. */
+  locked?: boolean;
 };
 
 const stepBtn =
   "flex h-11 w-11 items-center justify-center rounded-lg border border-outline-variant bg-white text-on-surface hover:bg-surface-container-low focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:text-outline disabled:opacity-60";
 
 /** Campo de precio con texto local para poder borrar y reescribir sin saltos. */
-function PriceField({ line, onCommit }: { line: DraftLine; onCommit: (price: number) => void }) {
+function PriceField({ line, onCommit, locked }: { line: DraftLine; onCommit: (price: number) => void; locked: boolean }) {
   const [text, setText] = useState(String(line.unitPrice));
   const [focused, setFocused] = useState(false);
   // Si el precio cambia en el servidor (PRICE_CHANGED), el campo muestra el vigente salvo que se esté escribiendo.
@@ -47,6 +49,7 @@ function PriceField({ line, onCommit }: { line: DraftLine; onCommit: (price: num
         </span>
         <input
           type="text"
+          disabled={locked}
           inputMode="decimal"
           autoComplete="off"
           value={text}
@@ -94,7 +97,7 @@ function PendingRows({ pendingScans, onRetry }: { pendingScans: PendingScan[]; o
   );
 }
 
-export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSetPrice, onRemove, pendingScans = [], onRetry }: Props) {
+export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSetPrice, onRemove, pendingScans = [], onRetry, locked = false }: Props) {
   const total = saleTotal(lines);
 
   if (lines.length === 0) {
@@ -147,8 +150,9 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                 <button
                   type="button"
                   onClick={() => onRemove(line.variantId)}
+                  disabled={locked}
                   aria-label={`Quitar ${line.productTitle}`}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-on-surface-variant hover:bg-error-container hover:text-on-error-container focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-on-surface-variant hover:bg-error-container hover:text-on-error-container focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-60"
                 >
                   <Trash2 aria-hidden="true" size={20} />
                 </button>
@@ -159,7 +163,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                   <button
                     type="button"
                     onClick={() => onSetQty(line.variantId, line.quantity - 1)}
-                    disabled={line.quantity <= 1}
+                    disabled={locked || line.quantity <= 1}
                     aria-label={`Restar una pieza de ${line.productTitle}`}
                     className={stepBtn}
                   >
@@ -171,7 +175,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
                   <button
                     type="button"
                     onClick={() => onSetQty(line.variantId, line.quantity + 1)}
-                    disabled={line.available !== null && line.quantity >= line.available}
+                    disabled={locked || (line.available !== null && line.quantity >= line.available)}
                     aria-label={`Sumar una pieza de ${line.productTitle}`}
                     className={stepBtn}
                   >
@@ -192,7 +196,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
 
               {canEditPrice && (
                 <div className="w-full">
-                  <PriceField line={line} onCommit={(p) => onSetPrice(line.variantId, p)} />
+                  <PriceField locked={locked} line={line} onCommit={(p) => onSetPrice(line.variantId, p)} />
                 </div>
               )}
 
