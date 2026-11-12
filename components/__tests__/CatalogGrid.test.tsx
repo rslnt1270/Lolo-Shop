@@ -43,13 +43,44 @@ afterEach(() => {
   cleanup();
 });
 
+describe("CatalogGrid: favorito y Ver prenda", () => {
+  it("cada tarjeta tiene el favorito como botón principal y Ver prenda como segunda acción", () => {
+    render(<CatalogGrid products={twelve.slice(0, 2)} onSelect={() => {}} />);
+    const card = within(screen.getAllByRole("listitem")[0]);
+    const fav = card.getByRole("button", { name: /Guardar en favoritos/ });
+    const ver = card.getByRole("button", { name: /^Ver prenda/ });
+    expect(fav.className).toContain("bg-turquesa");
+    expect(ver.className).toContain("border-turquesa-texto");
+    expect(ver.className).not.toContain("bg-turquesa ");
+  });
+  it("Ver prenda llama onSelect con la prenda", () => {
+    const onSelect = vi.fn();
+    render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Ver prenda/ }));
+    expect(onSelect).toHaveBeenCalledWith(twelve[0]);
+  });
+  it("el favorito no llama onSelect", () => {
+    const onSelect = vi.fn();
+    window.localStorage.clear();
+    render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /Guardar en favoritos/ }));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /En favoritos/ })).toBeInTheDocument();
+  });
+  it("la tarjeta no contiene 'Consultar por WhatsApp' ni enlaces wa.me", () => {
+    const { container } = render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={() => {}} />);
+    expect(container.textContent).not.toMatch(/Consultar por WhatsApp/);
+    expect(container.querySelector('a[href*="wa.me"]')).toBeNull();
+  });
+});
+
 describe("CatalogGrid", () => {
   it("lista un elemento por producto y avisa cuál se elige", () => {
     const onSelect = vi.fn();
     render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={onSelect} />);
     const items = within(screen.getByRole("list", { name: "Prendas" })).getAllByRole("listitem");
     expect(items).toHaveLength(3);
-    fireEvent.click(within(items[1]).getByRole("button"));
+    fireEvent.click(within(items[1]).getByRole("button", { name: /^Ver prenda/ }));
     expect(onSelect).toHaveBeenCalledWith(twelve[1]);
   });
 
@@ -150,7 +181,7 @@ describe("VirtualStoreCatalog sin bandera de recorrido", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", NUM);
     const { container } = render(<VirtualStoreCatalog initialProducts={twelve} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
+    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: /^Ver prenda/ }));
     expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
     expect(screen.queryByRole("link", { name: /WhatsApp/ })).toBeNull();
     expect(screen.queryByText(NO_WHATSAPP_TEXT)).not.toBeInTheDocument();
@@ -161,7 +192,7 @@ describe("VirtualStoreCatalog sin bandera de recorrido", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", "");
     const { container } = render(<VirtualStoreCatalog initialProducts={twelve} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
+    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: /^Ver prenda/ }));
     expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
     expect(screen.queryByText(NO_WHATSAPP_TEXT)).not.toBeInTheDocument();
   });
@@ -173,7 +204,7 @@ describe("Modal: precio por talla", () => {
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", NUM);
     const product = withSizes([sz("S", true, 300), sz("M", true, 350)]);
     render(<VirtualStoreCatalog initialProducts={[product]} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button"));
+    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button", { name: /^Ver prenda/ }));
     const dialog = within(screen.getByRole("dialog"));
     expect(dialog.getByText("$300")).toBeInTheDocument();
     fireEvent.click(dialog.getByRole("button", { name: "M" }));
@@ -186,7 +217,7 @@ describe("Modal: precio por talla", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     const product = withSizes([sz("S", false, 300), sz("M", true, 350)]);
     render(<VirtualStoreCatalog initialProducts={[product]} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button"));
+    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button", { name: /^Ver prenda/ }));
     expect(within(screen.getByRole("dialog")).getByRole("button", { name: "S, agotada" })).toBeInTheDocument();
   });
 });

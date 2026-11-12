@@ -101,6 +101,19 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
     setSelectedShelf(undefined);
   };
 
+  // Enlace desde /favoritos: /catalogo#p-<id> abre la ficha de esa prenda (solo si sigue en la lista pública).
+  useEffect(() => {
+    const m = /^#p-(.+)$/.exec(window.location.hash);
+    if (!m) return;
+    const found = initialProducts.find((p) => p.id === m[1]);
+    if (found) {
+      setSelectedProduct(found);
+      setSelectedShelf(undefined);
+    }
+    // Solo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div className="min-h-pantalla bg-[#f8f9fa] text-[#111827] flex flex-col relative overflow-x-hidden selection:bg-loloteal/20">
       {/* Luces y degradados ambientales sutiles */}

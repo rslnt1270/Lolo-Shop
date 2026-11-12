@@ -3,6 +3,9 @@
 import type { PublicProduct } from "@/lib/data/public-projection";
 
 import { formatPrice } from "@/lib/public/format";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { useFavorites } from "@/components/favorites/useFavorites";
+import { Button } from "@/components/ui/Button";
 
 const MAX_CHIPS = 6;
 
@@ -18,12 +21,13 @@ interface Props {
   onSelect: (p: PublicProduct) => void;
 }
 
-/** Cuadrícula de 2 columnas (375 px): foto de frente, marca, nombre y precio. Toda la tarjeta es el botón. */
+/** Cuadrícula de 2 columnas (375 px): foto de frente, marca, nombre y precio. Foto y textos abren la prenda; abajo, favorito (principal) y "Ver prenda" (contorno). */
 export function CatalogGrid({ products, onSelect }: Props) {
+  const favorites = useFavorites();
   return (
     <ul aria-label="Prendas" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
       {products.map((p) => (
-        <li key={p.id}>
+        <li key={p.id} id={`p-${p.id}`}>
           <button
             type="button"
             onClick={() => onSelect(p)}
@@ -70,6 +74,23 @@ export function CatalogGrid({ products, onSelect }: Props) {
               </span>
             </span>
           </button>
+          <div className="flex gap-2 pt-2">
+            <FavoriteButton
+              className="flex-1"
+              productId={p.id}
+              title={p.title}
+              saved={favorites.isSaved(p.id)}
+              disabled={!favorites.storageOk}
+              onToggle={() => favorites.toggle(p.id)}
+            />
+            <Button
+              variant="outline"
+              className="flex-1 self-start"
+              onClick={() => onSelect(p)}
+            >
+              Ver prenda
+            </Button>
+          </div>
         </li>
       ))}
     </ul>

@@ -21,7 +21,7 @@ export function FavoriteButton({ productId, title, saved, disabled, onToggle, cl
       <button
         type="button"
         aria-pressed={saved}
-        aria-label={`${saved ? "En favoritos" : "Guardar en favoritos"}: ${title}`}
+        title={`${saved ? "En favoritos" : "Guardar en favoritos"}: ${title}`}
         aria-describedby={disabled ? descId : undefined}
         disabled={disabled}
         onClick={(e) => {
