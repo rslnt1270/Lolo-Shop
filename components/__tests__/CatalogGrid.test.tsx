@@ -47,11 +47,31 @@ describe("CatalogGrid: favorito y Ver prenda", () => {
   it("cada tarjeta tiene el favorito como botón principal y Ver prenda como segunda acción", () => {
     render(<CatalogGrid products={twelve.slice(0, 2)} onSelect={() => {}} />);
     const card = within(screen.getAllByRole("listitem")[0]);
-    const fav = card.getByRole("button", { name: /Guardar en favoritos/ });
+    const fav = card.getByRole("button", { name: /favoritos/i });
     const ver = card.getByRole("button", { name: /^Ver prenda/ });
     expect(fav.className).toContain("bg-turquesa");
     expect(ver.className).toContain("border-turquesa-texto");
     expect(ver.className).not.toContain("bg-turquesa ");
+  });
+  it("nombres accesibles únicos por prenda y estables al guardar", () => {
+    window.localStorage.clear();
+    render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={() => {}} />);
+    const fav = screen.getByRole("button", { name: /Prenda de prueba 1.*favoritos/i });
+    expect(screen.getAllByRole("button", { name: /Prenda de prueba 1.*favoritos/i })).toHaveLength(1);
+    const before = fav.getAttribute("aria-label");
+    fireEvent.click(fav);
+    expect(fav.getAttribute("aria-label")).toBe(before);
+    expect(fav.getAttribute("aria-pressed")).toBe("true");
+    expect(fav.hasAttribute("title")).toBe(false);
+    expect(screen.getAllByRole("button", { name: "Ver prenda Prenda de prueba 1" })).toHaveLength(1);
+  });
+  it("en móvil las acciones se apilan a todo el ancho y en fila desde sm", () => {
+    render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={() => {}} />);
+    const row = screen.getByTestId("card-actions");
+    expect(row.className).toContain("flex-col");
+    expect(row.className).toContain("sm:flex-row");
+    expect(screen.getByRole("button", { name: /^Ver prenda/ }).className).toContain("w-full");
+    expect(screen.getByRole("button", { name: /favoritos/i }).className).toContain("w-full");
   });
   it("Ver prenda llama onSelect con la prenda", () => {
     const onSelect = vi.fn();
@@ -63,9 +83,9 @@ describe("CatalogGrid: favorito y Ver prenda", () => {
     const onSelect = vi.fn();
     window.localStorage.clear();
     render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: /Guardar en favoritos/ }));
+    fireEvent.click(screen.getByRole("button", { name: /favoritos/i }));
     expect(onSelect).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: /En favoritos/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /favoritos/i })).toBeInTheDocument();
   });
   it("la tarjeta no contiene 'Consultar por WhatsApp' ni enlaces wa.me", () => {
     const { container } = render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={() => {}} />);

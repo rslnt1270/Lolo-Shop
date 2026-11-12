@@ -32,30 +32,37 @@ describe("FavoritesClient", () => {
     render(<FavoritesClient products={products} />);
     expect(screen.getByText("Playera A")).toBeInTheDocument();
     expect(screen.queryByText("Vestido B")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ver prenda" }).getAttribute("href")).toBe("/catalogo#p-a");
+    expect(screen.getByRole("link", { name: "Ver prenda Playera A" }).getAttribute("href")).toBe("/catalogo#p-a");
   });
 
   it("marca Ya no disponible las guardadas que ya no están en el catálogo", () => {
     save(["a", "viejo"]);
     render(<FavoritesClient products={products} />);
     expect(screen.getByText("Ya no disponible")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Quitar" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^Quitar/ })).toHaveLength(2);
   });
 
   it("quitar una prenda ya no disponible pide confirmación dentro de la pantalla", () => {
     save(["viejo"]);
     render(<FavoritesClient products={products} />);
-    fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Quitar/ }));
     expect(screen.getByText("¿Quitar de favoritos?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sí, quitar" }));
     expect(screen.queryByText("Ya no disponible")).not.toBeInTheDocument();
     expect(JSON.parse(window.localStorage.getItem(FAVORITES_KEY)!)).toEqual([]);
   });
 
+  it("al pedir confirmación el foco pasa a Cancelar", () => {
+    save(["viejo"]);
+    render(<FavoritesClient products={products} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Quitar/ }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancelar" }));
+  });
+
   it("cancelar la confirmación no quita la prenda", () => {
     save(["viejo"]);
     render(<FavoritesClient products={products} />);
-    fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Quitar/ }));
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     expect(screen.getByText("Ya no disponible")).toBeInTheDocument();
     expect(screen.queryByText("¿Quitar de favoritos?")).not.toBeInTheDocument();
@@ -89,7 +96,7 @@ describe("FavoritesClient", () => {
     vi.stubGlobal("fetch", fetchSpy);
     save(["a", "viejo"]);
     render(<FavoritesClient products={products} />);
-    fireEvent.click(within(screen.getByText("Playera A").closest("li")!).getByRole("button", { name: "Quitar" }));
+    fireEvent.click(within(screen.getByText("Playera A").closest("li")!).getByRole("button", { name: "Quitar Playera A de favoritos" }));
     fireEvent.click(screen.getByRole("button", { name: "Sí, quitar" }));
     expect(fetchSpy).not.toHaveBeenCalled();
   });

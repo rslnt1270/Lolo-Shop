@@ -74,9 +74,9 @@ export function CatalogGrid({ products, onSelect }: Props) {
               </span>
             </span>
           </button>
-          <div className="flex gap-2 pt-2">
+          <div data-testid="card-actions" className="flex flex-col gap-2 pt-2 sm:flex-row">
             <FavoriteButton
-              className="flex-1"
+              className="sm:flex-1"
               productId={p.id}
               title={p.title}
               saved={favorites.isSaved(p.id)}
@@ -85,7 +85,8 @@ export function CatalogGrid({ products, onSelect }: Props) {
             />
             <Button
               variant="outline"
-              className="flex-1 self-start"
+              className="w-full sm:flex-1"
+              aria-label={`Ver prenda ${p.title}`}
               onClick={() => onSelect(p)}
             >
               Ver prenda

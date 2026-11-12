@@ -59,6 +59,18 @@ describe("useFavorites", () => {
     expect(html).toContain("cargando");
     expect(getItem).not.toHaveBeenCalled();
   });
+  it("toggle antes de estar listo no escribe nada (no pisa lo guardado)", () => {
+    window.localStorage.clear();
+    window.localStorage.setItem("loloshop.favoritos.v1", '["a"]');
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    function Probe() {
+      const f = useFavorites();
+      f.toggle("x"); // en render, antes del efecto
+      return null;
+    }
+    renderToString(<Probe />);
+    expect(setItem).not.toHaveBeenCalled();
+  });
   it("lee después de montar y guarda al alternar", () => {
     window.localStorage.clear();
     window.localStorage.setItem("loloshop.favoritos.v1", '["a"]');

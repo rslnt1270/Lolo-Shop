@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ChevronLeft, Heart } from "lucide-react";
 import type { PublicProduct } from "@/lib/data/public-projection";
@@ -24,14 +24,18 @@ function priceLabel(p: PublicProduct): string | null {
 }
 
 function ConfirmRemove({ onYes, onNo }: { onYes: () => void; onNo: () => void }) {
+  const groupRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    groupRef.current?.querySelector<HTMLButtonElement>("[data-cancel]")?.focus();
+  }, []);
   return (
-    <div role="group" aria-label="Confirmar" className="mt-3 border-t border-borde-control/30 pt-3">
+    <div ref={groupRef} role="group" aria-label="Confirmar" className="mt-3 border-t border-borde-control/30 pt-3">
       <p className="mb-2 text-sm font-bold text-tinta">¿Quitar de favoritos?</p>
       <div className="flex gap-2">
         <Button variant="danger" className="flex-1" onClick={onYes}>
           Sí, quitar
         </Button>
-        <Button variant="outline" className="flex-1" onClick={onNo}>
+        <Button data-cancel="" variant="outline" className="flex-1" onClick={onNo}>
           Cancelar
         </Button>
       </div>
@@ -129,11 +133,16 @@ export default function FavoritesClient({ products, loadError = false }: Props) 
                 ) : (
                   <div className="mt-3 flex gap-2">
                     {p && (
-                      <Link href={`/catalogo#p-${id}`} className={`${buttonClasses("outline")} flex-1`}>
+                      <Link href={`/catalogo#p-${id}`} aria-label={`Ver prenda ${p.title}`} className={`${buttonClasses("outline")} flex-1`}>
                         Ver prenda
                       </Link>
                     )}
-                    <Button variant="danger" className={p ? "" : "flex-1"} onClick={() => setConfirmId(id)}>
+                    <Button
+                      variant="danger"
+                      className={p ? "" : "flex-1"}
+                      aria-label={p ? `Quitar ${p.title} de favoritos` : "Quitar prenda que ya no está disponible de favoritos"}
+                      onClick={() => setConfirmId(id)}
+                    >
                       Quitar
                     </Button>
                   </div>
