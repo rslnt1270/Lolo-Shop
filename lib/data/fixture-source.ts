@@ -4,7 +4,7 @@ import {
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
-  type UpdateVariantPriceResult, type VariantMatch,
+  type UpdateVariantPriceResult, type VariantMatch, type StockAt, type VariantStockRow,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery, type MovementRow,
 } from "./source";
 import { MOVEMENT_TYPE_LABEL } from "@/lib/domain/types";
@@ -126,6 +126,28 @@ export class FixtureDataSource implements InventoryDataSource {
       if (variant) return { product, variant };
     }
     return null;
+  }
+
+  async getStockAt(variantId: string, locationId: string): Promise<StockAt> {
+    const match = await this.getProductByVariantId(variantId);
+    const level = match?.variant.inventory.find((l) => l.locationId === locationId);
+    return { available: level?.available ?? 0, sold: false };
+  }
+
+  async listVariantStockAt(productId: string, locationId: string): Promise<VariantStockRow[]> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) return [];
+    const rows = product.variants
+      .filter((v) => v.isActive !== false)
+      .map((v) => ({
+        variantId: v.id,
+        size: v.size,
+        sku: v.sku,
+        price: v.price,
+        available: v.inventory.find((l) => l.locationId === locationId)?.available ?? 0,
+      }));
+    const order = sortSizes(rows.map((r) => r.size));
+    return rows.sort((a, b) => order.indexOf(a.size) - order.indexOf(b.size));
   }
 
   async getProductByBarcode(code: string): Promise<VariantMatch | null> {

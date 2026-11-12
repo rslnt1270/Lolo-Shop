@@ -185,3 +185,50 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.recordStockMovement", () => {
     expect(await available(w.v1, w.store)).toBe(10);
   });
 });
+
+describe.skipIf(!hasTestDb)("PrismaDataSource.getStockAt / listVariantStockAt", () => {
+  beforeEach(async () => {
+    await resetDb();
+  });
+
+  it("getStockAt devuelve available de la talla en la tienda y sold=true solo si hay SaleLine", async () => {
+    const w = await seed();
+    const storeB = (await testPrisma.location.create({ data: { name: "Tienda B" } })).id;
+    await setStock(w.v1, w.store, 3);
+    expect(await ds.getStockAt(w.v1, w.store)).toEqual({ available: 3, sold: false });
+    expect(await ds.getStockAt(w.v1, storeB)).toEqual({ available: 0, sold: false });
+    expect(await testPrisma.inventoryLevel.count()).toBe(1); // sin upsert
+
+    const product = await testPrisma.product.findFirstOrThrow({ where: { variants: { some: { id: w.v1 } } } });
+    await testPrisma.sale.create({
+      data: {
+        clientRequestId: randomUUID(),
+        channel: "store",
+        status: "paid",
+        paymentMethod: "cash",
+        locationId: w.store,
+        total: 300,
+        businessDate: new Date(),
+        createdById: w.user,
+        lines: { create: [{ variantId: w.v1, productId: product.id, category: "Playeras", quantity: 1, unitPrice: 300 }] },
+      },
+    });
+    await testPrisma.inventoryLevel.update({
+      where: { variantId_locationId: { variantId: w.v1, locationId: w.store } },
+      data: { available: 2 },
+    });
+    expect(await ds.getStockAt(w.v1, w.store)).toEqual({ available: 2, sold: true });
+    expect(await ds.getStockAt(w.v2, w.store)).toEqual({ available: 0, sold: false });
+  });
+
+  it("listVariantStockAt lista las tallas activas del producto ordenadas por talla, 0 sin fila", async () => {
+    const w = await seed();
+    await setStock(w.v1, w.store, 4);
+    await testPrisma.variant.update({ where: { id: w.v1 }, data: { size: "M" } });
+    await testPrisma.variant.update({ where: { id: w.v2 }, data: { size: "L" } });
+    const product = await testPrisma.product.findFirstOrThrow();
+    const rows = await ds.listVariantStockAt(product.id, w.store);
+    expect(rows.map((r) => [r.size, r.available])).toEqual([["M", 4], ["L", 0]]);
+    expect(rows.find((r) => r.size === "M")).toMatchObject({ variantId: w.v1, sku: "SKU-M", price: 300 });
+  });
+});

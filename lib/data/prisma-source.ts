@@ -3,7 +3,7 @@ import {
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
-  type UpdateVariantPriceResult, type VariantMatch,
+  type UpdateVariantPriceResult, type VariantMatch, type StockAt, type VariantStockRow,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery,
 } from "./source";
 import { isAudience } from "../domain/product-taxonomy";
@@ -166,6 +166,30 @@ export class PrismaDataSource implements InventoryDataSource {
       include: { variants: { include: { inventory: true } }, department: true },
     });
     return prods.map((p) => toProduct(p, p.variants.map(toVariant)));
+  }
+
+  async getStockAt(variantId: string, locationId: string): Promise<StockAt> {
+    const [level, soldLines] = await Promise.all([
+      this.db.inventoryLevel.findUnique({ where: { variantId_locationId: { variantId, locationId } } }),
+      this.db.saleLine.count({ where: { variantId } }),
+    ]);
+    return { available: level?.available ?? 0, sold: soldLines > 0 };
+  }
+
+  async listVariantStockAt(productId: string, locationId: string): Promise<VariantStockRow[]> {
+    const variants = await this.db.variant.findMany({
+      where: { productId, isActive: true },
+      include: { inventory: { where: { locationId } } },
+    });
+    const rows = variants.map((v) => ({
+      variantId: v.id,
+      size: v.size,
+      sku: v.sku,
+      price: Number(v.price),
+      available: v.inventory[0]?.available ?? 0,
+    }));
+    const order = sortSizes(rows.map((r) => r.size));
+    return rows.sort((a, b) => order.indexOf(a.size) - order.indexOf(b.size));
   }
 
   async getProductByBarcode(code: string): Promise<VariantMatch | null> {

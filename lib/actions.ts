@@ -18,7 +18,7 @@ import { generatePublicCode } from "./domain/public-code";
 import prisma from "./prisma";
 import { SESSION_EXPIRED_TEXT } from "./session-text";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
-import type { InventoryDataSource, ProductSearchHit, VariantMatch } from "./data/source";
+import type { InventoryDataSource, ProductSearchHit, VariantMatch, VariantStockRow } from "./data/source";
 import {
   DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
 } from "./data/errors";
@@ -129,14 +129,14 @@ export async function recordStockMovementAction(input: {
 }
 
 export type LookupCodeResult =
-  | { found: true; product: Product; variantId: string }
+  | { found: true; product: Product; variantId: string; stock?: { available: number; sold: boolean } }
   | { found: false; code: string; error?: string };
 
 /**
  * Busca un código escaneado/tecleado en barcode o sku (con equivalencias
  * UPC-A ↔ EAN-13). Nunca lanza: en error devuelve `found: false` con `error`.
  */
-export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
+export async function lookupCodeAction(raw: string, locationId?: string): Promise<LookupCodeResult> {
   const code = normalizeCode(typeof raw === "string" ? raw : "");
   if (!code) return { found: false, code, error: "El código está vacío. Vuelve a escanear." };
   try {
@@ -144,13 +144,48 @@ export async function lookupCodeAction(raw: string): Promise<LookupCodeResult> {
     if (!user) {
       return { found: false, code, error: SESSION_EXPIRED_TEXT };
     }
+    const store = typeof locationId === "string" && locationId ? locationId : null;
+    if (store) assertCanOperate(user, store);
     const rawMatch = await getDataSource().getProductByBarcode(code);
     if (!rawMatch) return { found: false, code };
     const match = scopeVariantMatch(rawMatch, user);
-    return { found: true, product: withVariant(match), variantId: match.variant.id };
+    const base = { found: true as const, product: withVariant(match), variantId: match.variant.id };
+    if (!store) return base;
+    try {
+      return { ...base, stock: await getDataSource().getStockAt(match.variant.id, store) };
+    } catch (err) {
+      // Sin existencias confirmadas: el carrito lo trata como "por confirmar".
+      console.error("lookupCodeAction stock", err);
+      return base;
+    }
   } catch (err) {
+    if (err instanceof ForbiddenError) return { found: false, code, error: err.message };
     console.error("lookupCodeAction", err);
     return { found: false, code, error: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." };
+  }
+}
+
+export type { VariantStockRow } from "./data/source";
+
+/**
+ * Tallas de un producto con sus piezas en una tienda. `null` sin sesión; `[]` si la tienda no es del usuario
+ * o si la consulta falla. Única puerta del cliente a `listVariantStockAt`.
+ */
+export async function listVariantStockAtAction(productId: string, locationId: string): Promise<VariantStockRow[] | null> {
+  try {
+    const user = await currentUserOrNull();
+    if (!user) return null;
+    if (typeof productId !== "string" || !productId || typeof locationId !== "string" || !locationId) return [];
+    try {
+      assertCanOperate(user, locationId);
+    } catch (err) {
+      if (err instanceof ForbiddenError) return [];
+      throw err;
+    }
+    return await getDataSource().listVariantStockAt(productId, locationId);
+  } catch (err) {
+    console.error("listVariantStockAtAction", err);
+    return [];
   }
 }
 

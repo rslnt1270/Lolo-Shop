@@ -195,6 +195,21 @@ export interface MovementPage {
 /** Renglones por página; el data source pide uno más para saber si hay otra. */
 export const MOVEMENT_PAGE_SIZE = 50;
 
+/** Existencias de una talla en una tienda y si alguna vez se vendió. */
+export interface StockAt {
+  available: number;
+  sold: boolean;
+}
+
+/** Una talla de un producto con sus existencias en una tienda. */
+export interface VariantStockRow {
+  variantId: string;
+  size: string;
+  sku: string;
+  price: number;
+  available: number;
+}
+
 export interface InventoryDataSource {
   /**
    * Historial de movimientos, el más nuevo primero (`timestamp` desc, `id` desc),
@@ -215,6 +230,13 @@ export interface InventoryDataSource {
    * candidatos de `codeCandidates(code)` (UPC-A ↔ EAN-13, mayúsculas).
    */
   getProductByBarcode(code: string): Promise<VariantMatch | null>;
+  /**
+   * Existencias de la talla en la tienda (`InventoryLevel.available`, 0 sin fila; no crea filas) y
+   * `sold` = existe al menos una `SaleLine` de la variante. En fixtures `sold` es siempre false.
+   */
+  getStockAt(variantId: string, locationId: string): Promise<StockAt>;
+  /** Tallas activas del producto con sus existencias en la tienda (0 sin fila), en orden de `sortSizes`. */
+  listVariantStockAt(productId: string, locationId: string): Promise<VariantStockRow[]>;
   /**
    * Movimiento de stock atómico con `Movement` tipado. Una salida que deja el
    * stock en negativo (o sin fila de inventario) lanza `InsufficientStockError`
