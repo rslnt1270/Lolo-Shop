@@ -52,7 +52,7 @@ function DrawerBody({ onClose, hotspots, onSelectProduct }: Omit<Props, "isOpen"
       />
 
       {/* Drawer Panel */}
-      <div className="relative z-10 w-full max-w-md h-full bg-white/95 backdrop-blur-2xl border-l border-white/60 shadow-2xl flex flex-col">
+      <div className="relative z-10 w-full max-w-md h-full bg-white/95 backdrop-blur-2xl border-l border-white/60 shadow-2xl flex flex-col pt-[var(--safe-top)] pb-[var(--safe-bottom)] pr-[var(--safe-right)]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-100 p-5">
           <div className="flex items-center gap-2">

@@ -271,10 +271,10 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
       role="dialog"
       aria-modal="true"
       aria-label="Ficha del producto"
-      className="fixed inset-0 z-50 overflow-y-auto bg-white"
+      className="fixed inset-0 z-50 overflow-y-auto bg-white pl-[var(--safe-left)] pr-[var(--safe-right)]"
     >
       <div className="mx-auto flex min-h-full max-w-[480px] flex-col">
-        <header className="sticky top-0 z-10 flex h-14 items-center gap-2 border-b border-[#E1E9E9] bg-white px-2">
+        <header className="sticky top-0 z-10 flex h-[calc(3.5rem+var(--safe-top))] items-center gap-2 border-b border-[#E1E9E9] bg-white px-2 pt-[var(--safe-top)]">
           <button
             type="button"
             onClick={onClose}
@@ -286,7 +286,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
           <h2 className="text-base font-bold text-[#16302F]">Ficha del producto</h2>
         </header>
 
-        <div className="flex-1 space-y-6 px-4 py-4 pb-12">
+        <div className="flex-1 space-y-6 px-4 py-4 pb-[calc(3rem+var(--safe-bottom))]">
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               {product.publicCode ? (
@@ -640,7 +640,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
         </div>
 
         {confirm && (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3">
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 pb-[max(0.75rem,var(--safe-bottom))] pl-[max(0.75rem,var(--safe-left))] pr-[max(0.75rem,var(--safe-right))]">
             <div
               role="alertdialog"
               aria-modal="true"

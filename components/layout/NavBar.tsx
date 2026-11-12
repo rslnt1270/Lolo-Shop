@@ -4,13 +4,35 @@ import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart } from "lucide-react";
 
+const MOBILE_HEADER =
+  "md:hidden flex items-center justify-center border-b border-gray-100 bg-white/80 backdrop-blur-md px-4 pb-3 pt-[calc(0.75rem+var(--safe-top))] sticky top-0 z-40";
+const BOTTOM_NAV =
+  "md:hidden fixed bottom-0 left-0 right-0 z-50 h-[calc(var(--nav-h)+var(--safe-bottom))] border-t border-gray-100 bg-white/90 pb-[var(--safe-bottom)] pl-[max(0.375rem,var(--safe-left))] pr-[max(0.375rem,var(--safe-right))] shadow-[0_-4px_24px_rgba(0,0,0,0.02)] backdrop-blur-xl";
+
 export function NavBar() {
   const pathname = usePathname();
   const { status } = useSession();
 
-  if (status !== "authenticated") return null;
   // /pos es pantalla completa (tiene su propio "Volver al inicio"); se entra con "Vender".
   if (pathname.startsWith("/pos") || pathname.startsWith("/catalogo") || pathname === "/login") return null;
+  if (status === "unauthenticated") return null;
+
+  // Mientras carga la sesión se reservan el encabezado y la barra inferior
+  // (vacíos, con data-bottom-nav) para que --bottom-nav-offset no salte de 0
+  // al valor real al terminar de cargar.
+  if (status === "loading") {
+    return (
+      <>
+        <header aria-hidden="true" className={MOBILE_HEADER}>
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-full bg-gray-100" />
+            <span className="font-bold text-[#18181B] tracking-tight">LoloShop</span>
+          </div>
+        </header>
+        <nav data-bottom-nav="" data-loading="" aria-hidden="true" className={BOTTOM_NAV} />
+      </>
+    );
+  }
 
   const navItems = [
     { name: "Inicio", href: "/", icon: Home },
@@ -65,7 +87,7 @@ export function NavBar() {
       {/* Mobile Top Header (Just Logo) */}
       {/* pt con --safe-top: en la PWA instalada / Android de borde a borde el
           encabezado no queda bajo la barra de estado (0 donde no aplica). */}
-      <header className="md:hidden flex items-center justify-center border-b border-gray-100 bg-white/80 backdrop-blur-md px-4 pb-3 pt-[calc(0.75rem+var(--safe-top))] sticky top-0 z-40">
+      <header className={MOBILE_HEADER}>
         <div className="flex items-center gap-2">
           <img src="/loloshop-logo.png" alt="LoloShop" className="h-7 w-7 rounded-full shadow-sm" />
           <span className="font-bold text-[#18181B] tracking-tight">LoloShop</span>
@@ -80,7 +102,7 @@ export function NavBar() {
           7 destinos flex-1 con mínimo de 44 px: 7 × 44 = 308 px caben en 320 px. */}
       <nav
         data-bottom-nav=""
-        className="md:hidden fixed bottom-0 left-0 right-0 z-50 h-[calc(var(--nav-h)+var(--safe-bottom))] border-t border-gray-100 bg-white/90 pb-[var(--safe-bottom)] pl-[max(0.375rem,var(--safe-left))] pr-[max(0.375rem,var(--safe-right))] shadow-[0_-4px_24px_rgba(0,0,0,0.02)] backdrop-blur-xl"
+        className={BOTTOM_NAV}
       >
         <div className="mx-auto flex h-full max-w-md items-center">
           {navItems.map((item) => {

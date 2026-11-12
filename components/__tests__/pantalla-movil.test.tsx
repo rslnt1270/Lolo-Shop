@@ -159,3 +159,60 @@ describe("altura real de pantalla", () => {
     expect(src("components/virtual-store/VirtualStoreCatalog.tsx")).toContain("min-h-pantalla");
   });
 });
+
+describe("fix round 1: capas a pantalla completa, carga de sesión y /ventas", () => {
+  it("CatalogDrawer: el panel respeta el área segura arriba, abajo y a la derecha", () => {
+    const s = src("components/virtual-store/CatalogDrawer.tsx");
+    expect(s).toContain("pt-[var(--safe-top)]");
+    expect(s).toContain("pb-[var(--safe-bottom)]");
+    expect(s).toContain("pr-[var(--safe-right)]");
+  });
+
+  it("ProductHotspotModal: hoja inferior con área segura abajo y a los lados", () => {
+    const s = src("components/virtual-store/ProductHotspotModal.tsx");
+    expect(s).toContain("pl-[var(--safe-left)]");
+    expect(s).toContain("pr-[var(--safe-right)]");
+    expect(s).toContain("pb-[max(1.5rem,var(--safe-bottom))]");
+  });
+
+  it("ProductAdminSheet: ficha y confirmación respetan el área segura", () => {
+    const s = src("components/products/ProductAdminSheet.tsx");
+    expect(s).toMatch(/fixed inset-0 z-50 overflow-y-auto bg-white pl-\[var\(--safe-left\)\] pr-\[var\(--safe-right\)\]/);
+    expect(s).toContain("pt-[var(--safe-top)]");
+    expect(s).toContain("pb-[calc(3rem+var(--safe-bottom))]");
+    expect(s).toMatch(
+      /items-end justify-center bg-black\/40 p-3 pb-\[max\(0\.75rem,var\(--safe-bottom\)\)\] pl-\[max\(0\.75rem,var\(--safe-left\)\)\] pr-\[max\(0\.75rem,var\(--safe-right\)\)\]/,
+    );
+  });
+
+  it("/ventas no suma su propio pb-24 al hueco del body", () => {
+    expect(src("app/ventas/page.tsx")).not.toMatch(/\bpb-24\b/);
+  });
+
+  function renderWith(status: "loading" | "unauthenticated", pathname: string) {
+    vi.mocked(useSession).mockReturnValue({ data: null, status, update: vi.fn() } as any);
+    vi.mocked(usePathname).mockReturnValue(pathname);
+    return render(<NavBar />);
+  }
+
+  it("mientras carga la sesión reserva la barra (data-bottom-nav) con las mismas clases", () => {
+    const { container } = renderWith("loading", "/productos");
+    const nav = container.querySelector("nav[data-bottom-nav]");
+    expect(nav).not.toBeNull();
+    expect(nav!.getAttribute("aria-hidden")).toBe("true");
+    expect(nav!.className).toContain("h-[calc(var(--nav-h)+var(--safe-bottom))]");
+    expect(container.querySelectorAll("a, button")).toHaveLength(0);
+  });
+
+  for (const p of ["/pos", "/catalogo", "/login"]) {
+    it(`mientras carga en ${p} no reserva nada`, () => {
+      const { container } = renderWith("loading", p);
+      expect(container).toBeEmptyDOMElement();
+    });
+  }
+
+  it("sin sesión no reserva nada", () => {
+    const { container } = renderWith("unauthenticated", "/");
+    expect(container).toBeEmptyDOMElement();
+  });
+});
