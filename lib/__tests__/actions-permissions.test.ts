@@ -89,39 +89,39 @@ describe("fotos", () => {
   it("producto inexistente → NOT_FOUND sin lanzar", async () => {
     getCurrentUser.mockResolvedValue(user("owner", null));
     productFindUnique.mockResolvedValue(null);
-    expect(await setProductBackImageAction("no-existe", GOOD, { photosAnalyzed: true })).toMatchObject({ ok: false, code: "NOT_FOUND" });
+    expect(await setProductBackImageAction("no-existe", GOOD)).toMatchObject({ ok: false, code: "NOT_FOUND" });
   });
   it("producto inactivo → NOT_FOUND", async () => {
     getCurrentUser.mockResolvedValue(user("owner", null));
     productFindUnique.mockResolvedValue({ isActive: false, imageUrl: null, backImageUrl: null });
-    expect(await setProductBackImageAction("p1", GOOD, { photosAnalyzed: true })).toMatchObject({ ok: false, code: "NOT_FOUND" });
+    expect(await setProductBackImageAction("p1", GOOD)).toMatchObject({ ok: false, code: "NOT_FOUND" });
   });
   it("colaborador reemplazando una foto existente → FORBIDDEN", async () => {
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-lomas"));
     productFindUnique.mockResolvedValue({ isActive: true, imageUrl: null, backImageUrl: "https://abc.public.blob.vercel-storage.com/productos/old.jpg" });
-    expect(await setProductBackImageAction("p1", GOOD, { photosAnalyzed: true })).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(await setProductBackImageAction("p1", GOOD)).toMatchObject({ ok: false, code: "FORBIDDEN" });
     expect(updateProductBackImage).not.toHaveBeenCalled();
   });
   it("colaborador poniendo la primera → ok", async () => {
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-lomas"));
     productFindUnique.mockResolvedValue({ isActive: true, imageUrl: null, backImageUrl: null });
-    expect(await setProductBackImageAction("p1", GOOD, { photosAnalyzed: true })).toEqual({ ok: true });
+    expect(await setProductBackImageAction("p1", GOOD)).toEqual({ ok: true });
   });
   it("manager puede reemplazar", async () => {
     getCurrentUser.mockResolvedValue(user("manager", "loc-lomas"));
     productFindUnique.mockResolvedValue({ isActive: true, imageUrl: null, backImageUrl: "https://abc.public.blob.vercel-storage.com/productos/old.jpg" });
-    expect(await setProductBackImageAction("p1", GOOD, { photosAnalyzed: true })).toEqual({ ok: true });
+    expect(await setProductBackImageAction("p1", GOOD)).toEqual({ ok: true });
   });
   it("sin sesión → SESSION", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
-    expect(await setProductBackImageAction("p1", GOOD, { photosAnalyzed: true })).toMatchObject({ ok: false, code: "SESSION" });
+    expect(await setProductBackImageAction("p1", GOOD)).toMatchObject({ ok: false, code: "SESSION" });
   });
   it("BLOB_PUBLIC_HOST rechaza URL de otro store → INVALID", async () => {
     vi.stubEnv("BLOB_PUBLIC_HOST", "abc.public.blob.vercel-storage.com");
     getCurrentUser.mockResolvedValue(user("owner", null));
     productFindUnique.mockResolvedValue({ isActive: true, imageUrl: null, backImageUrl: null });
     expect(
-      await setProductBackImageAction("p1", "https://otro.public.blob.vercel-storage.com/productos/x.jpg", { photosAnalyzed: true }),
+      await setProductBackImageAction("p1", "https://otro.public.blob.vercel-storage.com/productos/x.jpg"),
     ).toMatchObject({ ok: false, code: "INVALID" });
   });
 });

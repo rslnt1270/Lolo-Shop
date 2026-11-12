@@ -91,25 +91,31 @@ describe("createProductAction", () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
     const back = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
-    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, backImageUrl: back, photosAnalyzed: true, description: "  Algodón  " });
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, backImageUrl: back, description: "  Algodón  " });
     expect(r).toMatchObject({ ok: true, catalogStatus: "Listo para catálogo" });
     expect(createProduct.mock.calls[0][0]).toMatchObject({
       imageUrl: front, backImageUrl: back, description: "Algodón", photosChecked: true,
     });
   });
 
-  it("fotos sin photosAnalyzed → INVALID y no se crea nada", async () => {
+  it("una pestaña vieja con photosAnalyzed: true crea igual y la bandera no llega al data source", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
-    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front });
-    expect(r).toEqual({ ok: false, code: "INVALID", message: "La foto no pasó la revisión de fondo blanco. Tómala de nuevo." });
-    expect(createProduct).not.toHaveBeenCalled();
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, photosAnalyzed: true } as never);
+    expect(r).toMatchObject({ ok: true });
+    expect(createProduct.mock.calls[0][0]).not.toHaveProperty("photosAnalyzed");
+  });
+
+  it("una foto sin photosAnalyzed se acepta", async () => {
+    getCurrentUser.mockResolvedValue(session("owner", null));
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    expect(await createProductAction({ ...input, mode: "catalog", imageUrl: front })).toMatchObject({ ok: true });
   });
 
   it("una sola foto no pone catalogPhotosCheckedAt y deja el estado incompleto", async () => {
     getCurrentUser.mockResolvedValue(session("owner", null));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
-    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front, photosAnalyzed: true });
+    const r = await createProductAction({ ...input, mode: "catalog", imageUrl: front });
     expect(r).toMatchObject({ ok: true, catalogStatus: "Falta completar registro fotográfico" });
     expect(createProduct.mock.calls[0][0]).toMatchObject({ imageUrl: front, backImageUrl: null, photosChecked: false });
   });

@@ -21,7 +21,6 @@ export const CATALOG_PHOTOS_MESSAGE = "Para el catálogo se necesitan las dos fo
 export const MSG_TITLE_REQUIRED = "Escribe el título.";
 export const MSG_BRAND_REQUIRED = "Elige la marca.";
 export const MSG_DESCRIPTION_REQUIRED = "Escribe la descripción.";
-export const MSG_PHOTOS_NOT_ANALYZED = "La foto no pasó la revisión de fondo blanco. Tómala de nuevo.";
 
 /** "stock": solo inventario/venta, sin fotos. "catalog": intención inicial de fotografiar; el estado sale de las fotos presentes. */
 export type EntryMode = "stock" | "catalog";
@@ -59,8 +58,6 @@ export interface NewProductInput {
   color?: string | null;
   imageUrl?: string | null;
   backImageUrl?: string | null;
-  /** El cliente revisó el fondo blanco de las fotos enviadas (el servidor no puede analizar píxeles). */
-  photosAnalyzed?: boolean;
 }
 
 export interface NormalizedNewProduct {
@@ -189,7 +186,6 @@ export function validateNewProduct(input: NewProductInput): NormalizedNewProduct
     for (const url of [front, back]) {
       if (url !== null && !isProductBlobUrl(url)) throw new Error("La foto no se subió correctamente. Tómala de nuevo.");
     }
-    if ((front || back) && input.photosAnalyzed !== true) throw new Error(MSG_PHOTOS_NOT_ANALYZED);
     imageUrl = front;
     backImageUrl = back;
     photosChecked = Boolean(front && back);

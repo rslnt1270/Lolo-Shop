@@ -395,8 +395,6 @@ export function NewProductForm({
         mode: catalog ? "catalog" : "stock",
         imageUrl,
         backImageUrl,
-        // Las fotos solo llegan de la captura de la app.
-        photosAnalyzed: photos.length > 0,
       };
       sent = true;
       const result = withSession(await createProductAction(payload));
@@ -440,7 +438,7 @@ export function NewProductForm({
       });
       const sizesText = rows.length > 1 ? ` (${rows.length} tallas)` : "";
       onSuccess({
-        message: `"${input.title.trim()}" dado de alta${sizesText}. Estado: ${status}.`,
+        message: `"${input.title.trim()}" dado de alta${sizesText}. Estado: ${status}.${status === "Listo para catálogo" ? " Queda en «Por publicar» hasta que el dueño o el encargado lo publiquen." : ""}`,
         title: input.title.trim(),
         sku: result.sku,
         imageUrl: result.product?.imageUrl ?? imageUrl,
@@ -570,7 +568,7 @@ export function NewProductForm({
         <section aria-labelledby="fotos-producto" className="space-y-3">
           <h4 id="fotos-producto" className="text-sm font-semibold text-gray-900">Fotos del producto</h4>
           <p id={photosHelpId} className="text-sm text-gray-600">
-            Recomendadas. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
+            Recomendadas: frente y atrás. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
           </p>
           <div role="group" aria-labelledby="foto-frente-label">
             <p className="mb-1 flex items-baseline justify-between text-sm">

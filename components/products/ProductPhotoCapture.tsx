@@ -5,16 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { useMotionTiming } from "@/lib/motion/use-reduced-motion";
 import { defaultProcessFile, type ProcessFile } from "@/lib/image/process-file";
 
-export const FRAMING_GUIDE = "Toma la prenda completa. Cualquier fondo sirve.";
-
-/** Desplazamiento horizontal repetido `count` veces; con 0 no se mueve. */
-export function shakeKeyframes(count: number): number[] {
-  if (count <= 0) return [0];
-  const out = [0];
-  for (let i = 0; i < count; i += 1) out.push(-6, 6);
-  out.push(0);
-  return out;
-}
+export const PHOTO_HINT_FRONT = "Toma la foto de frente de la prenda.";
+export const PHOTO_HINT_BACK = "Toma la foto de atrás de la prenda.";
 
 interface ProductPhotoCaptureProps {
   onCapture: (file: File) => void;
@@ -22,11 +14,13 @@ interface ProductPhotoCaptureProps {
   onBusyChange?: (busy: boolean) => void;
   /** Lado de la foto; distingue las dos capturas para lectores de pantalla. */
   side?: "front" | "back";
-  /** Edita y analiza el fondo. Por defecto usa canvas; se inyecta en pruebas. */
+  /** Edita la foto (sin analizar el fondo). Por defecto usa canvas; se inyecta en pruebas. */
   processFile?: ProcessFile;
+  /** "camera" (por defecto) abre la cámara; "gallery" deja elegir de la galería (sin `capture`). */
+  source?: "camera" | "gallery";
 }
 
-export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, processFile = defaultProcessFile }: ProductPhotoCaptureProps) {
+export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, processFile = defaultProcessFile, source = "camera" }: ProductPhotoCaptureProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const inputId = useId();
   const [preview, setPreview] = useState<string | null>(null);
@@ -51,7 +45,7 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
     setBusy(true);
     setError("");
     try {
-      // Decisión del dueño (2026-11-12): sin requisito de fondo blanco; toda foto procesada se acepta.
+      // Decisión del dueño (2026-11-12): cualquier fondo sirve; toda foto procesada se acepta.
       const { file: edited } = await processFile(file);
       if (preview) URL.revokeObjectURL(preview);
       setPreview(URL.createObjectURL(edited));
@@ -87,7 +81,7 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
+        capture={source === "camera" ? "environment" : undefined}
         onChange={handleChange}
         className="hidden"
         id={inputId}
@@ -113,7 +107,7 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
         </div>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-gray-700">{FRAMING_GUIDE}</p>
+          <p className="text-sm text-gray-700">{side === "back" ? PHOTO_HINT_BACK : PHOTO_HINT_FRONT}</p>
           <Button
             onClick={() => inputRef.current?.click()}
             loading={busy}

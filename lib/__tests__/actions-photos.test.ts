@@ -26,7 +26,6 @@ import { UnauthenticatedError } from "../auth/errors";
 
 const FRONT = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
 const BACK = "https://abc.public.blob.vercel-storage.com/productos/b.jpg";
-const MSG = "La foto no pasó la revisión de fondo blanco. Tómala de nuevo.";
 const user = (role: string) => ({ id: "u1", role, locationId: role === "owner" ? null : "loc-1" });
 const form = () => {
   const fd = new FormData();
@@ -45,49 +44,42 @@ beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
-describe("fotos desde la ficha exigen la revisión de fondo", () => {
-  it("C18 (server): updateProductImageAction sin photosAnalyzed responde INVALID", async () => {
-    for (const opts of [{ photosAnalyzed: false }, undefined, { photosAnalyzed: "true" }]) {
-      const r = await updateProductImageAction("p1", form(), opts as unknown as { photosAnalyzed: boolean });
-      expect(r).toEqual({ ok: false, code: "INVALID", message: MSG });
-    }
-    expect(uploadImage).not.toHaveBeenCalled();
-    expect(updateProductImage).not.toHaveBeenCalled();
-  });
-
-  it("C18 (server): setProductBackImageAction sin photosAnalyzed responde INVALID", async () => {
-    const r = await setProductBackImageAction("p1", BACK, { photosAnalyzed: false });
-    expect(r).toEqual({ ok: false, code: "INVALID", message: MSG });
-    expect(await setProductBackImageAction("p1", BACK, undefined as unknown as { photosAnalyzed: boolean })).toMatchObject({ code: "INVALID" });
-    expect(updateProductBackImage).not.toHaveBeenCalled();
-  });
-
-  it("con photosAnalyzed las dos acciones guardan", async () => {
-    expect(await updateProductImageAction("p1", form(), { photosAnalyzed: true })).toEqual({ ok: true });
+describe("fotos desde la ficha: sin revisión de fondo", () => {
+  it("updateProductImageAction y setProductBackImageAction guardan sin photosAnalyzed", async () => {
+    expect(await updateProductImageAction("p1", form())).toEqual({ ok: true });
     expect(updateProductImage).toHaveBeenCalledWith("p1", FRONT);
-    expect(await setProductBackImageAction("p1", BACK, { photosAnalyzed: true })).toEqual({ ok: true });
+    expect(await setProductBackImageAction("p1", BACK)).toEqual({ ok: true });
     expect(updateProductBackImage).toHaveBeenCalledWith("p1", BACK);
   });
 
-  it("cambiar un lado conserva catalogPhotosCheckedAt y no lo pone si era nulo", async () => {
-    // Un solo lado nunca pasa por setCatalogPhotos: la marca de revisión no se toca.
-    await updateProductImageAction("p1", form(), { photosAnalyzed: true });
-    await setProductBackImageAction("p1", BACK, { photosAnalyzed: true });
+  it("una pestaña vieja que manda { photosAnalyzed: true } también guarda; false o basura se ignoran", async () => {
+    const old = updateProductImageAction as unknown as (p: string, f: FormData, o: unknown) => ReturnType<typeof updateProductImageAction>;
+    const oldBack = setProductBackImageAction as unknown as (p: string, u: string, o: unknown) => ReturnType<typeof setProductBackImageAction>;
+    for (const opts of [{ photosAnalyzed: true }, { photosAnalyzed: false }, "x"]) {
+      expect(await old("p1", form(), opts)).toEqual({ ok: true });
+      expect(await oldBack("p1", BACK, opts)).toEqual({ ok: true });
+    }
+  });
+
+  it("cambiar un lado no pasa por setCatalogPhotos (no toca catalogPhotosCheckedAt)", async () => {
+    await updateProductImageAction("p1", form());
+    await setProductBackImageAction("p1", BACK);
     expect(setCatalogPhotos).not.toHaveBeenCalled();
   });
 });
 
 describe("setCatalogPhotosAction", () => {
-  const ok = { imageUrl: FRONT, backImageUrl: BACK, photosAnalyzed: true };
+  const ok = { imageUrl: FRONT, backImageUrl: BACK };
 
   it("setCatalogPhotosAction con las dos fotos revisadas llama setCatalogPhotos", async () => {
     expect(await setCatalogPhotosAction("p1", ok)).toEqual({ ok: true });
     expect(setCatalogPhotos).toHaveBeenCalledWith("p1", { imageUrl: FRONT, backImageUrl: BACK });
   });
 
-  it("setCatalogPhotosAction sin photosAnalyzed responde INVALID", async () => {
-    expect(await setCatalogPhotosAction("p1", { ...ok, photosAnalyzed: false })).toEqual({ ok: false, code: "INVALID", message: MSG });
-    expect(setCatalogPhotos).not.toHaveBeenCalled();
+  it("setCatalogPhotosAction guarda sin photosAnalyzed y también con la bandera de una pestaña vieja", async () => {
+    expect(await setCatalogPhotosAction("p1", ok)).toEqual({ ok: true });
+    expect(await setCatalogPhotosAction("p1", { ...ok, photosAnalyzed: true } as never)).toEqual({ ok: true });
+    expect(setCatalogPhotos).toHaveBeenCalledTimes(2);
   });
 
   it("exige las dos URL de Blob", async () => {

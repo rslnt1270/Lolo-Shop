@@ -82,7 +82,7 @@ describe.skipIf(!hasTestDb)("createProductAction: color, descripción, fotos y e
   });
 
   it('C14 (db): una foto blanca deja "Falta completar registro fotográfico"', async () => {
-    const i = input({ mode: "catalog", imageUrl: FRONT, photosAnalyzed: true });
+    const i = input({ mode: "catalog", imageUrl: FRONT });
     const r = await createProductAction(i);
     expect(r).toMatchObject({ ok: true, catalogStatus: "Falta completar registro fotográfico" });
     const p = await stored(i.title);
@@ -90,25 +90,25 @@ describe.skipIf(!hasTestDb)("createProductAction: color, descripción, fotos y e
   });
 
   it('C15 (db): frente y atrás con existencias dejan "Listo para catálogo"', async () => {
-    const i = input({ mode: "catalog", imageUrl: FRONT, backImageUrl: BACK, photosAnalyzed: true });
+    const i = input({ mode: "catalog", imageUrl: FRONT, backImageUrl: BACK });
     expect(await createProductAction(i)).toMatchObject({ ok: true, catalogStatus: "Listo para catálogo" });
     expect((await stored(i.title)).catalogPhotosCheckedAt).not.toBeNull();
   });
 
   it("fotos con existencias en cero: estado sin existencias y aun así revisadas", async () => {
     const i = input({
-      mode: "catalog", imageUrl: FRONT, backImageUrl: BACK, photosAnalyzed: true,
+      mode: "catalog", imageUrl: FRONT, backImageUrl: BACK,
       sizes: [{ size: "M", barcode: null, price: 300, initialStock: 0 }],
     });
     expect(await createProductAction(i)).toMatchObject({ ok: true, catalogStatus: "Fotos completas, sin existencias" });
   });
 
-  it("fotos sin photosAnalyzed o con URL ajena no crean producto ni marcan revisión", async () => {
+  it("fotos sin photosAnalyzed se guardan; con URL ajena no crean producto", async () => {
     const a = await createProductAction(input({ mode: "catalog", imageUrl: FRONT, backImageUrl: BACK }));
-    expect(a).toMatchObject({ ok: false, code: "INVALID", message: "La foto no pasó la revisión de fondo blanco. Tómala de nuevo." });
-    const b = await createProductAction(input({ mode: "catalog", imageUrl: "https://evil.example/x.jpg", photosAnalyzed: true }));
+    expect(a).toMatchObject({ ok: true });
+    const b = await createProductAction(input({ mode: "catalog", imageUrl: "https://evil.example/x.jpg" }));
     expect(b).toMatchObject({ ok: false, code: "INVALID" });
-    expect(await testPrisma.product.count()).toBe(0);
+    expect(await testPrisma.product.count()).toBe(1);
   });
 
   it("colaborador solo da de alta en su tienda (rol y tienda releídos de la base)", async () => {
@@ -129,7 +129,7 @@ describe.skipIf(!hasTestDb)("createProductAction: color, descripción, fotos y e
 
     vi.spyOn(PrismaDataSource.prototype, "getProductByBarcode").mockResolvedValueOnce(null);
     const second = input({
-      mode: "catalog", imageUrl: FRONT, backImageUrl: BACK, photosAnalyzed: true,
+      mode: "catalog", imageUrl: FRONT, backImageUrl: BACK,
       sizes: [{ size: "L", barcode, price: 300, initialStock: 3 }],
     });
     expect(await createProductAction(second)).toMatchObject({ ok: false, code: "DUPLICATE" });

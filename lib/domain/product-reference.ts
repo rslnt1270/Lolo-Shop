@@ -111,6 +111,11 @@ export type PhotoStatus =
   | "Fotos completas, sin existencias"
   | "Listo para catálogo";
 
+/**
+ * Estado de fotos de un producto. "Listo para catálogo" significa frente, atrás y
+ * existencias presentes: es el aviso para que el dueño o el encargado lo revisen
+ * y lo publiquen. No implica que ya esté publicado.
+ */
 export function productPhotoStatus(input: {
   hasFront: boolean;
   hasBack: boolean;

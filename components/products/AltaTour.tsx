@@ -7,7 +7,7 @@ import { useMotionTiming } from "@/lib/motion/use-reduced-motion";
 export const TOUR_STEPS = [
   { title: "Escanea la etiqueta", body: "Apunta la cámara al código de la etiqueta. Si no se lee, escríbelo a mano." },
   { title: "Elige si va al catálogo", body: "Decide si la prenda se publica con fotos o solo se registra en inventario." },
-  { title: "Toma las fotos", body: "Fotografía el frente y la parte de atrás de la prenda completa." },
+  { title: "Toma fotos de frente y atrás", body: "Fotografía el frente y la parte de atrás de la prenda. El dueño las revisa antes de publicarlas." },
 ] as const;
 
 interface AltaTourProps {

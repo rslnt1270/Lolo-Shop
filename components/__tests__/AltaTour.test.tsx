@@ -34,7 +34,9 @@ describe("AltaTour en el alta", () => {
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
     await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent(/elige si va al catálogo/i));
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent(/toma las fotos/i));
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent(/toma fotos de frente y atrás/i));
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(/blanc/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/el dueño las revisa antes de publicarlas/i);
     expect(screen.getByRole("button", { name: "Saltar" })).toBeInTheDocument();
   });
 

@@ -106,6 +106,14 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.createProduct con varias tallas", 
     expect(row2.catalogPhotosCheckedAt).toBeNull();
   });
 
+  it("photosChecked sin las dos URL no escribe catalogPhotosCheckedAt", async () => {
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const a = await ds.createProduct(data(w, { publicCode: "ONLY1", photosChecked: true, imageUrl: front, backImageUrl: null,
+      variants: [{ sku: "LS-Y00000-0", barcode: null, size: "U", price: 1, initialStock: 0 }] }));
+    const row = await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id } });
+    expect(row.catalogPhotosCheckedAt).toBeNull();
+  });
+
   it("setCatalogPhotos escribe las dos URL y catalogPhotosCheckedAt en una sola escritura", async () => {
     const a = await ds.createProduct(data(w));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";

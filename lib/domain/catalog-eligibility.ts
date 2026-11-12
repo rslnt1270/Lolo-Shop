@@ -1,7 +1,7 @@
 import type { Product } from "./types";
 
 /**
- * Elegibilidad del sitio web (decisión del dueño, 2026-11-12): sin requisito de fondo blanco.
+ * Elegibilidad del sitio web (decisión del dueño, 2026-11-12): no se exige un fondo especial.
  * Elegible = foto de frente y de atrás, descripción y existencias en una tienda pública.
  * `catalogPhotosCheckedAt` es solo informativa: aquí nunca se lee.
  */

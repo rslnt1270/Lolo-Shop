@@ -257,7 +257,8 @@ export class FixtureDataSource implements InventoryDataSource {
       description: data.description ?? null,
       color: data.color ?? null,
       isPublished: false,
-      catalogPhotosCheckedAt: data.photosChecked ? new Date().toISOString() : null,
+      catalogPhotosCheckedAt:
+        data.photosChecked && data.imageUrl && data.backImageUrl ? new Date().toISOString() : null,
       publicCode: data.publicCode,
       isActive: true,
       mergedIntoId: null,

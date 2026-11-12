@@ -12,11 +12,10 @@ vi.mock("@/lib/actions", () => actions);
 import { ProductPhotoCapture } from "../products/ProductPhotoCapture";
 import { ProductPhotoButton } from "../products/ProductPhotoButton";
 import { defaultProcessFile } from "@/lib/image/process-file";
+import { PHOTO_HINT_BACK, PHOTO_HINT_FRONT } from "../products/ProductPhotoCapture";
 
-const analysis = (ok: boolean) => ({ ok, meanLuma: 0, stdLuma: 0, whiteFraction: 0, meanChroma: 0 });
 const edited = () => new File(["x"], "producto.jpg", { type: "image/jpeg" });
-const approve = vi.fn(async () => ({ file: edited(), analysis: analysis(true) }));
-const reject = vi.fn(async () => ({ file: edited(), analysis: analysis(false) }));
+const approve = vi.fn(async (_f: File, _o?: { levels?: boolean }) => ({ file: edited() }));
 const pick = (container: HTMLElement) => {
   const input = container.querySelector("input[type=file]") as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File(["x"], "a.jpg", { type: "image/jpeg" })] } });
@@ -45,82 +44,100 @@ describe("ProductPhotoCapture: lado de la foto", () => {
   });
 });
 
-describe("ProductPhotoCapture: guía y análisis de fondo", () => {
-  it("review: la guía de encuadre aparece antes de tomar la foto", () => {
-    render(<ProductPhotoCapture processFile={approve} onCapture={vi.fn()} onClear={vi.fn()} />);
-    expect(screen.getByText("Toma la prenda completa. Cualquier fondo sirve.")).toBeInTheDocument();
-  });
-
-  it("C7: una foto que el análisis habría rechazado se acepta, se previsualiza y llega a onCapture", async () => {
+describe("ProductPhotoCapture: captura libre", () => {
+  it("cualquier foto procesada se entrega con onCapture, sin rechazo", async () => {
     const onCapture = vi.fn();
-    const { container } = render(<ProductPhotoCapture processFile={reject} onCapture={onCapture} onClear={vi.fn()} />);
+    const { container } = render(<ProductPhotoCapture processFile={approve} onCapture={onCapture} onClear={vi.fn()} />);
     pick(container);
     await waitFor(() => expect(onCapture).toHaveBeenCalledTimes(1));
     expect(await screen.findByAltText(/vista previa/i)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("C7 (aceptada): foto aprobada llama onCapture", async () => {
-    const onCapture = vi.fn();
-    const { container } = render(<ProductPhotoCapture processFile={approve} onCapture={onCapture} onClear={vi.fn()} />);
-    pick(container);
-    await waitFor(() => expect(onCapture).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("alert")).toBeNull();
+  it("no hay marco de encuadre ni texto de fondo blanco; el texto de ayuda depende del lado", () => {
+    const { unmount } = render(<ProductPhotoCapture side="front" processFile={approve} onCapture={vi.fn()} onClear={vi.fn()} />);
+    expect(screen.queryByTestId("framing-guide")).toBeNull();
+    expect(screen.queryByText(/blanc/i)).toBeNull();
+    expect(screen.getByText(PHOTO_HINT_FRONT)).toBeInTheDocument();
+    expect(PHOTO_HINT_FRONT).toBe("Toma la foto de frente de la prenda.");
+    unmount();
+    render(<ProductPhotoCapture side="back" processFile={approve} onCapture={vi.fn()} onClear={vi.fn()} />);
+    expect(screen.getByText(PHOTO_HINT_BACK)).toBeInTheDocument();
+    expect(PHOTO_HINT_BACK).toBe("Toma la foto de atrás de la prenda.");
   });
 
-  it("review: foto con orientación EXIF pasa el análisis tras la rotación", async () => {
+  it("source camera (por defecto): el input lleva capture=environment", () => {
+    const { container } = render(<ProductPhotoCapture processFile={approve} onCapture={vi.fn()} onClear={vi.fn()} />);
+    expect(container.querySelector("input[type=file]")).toHaveAttribute("capture", "environment");
+  });
+
+  it("source gallery: el input no lleva capture", () => {
+    const { container } = render(<ProductPhotoCapture source="gallery" processFile={approve} onCapture={vi.fn()} onClear={vi.fn()} />);
+    expect(container.querySelector("input[type=file]")).not.toHaveAttribute("capture");
+  });
+
+  it("defaultProcessFile aplica el EXIF, no analiza el fondo y respeta levels: false", async () => {
     const bitmap = vi.fn().mockResolvedValue({ width: 20, height: 20 });
     vi.stubGlobal("createImageBitmap", bitmap);
-    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
-      drawImage: vi.fn(),
-      getImageData: () => ({ data: new Uint8ClampedArray(20 * 20 * 4).fill(255) }),
-      putImageData: vi.fn(),
-    })) as never;
+    const getImageData = vi.fn(() => ({ data: new Uint8ClampedArray(20 * 20 * 4).fill(255) }));
+    HTMLCanvasElement.prototype.getContext = vi.fn(() => ({ drawImage: vi.fn(), getImageData, putImageData: vi.fn() })) as never;
     HTMLCanvasElement.prototype.toBlob = function (cb: BlobCallback) {
       cb(new Blob(["x"], { type: "image/jpeg" }));
     };
-    const { analysis: result } = await defaultProcessFile(new File(["x"], "a.jpg", { type: "image/jpeg" }));
+    const res = await defaultProcessFile(new File(["x"], "a.jpg", { type: "image/jpeg" }));
     expect(bitmap).toHaveBeenCalledWith(expect.any(File), { imageOrientation: "from-image" });
-    expect(result.ok).toBe(true);
+    expect(Object.keys(res)).toEqual(["file"]);
+    expect(getImageData).toHaveBeenCalledTimes(1);
+    getImageData.mockClear();
+    await defaultProcessFile(new File(["x"], "a.jpg", { type: "image/jpeg" }), { levels: false });
+    expect(getImageData).not.toHaveBeenCalled();
   });
 });
 
-describe("ProductPhotoButton: la ficha usa el mismo análisis", () => {
-  it("C18: la foto desde la ficha se sube aunque el análisis la habría rechazado", async () => {
-    const { container, unmount } = render(
-      <ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} processFile={reject} />
-    );
+describe("ProductPhotoButton: captura sin análisis", () => {
+  it("la foto de frente desde la ficha se sube sin photosAnalyzed", async () => {
+    const { container } = render(<ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} processFile={approve} />);
     fireEvent.click(screen.getByRole("button", { name: "Agregar foto de frente de Gorra" }));
     pick(container);
     await waitFor(() => expect(actions.updateProductImageAction).toHaveBeenCalledTimes(1));
-    expect(actions.updateProductImageAction).toHaveBeenCalledWith("p1", expect.any(FormData), { photosAnalyzed: true });
+    expect(actions.updateProductImageAction).toHaveBeenCalledWith("p1", expect.any(FormData));
     expect(screen.queryByRole("alert")).toBeNull();
-    unmount();
-    actions.updateProductImageAction.mockClear();
-
-    const ok = render(<ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} processFile={approve} />);
-    fireEvent.click(screen.getByRole("button", { name: "Agregar foto de frente de Gorra" }));
-    pick(ok.container);
-    await waitFor(() => expect(actions.updateProductImageAction).toHaveBeenCalledTimes(1));
-    expect(actions.updateProductImageAction).toHaveBeenCalledWith("p1", expect.any(FormData), { photosAnalyzed: true });
   });
 
-  it("la foto de atrás se envía con photosAnalyzed: true", async () => {
+  it("la foto de atrás se envía sin photosAnalyzed", async () => {
     const { container } = render(<ProductPhotoButton productId="p1" side="back" hasImage={false} processFile={approve} />);
     fireEvent.click(screen.getByRole("button", { name: "Agregar foto de atrás" }));
     pick(container);
     await waitFor(() => expect(actions.setProductBackImageAction).toHaveBeenCalled());
-    expect(actions.setProductBackImageAction).toHaveBeenCalledWith("p1", expect.stringContaining("blob"), { photosAnalyzed: true });
+    expect(actions.setProductBackImageAction).toHaveBeenCalledWith("p1", expect.stringContaining("blob"));
   });
 
-  it("review: producto sin fotos revisadas ofrece tomar frente y atrás y guarda con setCatalogPhotosAction", async () => {
+  it("con hasImage dice Reemplazar, abre la galería (sin capture) y no aplica autoniveles", async () => {
+    const { container } = render(<ProductPhotoButton productId="p1" productTitle="Gorra" hasImage processFile={approve} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reemplazar foto de frente de Gorra" }));
+    const input = container.querySelector("input[type=file]") as HTMLInputElement;
+    expect(input).not.toHaveAttribute("capture");
+    pick(container);
+    await waitFor(() => expect(actions.updateProductImageAction).toHaveBeenCalledTimes(1));
+    expect(approve).toHaveBeenCalledWith(expect.any(File), { levels: false });
+  });
+
+  it("sin foto previa usa la cámara y los autoniveles", async () => {
+    const { container } = render(<ProductPhotoButton productId="p1" hasImage={false} processFile={approve} />);
+    fireEvent.click(screen.getByRole("button", { name: "Agregar foto de frente" }));
+    expect(container.querySelector("input[type=file]")).toHaveAttribute("capture", "environment");
+    pick(container);
+    await waitFor(() => expect(actions.updateProductImageAction).toHaveBeenCalled());
+    expect(approve).toHaveBeenCalledWith(expect.any(File), { levels: true });
+  });
+
+  it("captureBoth ofrece tomar frente y atrás y guarda con setCatalogPhotosAction sin photosAnalyzed", async () => {
     const onUpdated = vi.fn();
     const { container } = render(
-      <ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} catalogChecked={false} processFile={approve} onUpdated={onUpdated} />
+      <ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} captureBoth processFile={approve} onUpdated={onUpdated} />
     );
     fireEvent.click(screen.getByRole("button", { name: "Tomar fotos de catálogo (frente y atrás) de Gorra" }));
-    const save = screen.getByRole("button", { name: "Guardar fotos" });
-    expect(save).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeDisabled();
     const inputs = container.querySelectorAll("input[type=file]");
     expect(inputs).toHaveLength(2);
     for (const input of Array.from(inputs)) {
@@ -133,16 +150,13 @@ describe("ProductPhotoButton: la ficha usa el mismo análisis", () => {
     expect(actions.setCatalogPhotosAction).toHaveBeenCalledWith("p1", {
       imageUrl: expect.stringContaining("blob"),
       backImageUrl: expect.stringContaining("blob"),
-      photosAnalyzed: true,
     });
     expect(actions.updateProductImageAction).not.toHaveBeenCalled();
     await waitFor(() => expect(onUpdated).toHaveBeenCalled());
   });
 
-  it("cancelar en modo catálogo descarta las fotos: al reabrir no hay vistas previas y Guardar fotos está deshabilitado", async () => {
-    const { container } = render(
-      <ProductPhotoButton productId="p1" hasImage={false} catalogChecked={false} processFile={approve} />
-    );
+  it("cancelar con captureBoth descarta las fotos: al reabrir no hay vistas previas y Guardar fotos está deshabilitado", async () => {
+    const { container } = render(<ProductPhotoButton productId="p1" hasImage={false} captureBoth processFile={approve} />);
     const openBtn = () => screen.getByRole("button", { name: "Tomar fotos de catálogo (frente y atrás)" });
     fireEvent.click(openBtn());
     for (const input of Array.from(container.querySelectorAll("input[type=file]"))) {
@@ -153,19 +167,5 @@ describe("ProductPhotoButton: la ficha usa el mismo análisis", () => {
     fireEvent.click(openBtn());
     expect(screen.queryByAltText(/vista previa/i)).toBeNull();
     expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeDisabled();
-  });
-
-  it("con fotos de catálogo que el análisis habría rechazado sí se puede guardar", async () => {
-    const { container } = render(
-      <ProductPhotoButton productId="p1" hasImage={false} catalogChecked={false} processFile={reject} />
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Tomar fotos de catálogo (frente y atrás)" }));
-    for (const input of Array.from(container.querySelectorAll("input[type=file]"))) {
-      fireEvent.change(input, { target: { files: [new File(["x"], "a.jpg", { type: "image/jpeg" })] } });
-    }
-    await waitFor(() => expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeEnabled());
-    expect(screen.queryByRole("alert")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Guardar fotos" }));
-    await waitFor(() => expect(actions.setCatalogPhotosAction).toHaveBeenCalledWith("p1", expect.objectContaining({ photosAnalyzed: true })));
   });
 });

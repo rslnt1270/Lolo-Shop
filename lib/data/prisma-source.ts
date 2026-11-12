@@ -395,7 +395,8 @@ export class PrismaDataSource implements InventoryDataSource {
           backImageUrl: data.backImageUrl ?? null,
           description: data.description ?? null,
           color: data.color ?? null,
-          catalogPhotosCheckedAt: data.photosChecked ? new Date() : null,
+          // Informativa: solo si llegan las dos URL (decisión 2026-11-12).
+          catalogPhotosCheckedAt: data.photosChecked && data.imageUrl && data.backImageUrl ? new Date() : null,
           variants: {
             create: rows.map((r) => ({
               title: r.size,

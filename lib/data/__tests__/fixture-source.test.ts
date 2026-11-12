@@ -131,6 +131,24 @@ describe("FixtureDataSource.createProduct", () => {
     expect(product.category).toBe("Accesorios");
     expect(variants[0].inventory).toEqual([{ locationId: "loc-2", available: 0 }]);
   });
+
+  it("photosChecked sin las dos URL no escribe catalogPhotosCheckedAt", async () => {
+    const ds = new FixtureDataSource();
+    const base = {
+      userId: "u1", title: "Gorra", brand: "L", brandId: "b1", departmentId: "d1", category: "Accesorios",
+      locationId: "loc-2", photosChecked: true,
+    };
+    const one = await ds.createProduct({
+      ...base, publicCode: "AAAA2", imageUrl: "https://example.invalid/f.jpg", backImageUrl: null,
+      variants: [{ barcode: "T-1", sku: "S-1", size: "U", price: 1, initialStock: 0 }],
+    });
+    expect(one.product.catalogPhotosCheckedAt).toBeNull();
+    const both = await ds.createProduct({
+      ...base, publicCode: "AAAA3", imageUrl: "https://example.invalid/f.jpg", backImageUrl: "https://example.invalid/b.jpg",
+      variants: [{ barcode: "T-2", sku: "S-2", size: "U", price: 1, initialStock: 0 }],
+    });
+    expect(both.product.catalogPhotosCheckedAt).not.toBeNull();
+  });
 });
 
 describe("FixtureDataSource: catálogo público y departamentos", () => {

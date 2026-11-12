@@ -9,7 +9,7 @@ import { getDataSource } from "./data/get-source";
 import { scopeInventory, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
 import {
-  MSG_PHOTOS_NOT_ANALYZED, validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
+  validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
 } from "./domain/new-product";
 import { productPhotoStatus, validateReference, type PhotoStatus } from "./domain/product-reference";
 import { loadTypeRule } from "./catalog/type-rule";
@@ -215,8 +215,6 @@ export type CreateProductInput = {
   color?: string | null;
   imageUrl?: string | null;
   backImageUrl?: string | null;
-  /** El cliente revisó el fondo blanco de las fotos enviadas; sin ella las fotos se rechazan. */
-  photosAnalyzed?: boolean;
 };
 
 export type CreateProductResult =
@@ -566,22 +564,16 @@ async function checkPhotoAccess(productId: string, side: "front" | "back"): Prom
   return { ok: true };
 }
 
-const NOT_ANALYZED: PhotoActionResult = { ok: false, code: "INVALID", message: MSG_PHOTOS_NOT_ANALYZED };
-
-/** El servidor no puede analizar píxeles: confía en la bandera del cliente, pero solo si es `true` exacto. */
-const isAnalyzed = (opts: { photosAnalyzed: boolean } | undefined): boolean => opts?.photosAnalyzed === true;
-
 /**
  * Fija la foto de atrás (URL ya subida con uploadProductImageAction). Cambiar un
  * lado no toca `catalogPhotosCheckedAt`. Nunca lanza.
  */
 export async function setProductBackImageAction(
-  productId: string, url: string, opts: { photosAnalyzed: boolean },
+  productId: string, url: string,
 ): Promise<PhotoActionResult> {
   try {
     const access = await checkPhotoAccess(productId, "back");
     if (!access.ok) return access;
-    if (!isAnalyzed(opts)) return NOT_ANALYZED;
     if (!isProductBlobUrl(url)) {
       return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
     }
@@ -597,12 +589,11 @@ export async function setProductBackImageAction(
 
 /** Foto de frente: sube el archivo y la fija. Cambiar un lado no toca `catalogPhotosCheckedAt`. Nunca lanza. */
 export async function updateProductImageAction(
-  productId: string, formData: FormData, opts: { photosAnalyzed: boolean },
+  productId: string, formData: FormData,
 ): Promise<PhotoActionResult> {
   try {
     const access = await checkPhotoAccess(productId, "front");
     if (!access.ok) return access;
-    if (!isAnalyzed(opts)) return NOT_ANALYZED;
     const file = formData?.get("image");
     if (!(file instanceof File) || file.size === 0) {
       return { ok: false, code: "INVALID", message: "No se recibió una imagen válida." };
@@ -620,12 +611,11 @@ export async function updateProductImageAction(
 }
 
 /**
- * Fija frente y atrás revisadas en una sola escritura y marca
- * `catalogPhotosCheckedAt`: la vía para que un producto viejo quede listo para
- * publicarse. Reemplazar una foto ya puesta sigue siendo solo owner o manager. Nunca lanza.
+ * Fija frente y atrás en una sola escritura (`catalogPhotosCheckedAt` es solo informativa).
+ * Ignora argumentos extra de pestañas viejas. Reemplazar una foto ya puesta sigue siendo solo owner o manager. Nunca lanza.
  */
 export async function setCatalogPhotosAction(
-  productId: string, input: { imageUrl: string; backImageUrl: string; photosAnalyzed: boolean },
+  productId: string, input: { imageUrl: string; backImageUrl: string },
 ): Promise<PhotoActionResult> {
   try {
     const front = await checkPhotoAccess(productId, "front");
@@ -635,7 +625,6 @@ export async function setCatalogPhotosAction(
     if (!input || typeof input !== "object") {
       return { ok: false, code: "INVALID", message: "Faltan las fotos de frente y de atrás." };
     }
-    if (input.photosAnalyzed !== true) return NOT_ANALYZED;
     if (!isProductBlobUrl(input.imageUrl) || !isProductBlobUrl(input.backImageUrl)) {
       return { ok: false, code: "INVALID", message: "La foto no se subió correctamente. Tómala de nuevo." };
     }

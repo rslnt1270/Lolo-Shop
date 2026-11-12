@@ -4,8 +4,6 @@ export interface MotionTiming {
   stepOffsetPx: number;
   photoMs: number;
   photoScaleFrom: number;
-  rejectShakeCount: number;
-  rejectShakeMs: number;
   checkMs: number;
   holdMs: number;
   /** Multiplica la duración de una vuelta del giro de carga; nunca se detiene. */
@@ -17,8 +15,6 @@ const NORMAL: MotionTiming = {
   stepOffsetPx: 16,
   photoMs: 220,
   photoScaleFrom: 0.96,
-  rejectShakeCount: 3,
-  rejectShakeMs: 240,
   checkMs: 420,
   holdMs: 1400,
   spinSlowFactor: 1,
@@ -29,8 +25,6 @@ const REDUCED: MotionTiming = {
   stepOffsetPx: 0,
   photoMs: 1,
   photoScaleFrom: 1,
-  rejectShakeCount: 0,
-  rejectShakeMs: 1,
   checkMs: 1,
   holdMs: 1400,
   spinSlowFactor: 2,

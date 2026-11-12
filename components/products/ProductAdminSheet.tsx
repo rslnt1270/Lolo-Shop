@@ -307,7 +307,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             <h3 className="text-lg font-bold text-[#16302F]">{product.title}</h3>
             <div className="flex flex-wrap items-center gap-x-3">
               {canEditData ? (
-                product.catalogPhotosCheckedAt ? (
+                product.imageUrl || product.backImageUrl ? (
                   <>
                     <ProductPhotoButton
                       productId={product.id}
@@ -328,7 +328,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                     productId={product.id}
                     productTitle={product.title}
                     hasImage={!!product.imageUrl}
-                    catalogChecked={false}
+                    captureBoth
                     onUpdated={onChanged}
                   />
                 )
