@@ -7,10 +7,13 @@ import type { Location, Product } from "@/lib/domain/types";
 import { filterProducts } from "@/lib/data/filter";
 import { SearchFilter } from "@/components/products/SearchFilter";
 import { ProductCard } from "@/components/products/ProductCard";
+import { PendingPublicationRow } from "@/components/products/PendingPublicationRow";
 import { ProductAdminSheet } from "@/components/products/ProductAdminSheet";
 import { fetchLocationsAction, fetchProductsAction } from "@/lib/actions";
 import { listDepartmentsAction, listProductTypesAction, type DepartmentOption, type ProductTypeOption } from "@/lib/catalog/actions";
 import { assignDepartmentAction, assignProductTypeAction } from "@/lib/products/actions";
+import { isPendingPublication } from "@/lib/domain/catalog-eligibility";
+import { publicStoreIds } from "@/lib/data/public-projection";
 import { classificationIssues, type ClassificationRules } from "@/lib/domain/product-taxonomy";
 import { Button } from "@/components/ui/Button";
 import { withSession } from "@/lib/client/with-session";
@@ -28,10 +31,11 @@ export default function ProductosPage() {
   const isStaff = role === "owner" || role === "manager";
   // El colaborador también abre la ficha (fotos en espacios vacíos y precio); el resto sigue siendo de owner/manager.
   const canOpenSheet = isStaff || role === "collaborator";
-  const [locations, setLocations] = useState<Pick<Location, "id" | "name">[]>([]);
+  const [locations, setLocations] = useState<Pick<Location, "id" | "name" | "type" | "isPublic">[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [productTypes, setProductTypes] = useState<ProductTypeOption[]>([]);
   const [onlyReview, setOnlyReview] = useState(false);
+  const [onlyPending, setOnlyPending] = useState(false);
   const [assignKind, setAssignKind] = useState<"department" | "type">("department");
   const [targetType, setTargetType] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
@@ -132,11 +136,23 @@ export default function ProductosPage() {
 
   const openProduct = products.find((p) => p.id === openId) ?? null;
 
+  const storeIds = useMemo(() => publicStoreIds(locations), [locations]);
+
   const visible = useMemo(() => {
     const base = filterProducts(products, query, category);
+    if (isStaff && onlyPending) {
+      // Más antiguos primero, para vaciar la cola.
+      return base
+        .filter((p) => isPendingPublication(p, storeIds))
+        .sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? "") || (a.id < b.id ? -1 : 1));
+    }
     return isStaff && onlyReview ? base.filter(hasIssues) : base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [products, query, category, isStaff, onlyReview, rules]);
+  }, [products, query, category, isStaff, onlyReview, onlyPending, rules, storeIds]);
+  const pendingCount = useMemo(
+    () => (isStaff ? products.filter((p) => isPendingPublication(p, storeIds)).length : 0),
+    [products, isStaff, storeIds],
+  );
   const reviewCount = useMemo(
     () => (isStaff ? products.filter(hasIssues).length : 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,17 +174,49 @@ export default function ProductosPage() {
       )}
       <SearchFilter categories={typeNames} onQuery={setQuery} onCategory={setCategory} />
       {isStaff && (
+        <div className="flex flex-wrap gap-2">
         <button
           type="button"
           aria-pressed={onlyReview}
-          onClick={() => setOnlyReview((v) => !v)}
+          onClick={() => {
+            setOnlyReview((v) => !v);
+            setOnlyPending(false);
+          }}
           className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal ${
             onlyReview ? "border-loloteal bg-loloteal text-white" : "border-gray-300 bg-white text-gray-800"
           }`}
         >
           Por revisar ({reviewCount})
         </button>
+        <button
+          type="button"
+          aria-pressed={onlyPending}
+          onClick={() => {
+            setOnlyPending((v) => !v);
+            setOnlyReview(false);
+          }}
+          className={`min-h-[44px] rounded-full border px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal ${
+            onlyPending ? "border-loloteal bg-loloteal text-white" : "border-gray-300 bg-white text-gray-800"
+          }`}
+        >
+          Por publicar ({pendingCount})
+        </button>
+        </div>
       )}
+      {isStaff && onlyPending ? (
+        <ul className="grid gap-3">
+          {visible.map((p) => (
+            <PendingPublicationRow
+              key={p.id}
+              product={p}
+              locations={locations}
+              onChanged={() => void reload()}
+              onOpenSheet={() => setOpenId(p.id)}
+            />
+          ))}
+          {visible.length === 0 && <p className="text-gray-500">No hay prendas por publicar.</p>}
+        </ul>
+      ) : (
       <div className="grid gap-3">
         {visible.map((p) => (
           <div key={p.id} className="space-y-1">
@@ -213,6 +261,7 @@ export default function ProductosPage() {
         ))}
         {visible.length === 0 && <p className="text-gray-500">Sin resultados.</p>}
       </div>
+      )}
 
       <div aria-live="polite">
         {assignMsg && (
