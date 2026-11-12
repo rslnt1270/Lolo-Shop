@@ -7,7 +7,7 @@ import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
 import { SaleCart, type PendingScan } from "@/components/sales/SaleCart";
 import { Button } from "@/components/ui/Button";
 import { PaymentPicker } from "@/components/sales/PaymentPicker";
-import { fetchLocationsAction, lookupCodeAction } from "@/lib/actions";
+import { fetchLocationsAction, lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
 import { createSaleAction } from "@/lib/sales/actions";
 import { isValidGtin, normalizeCode } from "@/lib/domain/barcode";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
@@ -38,7 +38,9 @@ export default function POSPage() {
   const [stockError, setStockError] = useState<StockError | null>(null);
   const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
   // Códigos con consulta en curso o fallida: una segunda lectura del mismo código no crea otra fila.
-  const pendingRef = useRef(new Map<string, "loading" | "error">());
+  const pendingRef = useRef(new Map<string, "loading" | "error" | "queued">());
+  // Resultados que llegaron con un cobro en curso (o incierto): esperan para no alterar el carrito que se cobra.
+  const heldRef = useRef(new Map<string, Extract<LookupCodeResult, { found: true }>>());
   const [cameraReady, setCameraReady] = useState(false);
   const [locationsFailed, setLocationsFailed] = useState(false);
   const [locationsAttempt, setLocationsAttempt] = useState(0);
@@ -91,36 +93,73 @@ export default function POSPage() {
     }
   };
 
-  const { add, quantityOf } = draft;
-  const setPending = useCallback((code: string, status: "loading" | "error" | null) => {
+  const { add, quantityOf, clearAvailability, isUncertain } = draft;
+  const locationRef = useRef(locationId);
+  locationRef.current = locationId;
+
+  const setPending = useCallback((code: string, status: "loading" | "error" | "queued" | null) => {
     if (status) pendingRef.current.set(code, status);
     else pendingRef.current.delete(code);
     setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
   }, []);
+
+  // Otra tienda: las existencias conocidas y las lecturas en espera ya no aplican.
+  useEffect(() => {
+    clearAvailability();
+    for (const code of heldRef.current.keys()) setPending(code, null);
+    heldRef.current.clear();
+  }, [locationId, clearAvailability, setPending]);
+
+  const applyFound = useCallback(
+    (result: Extract<LookupCodeResult, { found: true }>) => {
+      const variant = result.product.variants.find((v) => v.id === result.variantId);
+      if (!variant) return;
+      const added = add({ product: result.product, variant }, result.stock);
+      if (added.ok) {
+        setNotice({ kind: "ok", text: `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}` });
+      } else {
+        setNotice({ kind: "error", text: `Sin existencias de la talla ${added.size} en esta tienda` });
+      }
+    },
+    [add, quantityOf],
+  );
+
+  /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
+  const flushHeld = useCallback(() => {
+    if (submittingRef.current || isUncertain()) return;
+    const items = Array.from(heldRef.current.entries());
+    heldRef.current.clear();
+    for (const [code, result] of items) {
+      setPending(code, null);
+      applyFound(result);
+    }
+  }, [applyFound, isUncertain, setPending]);
 
   const runLookup = useCallback(
     async (code: string, store: string) => {
       setPending(code, "loading");
       try {
         const result = await lookupCodeAction(code, store);
+        // Cambió la tienda mientras llegaba la consulta: su resultado ya no corresponde.
+        if (store !== locationRef.current) {
+          setPending(code, null);
+          return;
+        }
         if (!result) {
           setPending(code, null);
           setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
-          setPending(code, null);
           const variant = result.product.variants.find((v) => v.id === result.variantId);
           if (!variant) {
+            setPending(code, null);
             setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
-            return;
-          }
-          const added = add({ product: result.product, variant }, result.stock);
-          if (added.ok) {
-            setNotice({
-              kind: "ok",
-              text: `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}`,
-            });
+          } else if (submittingRef.current || isUncertain()) {
+            // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
+            heldRef.current.set(code, result);
+            setPending(code, "queued");
           } else {
-            setNotice({ kind: "error", text: `Sin existencias de la talla ${added.size} en esta tienda` });
+            setPending(code, null);
+            applyFound(result);
           }
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
@@ -131,11 +170,15 @@ export default function POSPage() {
           setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
         }
       } catch {
+        if (store !== locationRef.current) {
+          setPending(code, null);
+          return;
+        }
         setPending(code, "error");
         setNotice({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
       }
     },
-    [add, quantityOf, setPending],
+    [applyFound, isUncertain, setPending],
   );
 
   const handleScan = useCallback(
@@ -147,7 +190,8 @@ export default function POSPage() {
         return;
       }
       // Mientras haya una consulta en curso de este código no se abre otra. Si quedó en error, releer es reintentar.
-      if (pendingRef.current.get(code) === "loading") return;
+      const state = pendingRef.current.get(code);
+      if (state === "loading" || state === "queued") return;
       setNotice(null);
       void runLookup(code, locationId);
     },
@@ -259,6 +303,8 @@ export default function POSPage() {
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
+      // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
+      flushHeld();
     }
   };
 
@@ -382,7 +428,7 @@ export default function POSPage() {
           <div className="sticky bottom-0 -mx-4 border-t border-outline-variant bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:static md:mx-0 md:border-0 md:bg-transparent md:p-0">
             <Button
               onClick={() => void charge()}
-              disabled={lines.length === 0}
+              disabled={lines.length === 0 || pendingScans.some((p) => p.status === "loading")}
               loading={submitting}
               aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
               className="min-h-[52px] w-full text-lg"

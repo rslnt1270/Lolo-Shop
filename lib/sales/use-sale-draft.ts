@@ -132,6 +132,12 @@ export function useSaleDraft() {
     [commit],
   );
 
+  /** Cambió la tienda: las existencias conocidas ya no aplican (el servidor las vuelve a validar al cobrar). */
+  const clearAvailability = useCallback(() => {
+    if (linesRef.current.every((l) => l.available === null)) return;
+    commit(linesRef.current.map((l) => ({ ...l, available: null })));
+  }, [commit]);
+
   /** Cantidad actual de la talla en el borrador (0 si no está). */
   const quantityOf = useCallback((variantId: string) => linesRef.current.find((l) => l.variantId === variantId)?.quantity ?? 0, []);
 
@@ -156,5 +162,5 @@ export function useSaleDraft() {
     renewRequestId();
   }, [renewRequestId, commit]);
 
-  return { lines, add, quantityOf, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, isUncertain, requestIdFor };
+  return { lines, add, quantityOf, clearAvailability, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, isUncertain, requestIdFor };
 }
