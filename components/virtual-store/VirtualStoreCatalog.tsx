@@ -102,7 +102,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-[#111827] flex flex-col relative overflow-x-hidden selection:bg-loloteal/20">
+    <div className="min-h-pantalla bg-[#f8f9fa] text-[#111827] flex flex-col relative overflow-x-hidden selection:bg-loloteal/20">
       {/* Luces y degradados ambientales sutiles */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute -top-[15%] -left-[10%] w-[55vw] h-[55vw] rounded-full bg-loloteal/10 blur-[130px] opacity-70 mix-blend-multiply" />

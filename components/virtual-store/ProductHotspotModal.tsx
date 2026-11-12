@@ -42,7 +42,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
       aria-modal="true"
       aria-labelledby={titleId}
       tabIndex={-1}
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center pl-[var(--safe-left)] pr-[var(--safe-right)] sm:items-center sm:p-6"
     >
       <div onClick={onClose} className="absolute inset-0 bg-black/40" aria-hidden="true" />
 
@@ -50,7 +50,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
         initial={reduceMotion ? false : { opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: reduceMotion ? 0 : 0.25 }}
-        className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/60 bg-white p-6 shadow-2xl sm:rounded-3xl"
+        className="relative z-10 max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-white/60 bg-white p-6 pb-[max(1.5rem,var(--safe-bottom))] shadow-2xl sm:rounded-3xl sm:pb-6"
       >
         <button
           onClick={onClose}

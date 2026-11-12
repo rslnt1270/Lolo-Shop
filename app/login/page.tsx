@@ -49,7 +49,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#F9FAFB] p-6">
+    <main className="flex min-h-pantalla flex-col items-center justify-center bg-[#F9FAFB] p-6">
       <motion.div
         className="w-full max-w-sm rounded-[28px] bg-white p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-[rgba(226,232,240,0.5)]"
         variants={containerVariants}

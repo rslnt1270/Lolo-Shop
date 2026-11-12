@@ -33,11 +33,13 @@ describe("NavBar", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("no renderiza nada mientras carga la sesión", () => {
+  it("mientras carga la sesión solo reserva el espacio, sin enlaces ni botones", () => {
     mockSession("loading");
     vi.mocked(usePathname).mockReturnValue("/");
     const { container } = render(<NavBar />);
-    expect(container).toBeEmptyDOMElement();
+    expect(container.querySelector("nav[data-bottom-nav]")).not.toBeNull();
+    expect(container.querySelectorAll("a, button")).toHaveLength(0);
+    expect(screen.queryByRole("navigation")).toBeNull();
   });
 
   it("muestra los botones cuando hay sesión iniciada", () => {

@@ -88,7 +88,7 @@ export default function VentasPage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl pb-24 md:pb-8">
+    <main className="mx-auto max-w-2xl pb-8">
       <div className="flex items-center justify-between gap-3 bg-loloteal px-5 pb-8 pt-6 text-white">
         <div>
           <h1 className="text-lg font-extrabold leading-tight">Ventas</h1>
