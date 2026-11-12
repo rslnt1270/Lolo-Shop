@@ -32,3 +32,9 @@ export function scopeVariantMatch<
   if (viewer.role !== "collaborator") return match;
   return { ...match, product: scopeInventory(match.product, viewer), variant: scopeVariant(match.variant, viewer) };
 }
+
+/** Tiendas visibles: el colaborador solo la suya (ninguna si no tiene); owner y manager todas. */
+export function scopeLocations<T extends { id: string }>(locations: T[], viewer: InventoryViewer): T[] {
+  if (viewer.role !== "collaborator") return locations;
+  return viewer.locationId ? locations.filter((l) => l.id === viewer.locationId) : [];
+}

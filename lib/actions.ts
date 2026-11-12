@@ -6,7 +6,7 @@ import { ForbiddenError } from "./auth/errors";
 import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
-import { scopeInventory, scopeVariantMatch } from "./domain/inventory-scope";
+import { scopeInventory, scopeLocations, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
 import {
   validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
@@ -37,7 +37,7 @@ export async function fetchProductsAction(): Promise<Product[] | null> {
 export async function fetchLocationsAction(): Promise<Location[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return await getDataSource().getLocations();
+  return scopeLocations(await getDataSource().getLocations(), user);
 }
 
 export async function createLocationAction(data: { name: string; type?: LocationType }): Promise<Location> {
