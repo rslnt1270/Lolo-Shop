@@ -294,6 +294,24 @@ describe("/pos escaneo continuo", () => {
       expect(status).toHaveTextContent("Agregado: Camisa (L) · ×1");
     });
 
+    it("dos consultas tardías tras el cobro se acumulan: un rechazo no lo pisa un Agregado posterior", async () => {
+      const sale = await chargingWithOneLine();
+      const l2 = defer();
+      const l3 = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(l2.promise).mockReturnValueOnce(l3.promise);
+      scan("222");
+      scan("333");
+      await screen.findByText("Buscando 333…");
+      await act(async () => sale.resolve(okSale));
+      await screen.findByText(/Venta #9 registrada/);
+      await act(async () => l2.resolve(found("v2", "L", { available: 0, sold: false }, "Camisa")));
+      await act(async () => l3.resolve(found("v3", "XL", { available: 3, sold: false }, "Falda")));
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Venta #9 registrada");
+      expect(alert).toHaveTextContent("Sin existencias de la talla L en esta tienda");
+      expect(alert).toHaveTextContent("Agregado: Falda (XL) · ×1");
+    });
+
     it("NO_STOCK con una lectura en espera que entra: el motivo del rechazo sigue en el aviso", async () => {
       const sale = await chargingWithOneLine();
       actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "L", { available: 3, sold: false }, "Camisa"));
@@ -373,6 +391,57 @@ describe("/pos escaneo continuo", () => {
         await screen.findByText("Venta #9 registrada. No se agregaron: 444. Escanéalos de nuevo si van en otra venta."),
       ).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Reintentar 444" })).toBeNull();
+    });
+  });
+
+  describe("lecturas rechazadas que no dejan nada en el carrito", () => {
+    const okSale = { ok: true, sale: { number: 9, status: "paid" } };
+    async function rejectedThenAdded() {
+      await ready();
+      actions.lookupCodeAction
+        .mockResolvedValueOnce(found("v2", "M", { available: 0, sold: false }, "Camisa"))
+        .mockResolvedValueOnce(found("v3", "XL", { available: 3, sold: false }, "Falda"));
+      scan("222");
+      await screen.findByText("222 · Sin existencias de la talla M en esta tienda");
+      scan("333");
+      await screen.findByText("Agregado: Falda (XL) · ×1");
+    }
+
+    it("el rechazo del primero sigue visible aunque el segundo se agregue, y no bloquea Cobrar", async () => {
+      await rejectedThenAdded();
+      expect(screen.getByText("222 · Sin existencias de la talla M en esta tienda")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^cobrar/i })).toBeEnabled();
+    });
+
+    it("Descartar quita la fila rechazada", async () => {
+      await rejectedThenAdded();
+      fireEvent.click(screen.getByRole("button", { name: "Descartar 222" }));
+      expect(screen.queryByText(/^222 ·/)).toBeNull();
+    });
+
+    it("releer el mismo código reemplaza la fila con una consulta nueva", async () => {
+      await rejectedThenAdded();
+      actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "M", { available: 2, sold: false }, "Camisa"));
+      scan("222");
+      await screen.findByText("Agregado: Camisa (M) · ×1");
+      expect(screen.queryByText(/^222 ·/)).toBeNull();
+    });
+
+    it("tras la venta se lista en el aviso con su motivo y la fila se limpia", async () => {
+      actions.createSaleAction.mockResolvedValue(okSale);
+      await rejectedThenAdded();
+      fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+      expect(
+        await screen.findByText(/Venta #9 registrada\. No se agregaron: 222 \(Sin existencias de la talla M en esta tienda\)\./),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Descartar 222" })).toBeNull();
+    });
+
+    it("un código que no existe deja una fila con el motivo", async () => {
+      await ready();
+      actions.lookupCodeAction.mockResolvedValueOnce({ found: false, code: "999" });
+      scan("999");
+      expect(await screen.findByText(/^999 · No encontramos el código/)).toBeInTheDocument();
     });
   });
 

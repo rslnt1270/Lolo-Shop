@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import type { DraftLine } from "@/lib/sales/use-sale-draft";
 
 /** Lectura en curso, por código normalizado (no por variantId: aún no se sabe qué prenda es). */
-export type PendingScan = { code: string; status: "loading" | "error" | "queued"; extra?: number };
+export type PendingScan = { code: string; status: "loading" | "error" | "queued" | "rejected"; extra?: number; reason?: string };
 
 type Props = {
   lines: DraftLine[];
@@ -96,6 +96,13 @@ function PendingRows({
             <p className="text-sm text-on-surface-variant">{`Buscando ${p.code}…${waiting(p)}`}</p>
           ) : p.status === "queued" ? (
             <p className="text-sm text-on-surface-variant">{`Pendiente para la siguiente venta: ${p.code}${waiting(p)}`}</p>
+          ) : p.status === "rejected" ? (
+            <>
+              <p className="text-sm font-semibold text-on-error-container">{`${p.code} · ${p.reason ?? ""}`}</p>
+              <Button variant="outline" onClick={() => onDiscard?.(p.code)} aria-label={`Descartar ${p.code}`}>
+                Descartar
+              </Button>
+            </>
           ) : (
             <>
               <p role="alert" className="text-sm font-semibold text-on-error-container">{`No se pudo buscar ${p.code}.${waiting(p)}`}</p>

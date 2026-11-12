@@ -157,4 +157,22 @@ describe("SaleCart filas pendientes con piezas extra", () => {
     expect(screen.getByText("Buscando 333… · ×3 en espera")).toBeInTheDocument();
     expect(screen.getByText("Pendiente para la siguiente venta: 444")).toBeInTheDocument();
   });
+
+  it("fila rechazada muestra código y motivo con Descartar", () => {
+    const onDiscard = vi.fn();
+    render(
+      <SaleCart
+        lines={[]}
+        canEditPrice={false}
+        onSetQty={() => {}}
+        onSetPrice={() => {}}
+        onRemove={() => {}}
+        onDiscard={onDiscard}
+        pendingScans={[{ code: "222", status: "rejected", reason: "Sin existencias de la talla M en esta tienda" }]}
+      />,
+    );
+    expect(screen.getByText("222 · Sin existencias de la talla M en esta tienda")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar 222" }));
+    expect(onDiscard).toHaveBeenCalledWith("222");
+  });
 });

@@ -34,6 +34,7 @@ function combineNotices(first: Notice, second: Notice): Notice {
   };
 }
 
+const NOT_FOUND_REASON = "No encontramos el código. Revisa que esté dado de alta.";
 const LOCATION_KEY = "loloshop:pos:location";
 
 export default function POSPage() {
@@ -54,7 +55,7 @@ export default function POSPage() {
   const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
   // Códigos con consulta en curso o fallida: una segunda lectura del mismo código no crea otra fila.
   // `extra`: piezas idénticas que llegaron mientras la primera consulta cargaba o esperaba.
-  const pendingRef = useRef(new Map<string, { status: "loading" | "error" | "queued"; extra: number }>());
+  const pendingRef = useRef(new Map<string, { status: "loading" | "error" | "queued" | "rejected"; extra: number; reason?: string }>());
   // Resultados que llegaron con un cobro en curso (o incierto): esperan para no alterar el carrito que se cobra.
   const heldRef = useRef(new Map<string, Extract<LookupCodeResult, { found: true }>>());
   const [cameraReady, setCameraReady] = useState(false);
@@ -123,22 +124,30 @@ export default function POSPage() {
   locationRef.current = locationId;
 
   const syncPending = () =>
-    setPendingScans(Array.from(pendingRef.current, ([c, p]) => ({ code: c, status: p.status, extra: p.extra })));
+    setPendingScans(Array.from(pendingRef.current, ([c, p]) => ({ code: c, status: p.status, extra: p.extra, reason: p.reason })));
 
-  const setPending = useCallback((code: string, status: "loading" | "error" | "queued" | null) => {
-    if (status) {
-      const prev = pendingRef.current.get(code);
-      // Las piezas extra sobreviven a loading -> queued -> error -> reintento; solo descartar la fila las quita.
-      pendingRef.current.set(code, { status, extra: prev ? prev.extra : 0 });
-    } else pendingRef.current.delete(code);
-    syncPending();
-  }, []);
+  const setPending = useCallback(
+    (code: string, status: "loading" | "error" | "queued" | "rejected" | null, reason?: string) => {
+      if (status) {
+        const prev = pendingRef.current.get(code);
+        // Las piezas extra sobreviven a loading -> queued -> error -> reintento; solo descartar la fila las quita.
+        // Una fila rechazada ya cerró su lectura: releer el código empieza de cero.
+        const extra = prev && prev.status !== "rejected" ? prev.extra : 0;
+        pendingRef.current.set(code, { status, extra, ...(status === "rejected" ? { reason } : {}) });
+      } else pendingRef.current.delete(code);
+      syncPending();
+    },
+    [],
+  );
 
   // Otra tienda: las existencias conocidas y las lecturas en espera ya no aplican.
   useEffect(() => {
     clearAvailability();
     for (const code of heldRef.current.keys()) setPending(code, null);
     heldRef.current.clear();
+    // Los rechazos de la otra tienda tampoco aplican aquí.
+    for (const [code, p] of Array.from(pendingRef.current)) if (p.status === "rejected") pendingRef.current.delete(code);
+    syncPending();
   }, [locationId, clearAvailability, setPending]);
 
   /** Agrega `pieces` piezas de la prenda al carrito (cada una valida existencias) y devuelve el resultado sin pintar el aviso. */
@@ -192,12 +201,20 @@ export default function POSPage() {
     [applyFound, noticeFor],
   );
 
-  /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
   /** Aviso de algo que llegó solo (consulta que terminó): no pisa el del cobro, se le agrega. */
   const notify = useCallback((n: Notice) => {
-    setNotice(lastOutcomeRef.current ? combineNotices(lastOutcomeRef.current, n) : n);
+    const base = lastOutcomeRef.current;
+    if (!base) {
+      setNotice(n);
+      return;
+    }
+    // Se acumula: dos consultas tardías no se pisan entre sí.
+    const next = combineNotices(base, n);
+    lastOutcomeRef.current = next;
+    setNotice(next);
   }, []);
 
+  /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
   const flushHeld = useCallback((): Notice | null => {
     if (submittingRef.current || lockRef.current) return null;
     const items = Array.from(heldRef.current.entries());
@@ -206,7 +223,10 @@ export default function POSPage() {
     for (const [code, result] of items) {
       const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
       setPending(code, null);
-      outcomes.push(applyFound(result, pieces));
+      const outcome = applyFound(result, pieces);
+      outcomes.push(outcome);
+      // Nada entró al carrito: el motivo queda en una fila que no se tapa con el siguiente aviso.
+      if (outcome.added === 0 && outcome.rejected) setPending(code, "rejected", outcome.rejected);
     }
     return noticeFor(outcomes, true);
   }, [applyFound, noticeFor, setPending]);
@@ -227,7 +247,7 @@ export default function POSPage() {
         } else if (result.found) {
           const variant = result.product.variants.find((v) => v.id === result.variantId);
           if (!variant) {
-            setPending(code, null);
+            setPending(code, "rejected", NOT_FOUND_REASON);
             notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
           } else if (submittingRef.current || lockRef.current) {
             // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
@@ -236,15 +256,17 @@ export default function POSPage() {
           } else {
             const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
             setPending(code, null);
-            const next = noticeFor([applyFound(result, pieces)], pieces > 1);
+            const outcome = applyFound(result, pieces);
+            const next = noticeFor([outcome], pieces > 1);
             if (next) notify(next);
+            if (outcome.added === 0 && outcome.rejected) setPending(code, "rejected", outcome.rejected);
           }
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
           setPending(code, "error");
           notify({ kind: "error", text: result.error, login: result.error === SESSION_EXPIRED_TEXT });
         } else {
-          setPending(code, null);
+          setPending(code, "rejected", NOT_FOUND_REASON);
           notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
         }
       } catch {
@@ -269,7 +291,7 @@ export default function POSPage() {
       }
       // Mientras haya una consulta en curso de este código no se abre otra. Si quedó en error, releer es reintentar.
       const state = pendingRef.current.get(code);
-      if (state && state.status !== "error") {
+      if (state && (state.status === "loading" || state.status === "queued")) {
         // Otra pieza idéntica: queda en espera junto a la primera y se suma al llegar.
         state.extra += 1;
         syncPending();
@@ -286,13 +308,14 @@ export default function POSPage() {
 
   /** Quita las filas de lecturas fallidas: no deben pasar a la venta siguiente. */
   const clearErrorRows = useCallback(() => {
-    for (const [code, p] of Array.from(pendingRef.current)) if (p.status === "error") pendingRef.current.delete(code);
+    for (const [code, p] of Array.from(pendingRef.current)) if (p.status === "error" || p.status === "rejected") pendingRef.current.delete(code);
     syncPending();
   }, []);
 
   const discardScan = useCallback(
     (code: string) => {
-      if (pendingRef.current.get(code)?.status === "error") setPending(code, null);
+      const st = pendingRef.current.get(code)?.status;
+      if (st === "error" || st === "rejected") setPending(code, null);
     },
     [setPending],
   );
@@ -362,8 +385,8 @@ export default function POSPage() {
       } else if (result.ok) {
         // Las lecturas que fallaron durante el cobro no pasan a la venta siguiente: se avisan, no se borran en silencio.
         const failedCodes = Array.from(pendingRef.current)
-          .filter(([, p]) => p.status === "error")
-          .map(([c, p]) => (p.extra ? `${c} (×${1 + p.extra})` : c));
+          .filter(([, p]) => p.status === "error" || p.status === "rejected")
+          .map(([c, p]) => (p.status === "rejected" ? `${c} (${p.reason})` : p.extra ? `${c} (×${1 + p.extra})` : c));
         const lost = failedCodes.length
           ? ` No se agregaron: ${failedCodes.join(", ")}. Escanéalos de nuevo si van en otra venta.`
           : "";
