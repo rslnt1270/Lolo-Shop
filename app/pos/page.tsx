@@ -206,6 +206,19 @@ export default function POSPage() {
     [locationId, runLookup],
   );
 
+  /** Quita las filas de lecturas fallidas: no deben pasar a la venta siguiente. */
+  const clearErrorRows = useCallback(() => {
+    for (const [code, st] of Array.from(pendingRef.current)) if (st === "error") pendingRef.current.delete(code);
+    setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
+  }, []);
+
+  const discardScan = useCallback(
+    (code: string) => {
+      if (pendingRef.current.get(code) === "error") setPending(code, null);
+    },
+    [setPending],
+  );
+
   const retryScan = useCallback(
     (code: string) => {
       if (!locationId || pendingRef.current.get(code) === "loading") return;
@@ -271,6 +284,7 @@ export default function POSPage() {
         });
         setAlias("");
         setLock(null);
+        clearErrorRows();
         draft.reset();
       } else if (result.code === "PRICE_CHANGED" && result.lines?.length) {
         // El precio cambió con el carrito abierto: se cobra al vigente. El carrito cambió, así que es otro cobro.
@@ -324,6 +338,7 @@ export default function POSPage() {
   const startNewSale = () => {
     setConfirmingNew(false);
     setLock(null);
+    clearErrorRows();
     setStockError(null);
     setAlias("");
     draft.reset();
@@ -438,14 +453,14 @@ export default function POSPage() {
                 <div className="space-y-3">
                   <p className="text-sm">Si la venta sí se registró, no la vuelvas a cobrar.</p>
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={startNewSale}>Sí, empezar otra venta</Button>
+                    <Button disabled={submitting} onClick={startNewSale}>Sí, empezar otra venta</Button>
                     <Button variant="outline" onClick={() => setConfirmingNew(false)}>
                       Cancelar
                     </Button>
                   </div>
                 </div>
               ) : (
-                <Button variant="outline" onClick={() => setConfirmingNew(true)}>
+                <Button variant="outline" disabled={submitting} onClick={() => setConfirmingNew(true)}>
                   Ya revisé en Ventas: empezar otra venta
                 </Button>
               )}
@@ -459,9 +474,10 @@ export default function POSPage() {
             onSetQty={draft.setQty}
             onSetPrice={draft.setPrice}
             onRemove={draft.remove}
-            locked={lock !== null}
+            locked={lock !== null || submitting}
             pendingScans={pendingScans}
             onRetry={retryScan}
+            onDiscard={discardScan}
           />
 
           <div className="rounded-2xl border border-outline-variant bg-white p-4">
@@ -472,6 +488,7 @@ export default function POSPage() {
               onChannel={setChannel}
               onMethod={setMethod}
               onAlias={setAlias}
+              disabled={lock !== null || submitting}
             />
           </div>
 
@@ -483,7 +500,7 @@ export default function POSPage() {
             ) : lock === "conflict" ? null : (
               <Button
                 onClick={() => void charge()}
-                disabled={lines.length === 0 || pendingScans.some((p) => p.status === "loading")}
+                disabled={lines.length === 0 || pendingScans.some((p) => p.status === "loading" || p.status === "error")}
                 loading={submitting}
                 aria-describedby={lines.length === 0 ? "cobrar-ayuda" : undefined}
                 className="min-h-[52px] w-full text-lg"

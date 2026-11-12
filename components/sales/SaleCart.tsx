@@ -21,6 +21,8 @@ type Props = {
   /** Lecturas con la consulta en curso o fallida; se muestran arriba de las líneas. */
   pendingScans?: PendingScan[];
   onRetry?: (code: string) => void;
+  /** Descarta una lectura fallida. */
+  onDiscard?: (code: string) => void;
   /** Cobro incierto o en conflicto: no se editan cantidades, precios ni líneas. */
   locked?: boolean;
 };
@@ -73,7 +75,15 @@ function PriceField({ line, onCommit, locked }: { line: DraftLine; onCommit: (pr
   );
 }
 
-function PendingRows({ pendingScans, onRetry }: { pendingScans: PendingScan[]; onRetry?: (code: string) => void }) {
+function PendingRows({
+  pendingScans,
+  onRetry,
+  onDiscard,
+}: {
+  pendingScans: PendingScan[];
+  onRetry?: (code: string) => void;
+  onDiscard?: (code: string) => void;
+}) {
   if (pendingScans.length === 0) return null;
   return (
     <ul aria-label="Lecturas en curso" className="divide-y divide-outline-variant border-b border-outline-variant">
@@ -89,6 +99,9 @@ function PendingRows({ pendingScans, onRetry }: { pendingScans: PendingScan[]; o
               <Button variant="outline" onClick={() => onRetry?.(p.code)} aria-label={`Reintentar ${p.code}`}>
                 Reintentar
               </Button>
+              <Button variant="outline" onClick={() => onDiscard?.(p.code)} aria-label={`Descartar ${p.code}`}>
+                Descartar
+              </Button>
             </>
           )}
         </li>
@@ -97,13 +110,13 @@ function PendingRows({ pendingScans, onRetry }: { pendingScans: PendingScan[]; o
   );
 }
 
-export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSetPrice, onRemove, pendingScans = [], onRetry, locked = false }: Props) {
+export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSetPrice, onRemove, pendingScans = [], onRetry, onDiscard, locked = false }: Props) {
   const total = saleTotal(lines);
 
   if (lines.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-outline bg-white text-center text-on-surface-variant">
-        <PendingRows pendingScans={pendingScans} onRetry={onRetry} />
+        <PendingRows pendingScans={pendingScans} onRetry={onRetry} onDiscard={onDiscard} />
         <div className="p-6">
           <p className="font-semibold text-on-surface">Aún no hay prendas en la venta</p>
           <p className="mt-1 text-sm">Escanea una prenda o escribe su código para agregarla.</p>
@@ -114,7 +127,7 @@ export function SaleCart({ lines, canEditPrice, lineErrors = {}, onSetQty, onSet
 
   return (
     <div className="rounded-2xl border border-outline-variant bg-white shadow-sm">
-      <PendingRows pendingScans={pendingScans} onRetry={onRetry} />
+      <PendingRows pendingScans={pendingScans} onRetry={onRetry} onDiscard={onDiscard} />
       <ul className="divide-y divide-outline-variant">
         {lines.map((line) => {
           const error = lineErrors[line.variantId];

@@ -242,4 +242,105 @@ describe("/pos escaneo continuo", () => {
     expect(screen.queryByText("Playera")).toBeNull();
     expect(screen.queryByText(/Pendiente para la siguiente venta/)).toBeNull();
   });
+
+  describe("revisión final", () => {
+    const okSale = { ok: true, sale: { number: 9, status: "paid" } };
+    const cobrarBtn = () => screen.getByRole("button", { name: /^cobrar/i });
+
+    async function withErrorRow() {
+      await ready();
+      scan("111");
+      await screen.findByText("Agregado: Playera (M) · ×1");
+      actions.lookupCodeAction.mockRejectedValueOnce(new Error("red"));
+      scan("222");
+      await screen.findByRole("button", { name: "Reintentar 222" });
+    }
+
+    it("una fila en error bloquea Cobrar hasta Reintentar o Descartar", async () => {
+      await withErrorRow();
+      expect(cobrarBtn()).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Descartar 222" }));
+      expect(screen.queryByRole("button", { name: "Reintentar 222" })).toBeNull();
+      expect(cobrarBtn()).toBeEnabled();
+
+      actions.lookupCodeAction.mockRejectedValueOnce(new Error("red"));
+      scan("333");
+      fireEvent.click(await screen.findByRole("button", { name: "Reintentar 333" }));
+      await screen.findByText("Agregado: Playera (M) · ×2");
+      expect(cobrarBtn()).toBeEnabled();
+    });
+
+    it("las filas en error se borran tras una venta exitosa", async () => {
+      actions.createSaleAction.mockResolvedValue(okSale);
+      await withErrorRow();
+      fireEvent.click(screen.getByRole("button", { name: "Descartar 222" }));
+      actions.lookupCodeAction.mockRejectedValueOnce(new Error("red"));
+      scan("333");
+      await screen.findByRole("button", { name: "Reintentar 333" });
+      // La fila de error queda en pantalla pero el cobro exige resolverla; se simula una que aparece durante el cobro.
+      fireEvent.click(screen.getByRole("button", { name: "Descartar 333" }));
+      const sale = (() => {
+        let resolve!: (v: unknown) => void;
+        const promise = new Promise((r) => (resolve = r));
+        return { promise, resolve };
+      })();
+      actions.createSaleAction.mockReset();
+      actions.createSaleAction.mockReturnValueOnce(sale.promise);
+      fireEvent.click(cobrarBtn());
+      await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(1));
+      actions.lookupCodeAction.mockRejectedValueOnce(new Error("red"));
+      scan("444");
+      await screen.findByRole("button", { name: "Reintentar 444" });
+      await act(async () => sale.resolve(okSale));
+      await screen.findByText(/Venta #9 registrada/);
+      expect(screen.queryByRole("button", { name: "Reintentar 444" })).toBeNull();
+    });
+
+    it("las filas en error se borran al empezar otra venta", async () => {
+      actions.createSaleAction.mockRejectedValueOnce(new Error("red"));
+      await ready();
+      scan("111");
+      await screen.findByText("Agregado: Playera (M) · ×1");
+      fireEvent.click(cobrarBtn());
+      await screen.findByText(/no sabemos si la venta se registró/i);
+      actions.lookupCodeAction.mockRejectedValueOnce(new Error("red"));
+      scan("222");
+      await screen.findByRole("button", { name: "Reintentar 222" });
+      fireEvent.click(screen.getByRole("button", { name: /ya revisé en ventas/i }));
+      fireEvent.click(screen.getByRole("button", { name: /sí, empezar otra venta/i }));
+      expect(screen.queryByRole("button", { name: "Reintentar 222" })).toBeNull();
+    });
+
+    it("con el cobro sin resolver, carrito, pago y 'empezar otra venta' quedan deshabilitados", async () => {
+      let resolve!: (v: unknown) => void;
+      actions.createSaleAction.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      await ready();
+      scan("111");
+      await screen.findByText("Agregado: Playera (M) · ×1");
+      fireEvent.click(cobrarBtn());
+      await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(1));
+      expect(screen.getByRole("button", { name: /sumar una pieza de playera/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /quitar playera/i })).toBeDisabled();
+      expect(screen.getByLabelText("Tarjeta")).toBeDisabled();
+      expect(screen.getByLabelText("WhatsApp")).toBeDisabled();
+      await act(async () => resolve({ ok: false, code: "UNAVAILABLE", message: "Lento." }));
+      const b = await screen.findByRole("button", { name: /ya revisé en ventas/i });
+      expect(b).toBeEnabled();
+    });
+
+    it("'Ya revisé en Ventas' está deshabilitado mientras se reintenta el cobro", async () => {
+      let resolve!: (v: unknown) => void;
+      actions.createSaleAction
+        .mockRejectedValueOnce(new Error("red"))
+        .mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      await ready();
+      scan("111");
+      await screen.findByText("Agregado: Playera (M) · ×1");
+      fireEvent.click(cobrarBtn());
+      fireEvent.click(await screen.findByRole("button", { name: "Reintentar cobro" }));
+      await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(2));
+      expect(screen.getByRole("button", { name: /ya revisé en ventas/i })).toBeDisabled();
+      await act(async () => resolve(okSale));
+    });
+  });
 });
