@@ -233,9 +233,51 @@ describe("/pos escaneo continuo", () => {
       await screen.findByText("Pendiente para la siguiente venta: 333");
       await act(async () => sale.resolve(okSale));
       const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Venta #9 registrada");
       expect(alert).toHaveTextContent("Sin existencias de la talla L en esta tienda: Camisa. Se agregó 1 prenda.");
       expect(screen.getByText("Falda")).toBeInTheDocument();
       expect(screen.queryByText("Camisa")).toBeNull();
+    });
+
+    it("venta registrada con una lectura rechazada y una fila en error: el aviso conserva la venta, los códigos y el rechazo", async () => {
+      const sale = await chargingWithOneLine();
+      actions.lookupCodeAction
+        .mockResolvedValueOnce(found("v2", "L", { available: 0, sold: false }, "Camisa"))
+        .mockRejectedValueOnce(new Error("red"));
+      scan("222");
+      await screen.findByText("Pendiente para la siguiente venta: 222");
+      scan("444");
+      await screen.findByRole("button", { name: "Reintentar 444" });
+      await act(async () => sale.resolve(okSale));
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Venta #9 registrada");
+      expect(alert).toHaveTextContent("No se agregaron: 444");
+      expect(alert).toHaveTextContent("Sin existencias de la talla L en esta tienda: Camisa.");
+    });
+
+    it("un aviso PRICE_CHANGED no lo reemplaza un Agregado de la cola", async () => {
+      const sale = await chargingWithOneLine();
+      actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "L", { available: 3, sold: false }, "Camisa"));
+      scan("222");
+      await screen.findByText("Pendiente para la siguiente venta: 222");
+      await act(async () => sale.resolve({ ok: false, code: "PRICE_CHANGED", message: "x", lines: [{ variantId: "v1", price: 150 }] }));
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("El precio de Playera cambió");
+      expect(alert).toHaveTextContent("Agregado: Camisa (L) · ×1");
+    });
+
+    it("dos piezas con la consulta fallida: Reintentar conserva el ×2", async () => {
+      let fail!: (e: unknown) => void;
+      actions.lookupCodeAction.mockReturnValueOnce(new Promise((_, rej) => (fail = rej)));
+      await ready();
+      scan("111");
+      await screen.findByText("Buscando 111…");
+      scan("111");
+      await screen.findByText("Otra pieza de 111 en espera (×2).");
+      await act(async () => fail(new Error("red")));
+      expect(await screen.findByText("No se pudo buscar 111. · ×2 en espera")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Reintentar 111" }));
+      expect(await screen.findByText("Agregado: Playera (M) · ×2")).toBeInTheDocument();
     });
 
     it("segunda pieza del mismo código durante el cobro queda en espera ×2 y se suma al terminar", async () => {
@@ -247,7 +289,7 @@ describe("/pos escaneo continuo", () => {
       expect(await screen.findByText("Otra pieza de 222 en espera (×2).")).toBeInTheDocument();
       expect(screen.getByText("Pendiente para la siguiente venta: 222 · ×2 en espera")).toBeInTheDocument();
       await act(async () => sale.resolve(okSale));
-      expect(await screen.findByText("Agregado: Camisa (L) · ×2")).toBeInTheDocument();
+      expect(await screen.findByRole("status")).toHaveTextContent(/Venta #9 registrada\. Agregado: Camisa \(L\) · ×2/);
       expect(actions.lookupCodeAction).toHaveBeenCalledTimes(2);
       expect(screen.getByText("×2")).toBeInTheDocument();
     });

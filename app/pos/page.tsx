@@ -116,8 +116,8 @@ export default function POSPage() {
   const setPending = useCallback((code: string, status: "loading" | "error" | "queued" | null) => {
     if (status) {
       const prev = pendingRef.current.get(code);
-      // Las piezas extra sobreviven a loading -> queued; releer una fila en error es reintentar desde cero.
-      pendingRef.current.set(code, { status, extra: status === "error" || !prev ? 0 : prev.extra });
+      // Las piezas extra sobreviven a loading -> queued -> error -> reintento; solo descartar la fila las quita.
+      pendingRef.current.set(code, { status, extra: prev ? prev.extra : 0 });
     } else pendingRef.current.delete(code);
     syncPending();
   }, []);
@@ -180,8 +180,8 @@ export default function POSPage() {
   );
 
   /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
-  const flushHeld = useCallback(() => {
-    if (submittingRef.current || lockRef.current) return;
+  const flushHeld = useCallback((): Notice | null => {
+    if (submittingRef.current || lockRef.current) return null;
     const items = Array.from(heldRef.current.entries());
     heldRef.current.clear();
     const outcomes: ApplyOutcome[] = [];
@@ -190,8 +190,7 @@ export default function POSPage() {
       setPending(code, null);
       outcomes.push(applyFound(result, pieces));
     }
-    const next = noticeFor(outcomes, true);
-    if (next) setNotice(next);
+    return noticeFor(outcomes, true);
   }, [applyFound, noticeFor, setPending]);
 
   const runLookup = useCallback(
@@ -317,6 +316,11 @@ export default function POSPage() {
     submittingRef.current = true;
     setSubmitting(true);
     setNotice(null);
+    let outcome: Notice | null = null;
+    const say = (n: Notice) => {
+      outcome = n;
+      setNotice(n);
+    };
     setStockError(null);
     try {
       const trimmedAlias = alias.trim();
@@ -332,7 +336,7 @@ export default function POSPage() {
       });
       if (!result) {
         // Con la sesión vencida el middleware redirige y Next resuelve la acción con undefined.
-        setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
+        say({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
       } else if (result.ok) {
         // Las lecturas que fallaron durante el cobro no pasan a la venta siguiente: se avisan, no se borran en silencio.
         const failedCodes = Array.from(pendingRef.current)
@@ -341,7 +345,7 @@ export default function POSPage() {
         const lost = failedCodes.length
           ? ` No se agregaron: ${failedCodes.join(", ")}. Escanéalos de nuevo si van en otra venta.`
           : "";
-        setNotice({
+        say({
           kind: "ok",
           text:
             result.sale.status === "pending_payment"
@@ -366,32 +370,32 @@ export default function POSPage() {
         // El reintento con el mismo id termina en replay en cuanto ese cobro confirma. Solo una
         // respuesta definitiva permite renovarlo.
         if (!draft.isUncertain()) draft.renewRequestId();
-        setNotice({ kind: "error", text: `${notes.join(" ")} Revisa el total y cobra de nuevo.` });
+        say({ kind: "error", text: `${notes.join(" ")} Revisa el total y cobra de nuevo.` });
       } else if (result.reason === "request_conflict") {
         // Ese identificador ya es otra venta: el siguiente Cobrar registra una nueva con este carrito.
         draft.renewRequestId();
         // El carrito queda bloqueado: un Cobrar simple no debe volver a cobrar las líneas originales.
         setLock("conflict");
-        setNotice({ kind: "error", text: result.message });
+        say({ kind: "error", text: result.message });
       } else if (result.reason === "session_expired") {
-        setNotice({ kind: "error", text: result.message, login: true });
+        say({ kind: "error", text: result.message, login: true });
       } else if (result.code === "UNAVAILABLE") {
         // Resultado incierto: se reintenta con el mismo identificador.
         draft.markUncertain();
         setLock("uncertain");
-        setNotice({ kind: "error", text: result.message });
+        say({ kind: "error", text: result.message });
       } else {
         draft.markRejected(requestSignature);
         if (result.code === "NO_STOCK") {
           setStockError({ message: result.message, signature, variantId: result.variantId });
         } else {
-          setNotice({ kind: "error", text: result.message });
+          say({ kind: "error", text: result.message });
         }
       }
     } catch {
       draft.markUncertain();
       setLock("uncertain");
-      setNotice({
+      say({
         kind: "error",
         text: "No se pudo registrar la venta. Revisa tu conexión y vuelve a pulsar Cobrar: no se duplicará.",
       });
@@ -399,7 +403,20 @@ export default function POSPage() {
       submittingRef.current = false;
       setSubmitting(false);
       // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
-      flushHeld();
+      // El aviso del cobro va primero y no se pisa con el de las lecturas en espera.
+      const flushed = flushHeld();
+      if (flushed) {
+        const first = outcome as Notice | null;
+        if (!first) setNotice(flushed);
+        else {
+          const lead = /[.!?]$/.test(first.text) ? first.text : `${first.text}.`;
+          setNotice({
+            kind: first.kind === "error" || flushed.kind === "error" ? "error" : "ok",
+            text: `${lead} ${flushed.text}`,
+            ...(first.login || flushed.login ? { login: true } : {}),
+          });
+        }
+      }
     }
   };
 
@@ -410,8 +427,8 @@ export default function POSPage() {
     setStockError(null);
     setAlias("");
     draft.reset();
-    setNotice(null);
-    flushHeld();
+    const flushed = flushHeld();
+    setNotice(flushed);
   };
 
   if (status === "loading") {

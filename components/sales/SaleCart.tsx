@@ -98,7 +98,7 @@ function PendingRows({
             <p className="text-sm text-on-surface-variant">{`Pendiente para la siguiente venta: ${p.code}${waiting(p)}`}</p>
           ) : (
             <>
-              <p role="alert" className="text-sm font-semibold text-on-error-container">{`No se pudo buscar ${p.code}.`}</p>
+              <p role="alert" className="text-sm font-semibold text-on-error-container">{`No se pudo buscar ${p.code}.${waiting(p)}`}</p>
               <Button variant="outline" onClick={() => onRetry?.(p.code)} aria-label={`Reintentar ${p.code}`}>
                 Reintentar
               </Button>
