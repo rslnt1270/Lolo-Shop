@@ -24,6 +24,8 @@ import { withSession } from "@/lib/client/with-session";
 import { BrandCombobox } from "./BrandCombobox";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
 import { Button } from "@/components/ui/Button";
+import { AltaTour } from "./AltaTour";
+import { hasSeenTour, markTourSeen } from "@/lib/alta/tour-storage";
 
 export interface CreatedInfo {
   message: string;
@@ -187,6 +189,14 @@ export function NewProductForm({
    */
   const uncertainTitleRef = useRef<string | null>(null);
   const [likelySaved, setLikelySaved] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (!hasSeenTour()) setTourOpen(true);
+  }, []);
+  const closeTour = () => {
+    markTourSeen();
+    setTourOpen(false);
+  };
   const [formData, setFormData] = useState({
     title: "",
     departmentId: "",
@@ -517,7 +527,15 @@ export function NewProductForm({
         <h3 className="text-lg font-semibold text-gray-900">Nuevo producto</h3>
         {locationName && <p className="text-sm font-medium text-gray-800">Registrando en: {locationName}</p>}
         <p className="text-sm text-gray-500">Completa los datos y agrega una fila por talla.</p>
+        <button
+          type="button"
+          onClick={() => setTourOpen(true)}
+          className="inline-flex min-h-[44px] items-center text-sm font-medium text-turquesa-texto underline"
+        >
+          ¿Cómo registrar?
+        </button>
       </div>
+      <AltaTour open={tourOpen} onClose={closeTour} />
 
       <fieldset>
         <legend className="mb-1 block text-sm font-medium text-gray-700">¿Va al catálogo?</legend>
