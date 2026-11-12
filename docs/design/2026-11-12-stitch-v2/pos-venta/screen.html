@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=390, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<title>LoloShop - Vender</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "on-secondary-container": "#007070",
+            "primary-fixed-dim": "#54d9d9",
+            "surface-tint": "#006a6a",
+            "on-primary-fixed": "#002020",
+            "secondary-fixed-dim": "#7bd5d5",
+            "inverse-surface": "#2c3132",
+            "on-secondary-fixed": "#002020",
+            "surface": "#f6fafa",
+            "error-container": "#ffdad6",
+            "secondary-container": "#98f2f1",
+            "secondary": "#006a6a",
+            "surface-container-high": "#e5e9e9",
+            "outline-variant": "#bbc9c8",
+            "on-tertiary": "#ffffff",
+            "tertiary": "#a03f32",
+            "surface-container-low": "#f0f4f4",
+            "primary-fixed": "#75f6f6",
+            "on-tertiary-container": "#711d13",
+            "error": "#ba1a1a",
+            "on-secondary-fixed-variant": "#004f50",
+            "surface-container": "#ebefef",
+            "primary": "#006a6a",
+            "background": "#ffffff",
+            "on-primary-fixed-variant": "#004f50",
+            "on-primary": "#ffffff",
+            "tertiary-fixed-dim": "#ffb4a8",
+            "on-error-container": "#93000a",
+            "tertiary-fixed": "#ffdad4",
+            "inverse-primary": "#54d9d9",
+            "on-surface-variant": "#3c4949",
+            "on-secondary": "#ffffff",
+            "on-primary-container": "#004343",
+            "on-tertiary-fixed-variant": "#80281d",
+            "on-background": "#181c1d",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-highest": "#dfe3e3",
+            "inverse-on-surface": "#edf1f1",
+            "on-surface": "#181c1d",
+            "on-tertiary-fixed": "#410000",
+            "tertiary-container": "#fa8472",
+            "surface-bright": "#f6fafa",
+            "on-error": "#ffffff",
+            "surface-dim": "#d7dbdb",
+            "surface-variant": "#dfe3e3",
+            "primary-container": "#22b8b8",
+            "outline": "#6c7a79",
+            "secondary-fixed": "#98f2f1",
+            /* Strict Brand Custom Tokens */
+            "tinta": "#16302F",
+            "turquesa": "#22B8B8",
+            "turquesa-texto": "#0C7C7C",
+            "niebla": "#F3F7F7",
+            "borde-suave": "#E1E9E9",
+            "agotado": "#9A3B2E",
+            "disponible": "#1F7A4A",
+            "alerta-bg": "#FEF8E7",
+            "alerta-borde": "#F6E4AC",
+            "alerta-texto": "#8A5D00",
+            "texto-secundario": "#5C6E6D"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "2xl": "1rem",
+            "full": "9999px"
+          },
+          spacing: {
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "gutter": "0.75rem",
+            "space-xs": "0.25rem",
+            "space-md": "0.75rem",
+            "margin": "1rem",
+            "space-xl": "1.5rem"
+          },
+          fontFamily: {
+            "code-data": ["JetBrains Mono", "monospace"],
+            "body-default": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-hero": ["Plus Jakarta Sans", "sans-serif"],
+            "nav-label": ["Plus Jakarta Sans", "sans-serif"],
+            "button-text": ["Plus Jakarta Sans", "sans-serif"],
+            "input-text": ["Plus Jakarta Sans", "sans-serif"],
+            "headline-title": ["Plus Jakarta Sans", "sans-serif"]
+          },
+          fontSize: {
+            "code-data": ["14px", { lineHeight: "18px", fontWeight: "500" }],
+            "body-default": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "headline-hero": ["32px", { lineHeight: "38px", fontWeight: "800" }],
+            "nav-label": ["10px", { lineHeight: "12px", fontWeight: "600" }],
+            "button-text": ["15px", { lineHeight: "20px", fontWeight: "700" }],
+            "input-text": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "headline-title": ["20px", { lineHeight: "26px", fontWeight: "700" }]
+          },
+          boxShadow: {
+            "bottom-bar": "0px -4px 16px rgba(22, 48, 47, 0.06)"
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill-1 {
+      font-variation-settings: 'FILL' 1;
+    }
+    @keyframes scanbeam {
+      0% { transform: translateY(0); opacity: 0.8; }
+      50% { transform: translateY(140px); opacity: 1; }
+      100% { transform: translateY(0); opacity: 0.8; }
+    }
+    .scan-beam {
+      animation: scanbeam 2.4s ease-in-out infinite;
+    }
+    /* Hide scrollbars for crisp native feel */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    * {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-container-lowest text-tinta font-body-default text-body-default min-h-screen flex flex-col justify-between items-center antialiased select-none">
+<!-- Mobile Viewport Wrapper (390px) -->
+<div class="w-full max-w-[390px] min-h-screen flex flex-col bg-surface-container-lowest relative pb-52">
+<!-- 1. TOP BAR (TopAppBar Shared Component Anchor) -->
+<header class="sticky top-0 z-40 bg-surface-container-lowest border-b border-borde-suave h-14 flex items-center justify-between px-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-tinta text-2xl" data-icon="point_of_sale">point_of_sale</span>
+<h1 class="font-headline-title text-headline-title font-bold text-tinta tracking-tight">Vender</h1>
+</div>
+<button class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-borde-suave bg-surface-container-lowest hover:bg-niebla active:scale-95 transition-transform duration-150">
+<span class="text-xs font-semibold text-tinta">Tienda ejemplo ▾</span>
+</button>
+</header>
+<!-- MAIN SCROLLABLE CONTENT CANVAS -->
+<main class="flex-1 px-4 pt-3 flex flex-col gap-3">
+<!-- 2. CAMERA SCANNING VIEWFINDER -->
+<section class="flex flex-col gap-2.5">
+<div class="relative w-full h-[220px] rounded-2xl bg-[#0F172A] overflow-hidden flex flex-col items-center justify-between p-3 border border-slate-800">
+<!-- Top Pill Indicator -->
+<div class="z-20 flex items-center gap-2 bg-[#16302F]/85 backdrop-blur-none border border-white/10 px-3 py-1 rounded-full shadow-sm">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-[#1F7A4A]"></span>
+</span>
+<span class="text-xs font-medium text-white tracking-wide">Cámara abierta · escaneo continuo</span>
+</div>
+<!-- Crosshair Scanner Frame Box -->
+<div class="relative w-52 h-28 my-auto flex items-center justify-center">
+<!-- Corner Reticles in turquesa #22B8B8 -->
+<div class="absolute -top-1 -left-1 w-5 h-5 border-t-2 border-l-2 border-turquesa rounded-tl-sm"></div>
+<div class="absolute -top-1 -right-1 w-5 h-5 border-t-2 border-r-2 border-turquesa rounded-tr-sm"></div>
+<div class="absolute -bottom-1 -left-1 w-5 h-5 border-b-2 border-l-2 border-turquesa rounded-bl-sm"></div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 border-b-2 border-r-2 border-turquesa rounded-br-sm"></div>
+<!-- Animated Scan Beam -->
+<div class="scan-beam w-full h-0.5 bg-turquesa shadow-[0_0_10px_#22B8B8]"></div>
+<span class="material-symbols-outlined text-white/20 text-4xl select-none" data-icon="barcode_scanner">barcode_scanner</span>
+</div>
+<!-- Bottom Camera State / Lighting Hint -->
+<div class="z-20 w-full flex justify-between items-center px-1">
+<span class="text-[11px] font-mono text-slate-400 tracking-wider">EJ-884920</span>
+<button aria-label="Flashlight" class="text-white/80 hover:text-white p-1 rounded-md">
+<span class="material-symbols-outlined text-sm" data-icon="flash_on">flash_on</span>
+</button>
+</div>
+</div>
+<!-- Viewfinder Actions Controls -->
+<div class="flex items-center gap-2">
+<button class="flex-1 h-11 px-3 border-2 border-turquesa-texto text-turquesa-texto bg-surface-container-lowest rounded-xl flex items-center justify-center gap-2 font-button-text text-button-text active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined text-lg" data-icon="keyboard">keyboard</span>
+<span>Escribir código</span>
+</button>
+<button aria-label="Pausar o reanudar cámara" class="h-11 w-11 border-2 border-borde-suave bg-surface-container-lowest rounded-xl flex items-center justify-center text-tinta active:scale-95 transition-transform duration-150">
+<span class="material-symbols-outlined text-xl" data-icon="pause">pause</span>
+</button>
+</div>
+</section>
+<!-- 3. TOAST NOTIFICATION UNDER CAMERA (Success State) -->
+<section class="bg-[#EAF7EE] border border-[#1F7A4A]/20 text-disponible rounded-xl px-3 py-2.5 flex items-center justify-between">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-disponible text-lg shrink-0 fill-1" data-icon="check_circle">check_circle</span>
+<p class="text-xs font-semibold truncate text-disponible">
+            Agregado: Playera ejemplo (M) · <span class="font-code-data font-bold">×2</span>
+</p>
+</div>
+<span class="text-[11px] font-mono text-disponible/80 shrink-0">+$000</span>
+</section>
+<!-- 4. QUEUED SCANS BANNER -->
+<section class="bg-alerta-bg border border-alerta-borde text-alerta-texto rounded-xl p-3 flex items-start gap-2.5">
+<span class="material-symbols-outlined text-alerta-texto text-xl shrink-0 mt-0.5" data-icon="hourglass_top">hourglass_top</span>
+<div class="flex-1 text-xs">
+<p class="font-bold text-alerta-texto leading-4">2 lecturas en espera</p>
+<p class="text-alerta-texto/90 leading-4 mt-0.5">Entran al carrito cuando termine el cobro.</p>
+</div>
+</section>
+<!-- 5. LOCKED-CART BANNER (Danger/Warning state) -->
+<section class="bg-surface-container-lowest border-2 border-agotado rounded-xl p-3 flex flex-col gap-2.5">
+<div class="flex items-start gap-2">
+<span class="material-symbols-outlined text-agotado text-xl shrink-0" data-icon="error">error</span>
+<p class="text-xs font-medium text-tinta leading-relaxed">
+            No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas.
+          </p>
+</div>
+<button class="w-full py-2 px-3 border border-agotado text-agotado bg-surface-container-lowest rounded-lg text-xs font-button-text font-bold active:scale-95 transition-transform duration-150 text-center">
+          Ya revisé en Ventas: empezar otra venta
+        </button>
+</section>
+<!-- 6. CART LIST ("Venta") -->
+<section class="flex flex-col gap-2.5 pt-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<h2 class="text-base font-bold text-tinta tracking-tight">Venta</h2>
+<span class="bg-niebla border border-borde-suave text-tinta font-mono text-[11px] font-bold px-2 py-0.5 rounded-full">3 prendas</span>
+</div>
+<button class="text-xs text-turquesa-texto font-semibold hover:underline">Limpiar carrito</button>
+</div>
+<!-- Cart Item 1 -->
+<article class="bg-niebla border border-borde-suave rounded-2xl p-3 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-center gap-2.5">
+<!-- Thumbnail placeholder -->
+<div class="w-12 h-12 bg-surface-container-lowest border border-borde-suave rounded-lg flex items-center justify-center shrink-0 text-tinta/60">
+<span class="material-symbols-outlined text-2xl" data-icon="checkroom">checkroom</span>
+</div>
+<div>
+<h3 class="font-bold text-sm text-tinta leading-snug">Playera ejemplo</h3>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-code-data text-xs font-semibold px-1.5 py-0.5 bg-surface-container-lowest rounded border border-borde-suave text-tinta">Talla M</span>
+<span class="font-code-data text-xs font-bold text-turquesa-texto">×2</span>
+</div>
+<p class="text-[11px] text-texto-secundario mt-0.5">Quedan 3 en M en esta tienda</p>
+</div>
+</div>
+<!-- Price -->
+<div class="text-right">
+<span class="font-code-data text-base font-bold text-turquesa-texto tracking-tight">$000</span>
+</div>
+</div>
+<!-- Stepper & Quitar Row -->
+<div class="flex items-center justify-between pt-1 border-t border-borde-suave/80">
+<button aria-label="Quitar Playera ejemplo" class="text-agotado text-xs font-bold px-1 py-2 active:scale-95">
+              Quitar
+            </button>
+<!-- Stepper (44px touch targets) -->
+<div class="flex items-center bg-surface-container-lowest border border-borde-suave rounded-xl h-11">
+<button aria-label="Reducir cantidad" class="w-11 h-11 flex items-center justify-center text-tinta hover:bg-niebla rounded-l-xl active:scale-90 text-lg font-bold">
+                −
+              </button>
+<span class="w-9 text-center font-code-data text-sm font-bold text-tinta">2</span>
+<button aria-label="Aumentar cantidad" class="w-11 h-11 flex items-center justify-center text-tinta hover:bg-niebla rounded-r-xl active:scale-90 text-lg font-bold">
+                +
+              </button>
+</div>
+</div>
+</article>
+<!-- Cart Item 2 -->
+<article class="bg-niebla border border-borde-suave rounded-2xl p-3 flex flex-col gap-2.5">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-center gap-2.5">
+<!-- Thumbnail placeholder -->
+<div class="w-12 h-12 bg-surface-container-lowest border border-borde-suave rounded-lg flex items-center justify-center shrink-0 text-tinta/60">
+<span class="material-symbols-outlined text-2xl" data-icon="apparel">apparel</span>
+</div>
+<div>
+<h3 class="font-bold text-sm text-tinta leading-snug">Pantalón ejemplo</h3>
+<div class="flex items-center gap-2 mt-0.5">
+<span class="font-code-data text-xs font-semibold px-1.5 py-0.5 bg-surface-container-lowest rounded border border-borde-suave text-tinta">Talla 30</span>
+<span class="font-code-data text-xs font-bold text-turquesa-texto">×1</span>
+</div>
+<p class="text-[11px] text-texto-secundario mt-0.5">Queda 1 en 30</p>
+</div>
+</div>
+<!-- Price -->
+<div class="text-right">
+<span class="font-code-data text-base font-bold text-turquesa-texto tracking-tight">$000</span>
+</div>
+</div>
+<!-- Stepper & Quitar Row -->
+<div class="flex items-center justify-between pt-1 border-t border-borde-suave/80">
+<button aria-label="Quitar Pantalón ejemplo" class="text-agotado text-xs font-bold px-1 py-2 active:scale-95">
+              Quitar
+            </button>
+<!-- Stepper (44px touch targets) -->
+<div class="flex items-center bg-surface-container-lowest border border-borde-suave rounded-xl h-11">
+<button aria-label="Reducir cantidad" class="w-11 h-11 flex items-center justify-center text-tinta hover:bg-niebla rounded-l-xl active:scale-90 text-lg font-bold">
+                −
+              </button>
+<span class="w-9 text-center font-code-data text-sm font-bold text-tinta">1</span>
+<button aria-label="Aumentar cantidad" class="w-11 h-11 flex items-center justify-center text-tinta hover:bg-niebla rounded-r-xl active:scale-90 text-lg font-bold">
+                +
+              </button>
+</div>
+</div>
+</article>
+<!-- Total Row Summary -->
+<div class="flex justify-between items-baseline pt-2 pb-1 px-1">
+<div>
+<span class="text-base font-bold text-tinta">Total</span>
+<span class="text-xs text-texto-secundario block font-medium">IVA incluido (16%)</span>
+</div>
+<span class="font-code-data text-2xl font-black text-tinta tracking-tight">$000</span>
+</div>
+</section>
+</main>
+<!-- 7. STICKY BOTTOM ACTION BAR (Positioned directly ABOVE bottom nav) -->
+<div class="fixed bottom-16 left-0 right-0 z-40 max-w-[390px] mx-auto bg-surface-container-lowest border-t border-borde-suave px-4 py-2.5 shadow-bottom-bar flex flex-col gap-2">
+<!-- Payment Method Chips -->
+<div class="grid grid-cols-3 gap-2">
+<!-- Efectivo (Selected with turquesa fill & tinta text) -->
+<button class="h-10 rounded-xl bg-turquesa text-tinta font-button-text font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform duration-100">
+<span class="material-symbols-outlined text-base" data-icon="payments">payments</span>
+<span>Efectivo</span>
+</button>
+<!-- Tarjeta (Outline) -->
+<button class="h-10 rounded-xl bg-surface-container-lowest border-2 border-turquesa-texto text-turquesa-texto font-button-text font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform duration-100">
+<span class="material-symbols-outlined text-base" data-icon="credit_card">credit_card</span>
+<span>Tarjeta</span>
+</button>
+<!-- Transferencia (Outline) -->
+<button class="h-10 rounded-xl bg-surface-container-lowest border-2 border-turquesa-texto text-turquesa-texto font-button-text font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-transform duration-100">
+<span class="material-symbols-outlined text-base" data-icon="currency_exchange">currency_exchange</span>
+<span>Transf.</span>
+</button>
+</div>
+<!-- Full-Width Primary CTA Button -->
+<button class="w-full h-14 bg-turquesa text-tinta font-button-text font-extrabold text-base rounded-xl flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-xl" data-icon="shopping_bag">shopping_bag</span>
+<span>Cobrar $000</span>
+</button>
+</div>
+<!-- 8. BOTTOM NAVIGATION BAR (Shared Component Anchor) -->
+<nav aria-label="Navegación principal" class="fixed bottom-0 left-0 right-0 z-50 w-full max-w-[390px] mx-auto h-16 bg-surface-container-lowest border-t border-borde-suave flex items-center justify-between px-1 pb-[env(safe-area-inset-bottom)]">
+<!-- 1. Inicio -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-turquesa-texto active:scale-95 transition-transform duration-100 flex-1 py-1" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="home">home</span>
+<span class="font-nav-label text-[10px] mt-0.5">Inicio</span>
+</a>
+<!-- 2. Vender (ACTIVE: style_active_navigation mapping) -->
+<a class="flex flex-col items-center justify-center text-tinta bg-secondary-container rounded-lg px-1.5 py-1 active:scale-95 transition-transform duration-100 flex-1" href="#">
+<span class="material-symbols-outlined text-xl fill-1 text-tinta" data-icon="point_of_sale">point_of_sale</span>
+<span class="font-nav-label text-[10px] font-bold mt-0.5 text-tinta">Vender</span>
+</a>
+<!-- 3. Escanear -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-turquesa-texto active:scale-95 transition-transform duration-100 flex-1 py-1" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="barcode_scanner">barcode_scanner</span>
+<span class="font-nav-label text-[10px] mt-0.5">Escanear</span>
+</a>
+<!-- 4. Etiquetas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-turquesa-texto active:scale-95 transition-transform duration-100 flex-1 py-1" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="label">label</span>
+<span class="font-nav-label text-[10px] mt-0.5">Etiquetas</span>
+</a>
+<!-- 5. Productos -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-turquesa-texto active:scale-95 transition-transform duration-100 flex-1 py-1" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="inventory_2">inventory_2</span>
+<span class="font-nav-label text-[10px] mt-0.5">Productos</span>
+</a>
+<!-- 6. Ventas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-turquesa-texto active:scale-95 transition-transform duration-100 flex-1 py-1" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="receipt_long">receipt_long</span>
+<span class="font-nav-label text-[10px] mt-0.5">Ventas</span>
+</a>
+<!-- 7. Salir -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-agotado active:scale-95 transition-transform duration-100 flex-1 py-1" href="#">
+<span class="material-symbols-outlined text-xl" data-icon="logout">logout</span>
+<span class="font-nav-label text-[10px] mt-0.5">Salir</span>
+</a>
+</nav>
+</div>
+</body></html>

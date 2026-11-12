@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+
+<html class="h-full bg-surface-container-low" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>LoloShop - Inicio (Dueña)</title>
+<!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 with configuration -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-primary": "#ffffff",
+            "error-container": "#ffdad6",
+            "surface-dim": "#d7dbdb",
+            "inverse-on-surface": "#edf1f1",
+            "surface-tint": "#006a6a",
+            "on-background": "#181c1d",
+            "tertiary-container": "#fa8472",
+            "surface-container-lowest": "#ffffff",
+            "surface-container-high": "#e5e9e9",
+            "on-primary-container": "#004343",
+            "surface-container-low": "#f0f4f4",
+            "on-tertiary-fixed-variant": "#80281d",
+            "primary-container": "#22b8b8",
+            "outline": "#6c7a79",
+            "error": "#ba1a1a",
+            "primary-fixed-dim": "#54d9d9",
+            "secondary-fixed-dim": "#7bd5d5",
+            "primary": "#006a6a",
+            "surface-container-highest": "#dfe3e3",
+            "inverse-surface": "#2c3132",
+            "tertiary-fixed-dim": "#ffb4a8",
+            "on-tertiary-fixed": "#410000",
+            "surface-variant": "#dfe3e3",
+            "surface-bright": "#f6fafa",
+            "secondary": "#006a6a",
+            "on-surface-variant": "#3c4949",
+            "surface-container": "#ebefef",
+            "on-secondary-fixed-variant": "#004f50",
+            "on-error": "#ffffff",
+            "background": "#f6fafa",
+            "on-tertiary-container": "#711d13",
+            "primary-fixed": "#75f6f6",
+            "secondary-fixed": "#98f2f1",
+            "on-primary-fixed-variant": "#004f50",
+            "on-secondary-container": "#007070",
+            "on-error-container": "#93000a",
+            "outline-variant": "#bbc9c8",
+            "on-primary-fixed": "#002020",
+            "tertiary-fixed": "#ffdad4",
+            "tertiary": "#a03f32",
+            "inverse-primary": "#54d9d9",
+            "surface": "#f6fafa",
+            "on-tertiary": "#ffffff",
+            "on-surface": "#181c1d",
+            "secondary-container": "#98f2f1",
+            "on-secondary": "#ffffff",
+            "on-secondary-fixed": "#002020"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-sm": "0.5rem",
+            "space-lg": "1rem",
+            "margin": "1rem",
+            "space-md": "0.75rem",
+            "gutter": "0.75rem",
+            "space-xs": "0.25rem",
+            "space-xl": "1.5rem"
+          },
+          "fontFamily": {
+            "input-text": ["Plus Jakarta Sans"],
+            "headline-title": ["Plus Jakarta Sans"],
+            "headline-hero": ["Plus Jakarta Sans"],
+            "nav-label": ["Plus Jakarta Sans"],
+            "body-default": ["Plus Jakarta Sans"],
+            "button-text": ["Plus Jakarta Sans"],
+            "code-data": ["JetBrains Mono"]
+          },
+          "fontSize": {
+            "input-text": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "headline-title": ["20px", { "lineHeight": "26px", "fontWeight": "700" }],
+            "headline-hero": ["32px", { "lineHeight": "38px", "fontWeight": "800" }],
+            "nav-label": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "body-default": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "button-text": ["15px", { "lineHeight": "20px", "fontWeight": "700" }],
+            "code-data": ["14px", { "lineHeight": "18px", "fontWeight": "500" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-family: 'Material Symbols Outlined';
+      font-weight: normal;
+      font-style: normal;
+      display: inline-block;
+      line-height: 1;
+      text-transform: none;
+      letter-spacing: normal;
+      word-wrap: normal;
+      white-space: nowrap;
+      direction: ltr;
+      -webkit-font-smoothing: antialiased;
+      vertical-align: middle;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="h-full bg-surface-container-low text-on-surface antialiased flex justify-center font-body-default text-body-default selection:bg-primary-container selection:text-on-primary-container">
+<!-- Mobile Viewport Wrapper (390px reference) -->
+<div class="relative w-full max-w-[390px] min-h-screen bg-surface-container-lowest flex flex-col shadow-sm">
+<!-- Top App Bar / Safe Status Bar Spacer -->
+<header class="w-full pt-3 px-4 bg-surface-container-lowest">
+<div class="flex justify-between items-center py-2">
+<span class="font-code-data text-code-data text-outline font-semibold tracking-tight">09:41</span>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px]">signal_cellular_4_bar</span>
+<span class="material-symbols-outlined text-[16px]">wifi</span>
+<span class="material-symbols-outlined text-[18px]">battery_full</span>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 px-4 pt-2 pb-24 overflow-y-auto space-y-4">
+<!-- 1. Header Section -->
+<section class="space-y-1.5 pt-1">
+<h1 class="font-headline-hero text-headline-hero text-primary tracking-tight font-extrabold">
+          Hola, Dueña ejemplo
+        </h1>
+<div class="inline-flex items-center gap-1.5 bg-surface-container-low border border-outline-variant px-2.5 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="font-nav-label text-nav-label text-outline font-medium">Dueña · Todas las tiendas</span>
+</div>
+</section>
+<!-- 2. Primary Action Tiles (Side by side, exactly 112px tall) -->
+<section class="grid grid-cols-2 gap-3">
+<!-- Tile 1: Vender -->
+<button class="h-[112px] bg-primary-container rounded-[16px] p-3.5 flex flex-col justify-between text-left active:scale-95 transition-transform duration-150" type="button">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest/30 flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">point_of_sale</span>
+</div>
+<div>
+<span class="font-button-text text-button-text font-bold text-on-primary-container block leading-tight">Vender</span>
+<span class="font-nav-label text-[10px] text-on-primary-container/80 font-medium">Caja y cobro rápido</span>
+</div>
+</button>
+<!-- Tile 2: Escanear -->
+<button class="h-[112px] bg-primary-container rounded-[16px] p-3.5 flex flex-col justify-between text-left active:scale-95 transition-transform duration-150" type="button">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest/30 flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined text-[24px]">barcode_scanner</span>
+</div>
+<div>
+<span class="font-button-text text-button-text font-bold text-on-primary-container block leading-tight">Escanear</span>
+<span class="font-nav-label text-[10px] text-on-primary-container font-medium block">Alta o sumar piezas</span>
+</div>
+</button>
+</section>
+<!-- 3. Secondary Tiles Row (3 buttons side by side, 64px) -->
+<section class="grid grid-cols-3 gap-2.5">
+<button class="h-16 bg-surface-container-lowest border-2 border-secondary rounded-xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-secondary text-[20px]">inventory_2</span>
+<span class="font-button-text text-nav-label font-bold text-secondary">Productos</span>
+</button>
+<button class="h-16 bg-surface-container-lowest border-2 border-secondary rounded-xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-secondary text-[20px]">loyalty</span>
+<span class="font-button-text text-nav-label font-bold text-secondary">Etiquetas</span>
+</button>
+<button class="h-16 bg-surface-container-lowest border-2 border-secondary rounded-xl flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-transform duration-150" type="button">
+<span class="material-symbols-outlined text-secondary text-[20px]">receipt_long</span>
+<span class="font-button-text text-nav-label font-bold text-secondary">Ventas</span>
+</button>
+</section>
+<!-- 4. Card "Hoy" (Daily summary) -->
+<section class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant space-y-3">
+<div class="flex items-center justify-between">
+<span class="font-nav-label text-[11px] font-bold uppercase tracking-wider text-outline">HOY</span>
+<span class="inline-flex items-center gap-1 font-code-data text-code-data text-outline font-semibold bg-surface-container-lowest px-2 py-0.5 rounded border border-outline-variant">
+            0 ventas
+          </span>
+</div>
+<div class="flex items-baseline justify-between pt-0.5">
+<div class="font-code-data text-[28px] font-bold text-on-surface leading-none tracking-tight">
+            $000 <span class="font-body-default text-body-default font-normal text-on-surface-variant">vendido</span>
+</div>
+</div>
+<div class="pt-1 border-t border-outline-variant/60 flex justify-end">
+<a class="inline-flex items-center gap-0.5 font-button-text text-button-text text-secondary hover:text-primary font-bold" href="#">
+            Ver ventas
+            <span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</a>
+</div>
+</section>
+<!-- 5. Card "Por publicar" -->
+<section class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant flex items-center justify-between gap-3">
+<div class="space-y-1">
+<div class="flex items-center gap-2">
+<span class="font-headline-title text-headline-title text-on-surface font-bold">Por publicar</span>
+<span class="bg-surface-container-lowest border border-secondary text-secondary text-[11px] font-code-data font-bold px-1.5 py-0.5 rounded-full leading-none">
+              3
+            </span>
+</div>
+<p class="font-body-default text-input-text text-on-surface leading-snug">
+            3 prendas con stock aún no están en el sitio web
+          </p>
+</div>
+<button class="shrink-0 bg-surface-container-lowest border-2 border-secondary text-secondary font-button-text text-button-text rounded-lg px-3.5 py-1.5 font-bold hover:bg-surface-container-high active:scale-95 transition-transform duration-150" type="button">
+          Revisar
+        </button>
+</section>
+<!-- 6. Card "Tiendas" -->
+<section class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant space-y-3">
+<div class="flex items-center justify-between">
+<h2 class="font-headline-title text-headline-title text-on-surface font-bold">Tiendas</h2>
+<button class="bg-surface-container-lowest border border-secondary text-secondary text-nav-label font-bold px-2.5 py-1 rounded-lg hover:bg-surface-container-high active:scale-95 transition-all" type="button">
+            + Tienda
+          </button>
+</div>
+<div class="divide-y divide-outline-variant/50">
+<div class="py-2.5 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-body-default font-medium text-on-surface">Tienda ejemplo</span>
+<span class="text-outline text-nav-label font-normal">(Tienda)</span>
+</div>
+<span class="font-code-data text-code-data font-bold text-on-surface">000 piezas</span>
+</div>
+<div class="py-2.5 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-body-default font-medium text-on-surface">Almacén ejemplo</span>
+<span class="text-outline text-nav-label font-normal">(Almacén)</span>
+</div>
+<span class="font-code-data text-code-data font-bold text-on-surface">000 piezas</span>
+</div>
+</div>
+</section>
+<!-- 7. Card "Poco stock" -->
+<section class="bg-surface-container-low rounded-2xl p-4 border border-outline-variant space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-tertiary text-[20px]" style="font-variation-settings: 'FILL' 1;">warning</span>
+<h2 class="font-headline-title text-headline-title text-on-surface font-bold">Poco stock</h2>
+</div>
+<span class="font-code-data text-nav-label font-bold text-tertiary bg-error-container/60 px-2 py-0.5 rounded-full border border-tertiary/20">
+            2 alertas
+          </span>
+</div>
+<div class="divide-y divide-outline-variant/50">
+<div class="py-2 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="font-body-default font-medium text-on-surface">Playera ejemplo · M</span>
+</div>
+<span class="font-code-data text-code-data font-bold text-tertiary">Quedan 1</span>
+</div>
+<div class="py-2 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="font-body-default font-medium text-on-surface">Playera ejemplo · L</span>
+</div>
+<span class="font-code-data text-code-data font-bold text-tertiary">Quedan 1</span>
+</div>
+</div>
+</section>
+</main>
+<!-- 8. Fixed Bottom Navigation Bar (7 destinations, exact active pill design) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-1 pt-1 pb-[env(safe-area-inset-bottom)] max-w-[390px] mx-auto bg-surface-container-lowest border-t border-outline-variant">
+<!-- Item 1: Inicio (Active) -->
+<a class="flex flex-col items-center justify-center text-on-primary-container bg-secondary-container rounded-xl px-2 py-1 font-bold active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-nav-label text-[10px] tracking-tight">Inicio</span>
+</a>
+<!-- Item 2: Vender -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 hover:bg-surface-container-low active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">point_of_sale</span>
+<span class="font-nav-label text-[10px] tracking-tight">Vender</span>
+</a>
+<!-- Item 3: Escanear -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 hover:bg-surface-container-low active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">barcode_scanner</span>
+<span class="font-nav-label text-[10px] tracking-tight">Escanear</span>
+</a>
+<!-- Item 4: Etiquetas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 hover:bg-surface-container-low active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">loyalty</span>
+<span class="font-nav-label text-[10px] tracking-tight">Etiquetas</span>
+</a>
+<!-- Item 5: Productos -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 hover:bg-surface-container-low active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span>
+<span class="font-nav-label text-[10px] tracking-tight">Productos</span>
+</a>
+<!-- Item 6: Ventas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 hover:bg-surface-container-low active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+<span class="font-nav-label text-[10px] tracking-tight">Ventas</span>
+</a>
+<!-- Item 7: Salir -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-1 hover:bg-surface-container-low active:scale-95 transition-transform duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="font-nav-label text-[10px] tracking-tight">Salir</span>
+</a>
+</nav>
+</div>
+</body></html>

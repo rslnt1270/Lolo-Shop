@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LoloShop - Productos</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500&amp;family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-tertiary": "#ffffff",
+            "primary": "#006a6a",
+            "surface-container-lowest": "#ffffff",
+            "surface-bright": "#f6fafa",
+            "on-tertiary-fixed-variant": "#80281d",
+            "outline-variant": "#bbc9c8",
+            "on-surface": "#181c1d",
+            "tertiary-fixed-dim": "#ffb4a8",
+            "on-primary": "#ffffff",
+            "secondary-fixed": "#98f2f1",
+            "outline": "#6c7a79",
+            "secondary-fixed-dim": "#7bd5d5",
+            "on-tertiary-container": "#711d13",
+            "on-secondary-fixed": "#002020",
+            "on-secondary-fixed-variant": "#004f50",
+            "surface": "#f6fafa",
+            "tertiary-fixed": "#ffdad4",
+            "tertiary-container": "#fa8472",
+            "error": "#ba1a1a",
+            "surface-container-high": "#e5e9e9",
+            "primary-fixed-dim": "#54d9d9",
+            "on-background": "#181c1d",
+            "secondary": "#006a6a",
+            "secondary-container": "#98f2f1",
+            "on-secondary": "#ffffff",
+            "inverse-on-surface": "#edf1f1",
+            "background": "#f6fafa",
+            "on-error-container": "#93000a",
+            "surface-dim": "#d7dbdb",
+            "primary-container": "#22b8b8",
+            "surface-container-highest": "#dfe3e3",
+            "surface-container": "#ebefef",
+            "on-error": "#ffffff",
+            "on-primary-fixed-variant": "#004f50",
+            "error-container": "#ffdad6",
+            "tertiary": "#a03f32",
+            "on-secondary-container": "#007070",
+            "on-primary-fixed": "#002020",
+            "inverse-surface": "#2c3132",
+            "on-tertiary-fixed": "#410000",
+            "inverse-primary": "#54d9d9",
+            "on-surface-variant": "#3c4949",
+            "surface-tint": "#006a6a",
+            "surface-variant": "#dfe3e3",
+            "on-primary-container": "#004343",
+            "surface-container-low": "#f0f4f4",
+            "primary-fixed": "#75f6f6",
+            "turquesa": "#22B8B8",
+            "tinta": "#16302F",
+            "turquesa-texto": "#0C7C7C",
+            "niebla": "#F3F7F7",
+            "agotado": "#9A3B2E",
+            "ok-color": "#1F7A4A",
+            "borde-sutil": "#E1E9E9"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-xs": "0.25rem",
+            "space-xl": "1.5rem",
+            "gutter": "0.75rem",
+            "space-sm": "0.5rem",
+            "margin": "1rem",
+            "space-lg": "1rem",
+            "space-md": "0.75rem"
+          },
+          "fontFamily": {
+            "code-data": ["JetBrains Mono"],
+            "headline-hero": ["Plus Jakarta Sans"],
+            "input-text": ["Plus Jakarta Sans"],
+            "headline-title": ["Plus Jakarta Sans"],
+            "button-text": ["Plus Jakarta Sans"],
+            "nav-label": ["Plus Jakarta Sans"],
+            "body-default": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "code-data": ["14px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "headline-hero": ["32px", { "lineHeight": "38px", "fontWeight": "800" }],
+            "input-text": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "headline-title": ["20px", { "lineHeight": "26px", "fontWeight": "700" }],
+            "button-text": ["15px", { "lineHeight": "20px", "fontWeight": "700" }],
+            "nav-label": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "body-default": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #FFFFFF;
+      color: #181c1d;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-white min-h-screen flex flex-col pb-24">
+<!-- TopAppBar -->
+<header class="sticky top-0 z-40 bg-surface w-full px-4 h-14 flex justify-between items-center border-b border-[#E1E9E9]">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">store</span>
+<h1 class="text-headline-title font-headline-title font-extrabold text-primary">Productos</h1>
+</div>
+<button class="bg-turquesa text-tinta font-button-text text-button-text px-4 py-2 rounded-xl flex items-center gap-1 active:scale-[0.98] transition-all duration-200">
+<span class="material-symbols-outlined text-lg">add</span>
+<span>+ Nuevo</span>
+</button>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 w-full max-w-[390px] mx-auto px-4 pt-4 flex flex-col gap-4">
+<!-- Search Input -->
+<div class="relative w-full">
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#7F9392]">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="w-full h-12 pl-11 pr-4 bg-white border border-[#7F9392] rounded-xl text-input-text font-input-text text-on-surface focus:outline-none focus:border-turquesa-texto focus:ring-1 focus:ring-turquesa-texto" placeholder="Buscar por nombre o código" type="text"/>
+</div>
+<!-- Filter Chips -->
+<div class="flex flex-col gap-2">
+<div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+<button class="h-10 px-4 bg-white border-2 border-turquesa-texto text-turquesa-texto font-nav-label text-nav-label rounded-full flex items-center justify-center whitespace-nowrap active:scale-[0.97] transition-all">
+          Todos
+        </button>
+<button class="h-10 px-4 bg-turquesa text-tinta font-nav-label text-nav-label rounded-full flex items-center gap-2 justify-center whitespace-nowrap shadow-sm active:scale-[0.97] transition-all">
+<span>Por publicar</span>
+<span class="bg-tinta text-on-primary text-[10px] px-1.5 py-0.5 rounded-full font-bold">3</span>
+</button>
+<button class="h-10 px-4 bg-white border-2 border-turquesa-texto text-turquesa-texto font-nav-label text-nav-label rounded-full flex items-center justify-center whitespace-nowrap active:scale-[0.97] transition-all">
+          Por revisar
+        </button>
+<button class="h-10 px-4 bg-white border-2 border-turquesa-texto text-turquesa-texto font-nav-label text-nav-label rounded-full flex items-center justify-center whitespace-nowrap active:scale-[0.97] transition-all">
+          Sin foto
+        </button>
+</div>
+<p class="text-xs text-[#3c4949] font-body-default px-1">Prendas con stock que aún no están en el sitio web.</p>
+</div>
+<!-- Product Rows List -->
+<div class="flex flex-col gap-3">
+<!-- 1. Playera ejemplo -->
+<div class="bg-niebla p-3 rounded-xl border border-[#E1E9E9] flex items-center justify-between gap-3">
+<div class="flex items-center gap-3">
+<div class="w-[56px] h-[56px] rounded-lg bg-white border border-[#E1E9E9] overflow-hidden flex-shrink-0 flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="Detailed flat lay photograph of a basic blank cotton t-shirt in neutral colors, neatly folded against a clean modern boutique studio background, soft natural lighting, high-contrast clarity, Spanish retail aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB5IbpkE_4Tn9ZAw_MgwS_v1ZpmJ74X0Dkrl6XKqwRaQnlluiTwW8pQhysIgyFE5h43fxlFrA0dj_PAenMIGbxZ3EoBJlaRCrys5_ldm0784e0_um8f8oH59Gs8UAA621m0HM-ZClRPCBSmSeIsW-TSCbtVon_ZVGtE0rlwpvugrH2nus51Ums4GV333rceBmbHKIufk2BMjIhnjh_gMV8coLwiCnBIFqiqgJL_10CfsvWmkqWVWEmhuIdK5ZGuzGbrOdC0cQFDOM9B"/>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-title text-on-surface text-sm font-bold leading-tight">Playera ejemplo</h3>
+<p class="text-xs text-[#3c4949] font-body-default">Marca ejemplo · Playera</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-code-data text-code-data text-on-surface bg-white px-1.5 py-0.5 rounded border border-[#E1E9E9]">CH M G</span>
+<span class="font-code-data text-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+</div>
+</div>
+<button class="bg-white border-2 border-turquesa-texto text-turquesa-texto font-button-text text-xs px-3 py-2 rounded-xl h-9 flex items-center justify-center active:scale-[0.97] transition-all flex-shrink-0">
+          Publicar
+        </button>
+</div>
+<!-- 2. Sudadera ejemplo -->
+<div class="bg-niebla p-3 rounded-xl border border-[#E1E9E9] flex items-center justify-between gap-3">
+<div class="flex items-center gap-3">
+<div class="w-[56px] h-[56px] rounded-lg bg-white border border-[#E1E9E9] overflow-hidden flex-shrink-0 flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="Detailed product shot of a cozy cotton hoodie sweatshirt folded cleanly on a minimalist retail surface, warm indoor lighting, high-contrast clarity, boutique retail aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnMkEZt2VV0r2ybQG1ouAoz07Ebj0gLqADB1KNXxix6oi3yngmn5nHneOWWhK4oDOnYTu2kIQTNGmQKiyruUytaY1CGVK_sS_XjiwAr3_GqHXf-iSZGBBKdBQ6LJvabLFijBWuMIxw2pruts3yI0aP_CbvgTwIEjYjmX0QOQrFpo_Cbmx3bPUhTQG4H1ytIjfGBJC-7ZbD-0mckCw-IQ1XgfxpmLVQoG82KAHW_2CqBNbZqwZiD6oNGRQS2_UJUVGI_pSIsx51-aIo"/>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-title text-on-surface text-sm font-bold leading-tight">Sudadera ejemplo</h3>
+<p class="text-xs text-[#3c4949] font-body-default">Marca ejemplo · Sudadera</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-code-data text-code-data text-on-surface bg-white px-1.5 py-0.5 rounded border border-[#E1E9E9]">CH M G XG</span>
+<span class="font-code-data text-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+</div>
+</div>
+<button class="bg-white border-2 border-turquesa-texto text-turquesa-texto font-button-text text-xs px-3 py-2 rounded-xl h-9 flex items-center justify-center active:scale-[0.97] transition-all flex-shrink-0">
+          Publicar
+        </button>
+</div>
+<!-- 3. Pantalón ejemplo -->
+<div class="bg-niebla p-3 rounded-xl border border-[#E1E9E9] flex items-center justify-between gap-3">
+<div class="flex items-center gap-3">
+<div class="w-[56px] h-[56px] rounded-lg bg-white border border-[#E1E9E9] flex-shrink-0 flex flex-col items-center justify-center text-[#7F9392]">
+<span class="material-symbols-outlined text-xl">photo_camera</span>
+<span class="text-[9px] font-bold mt-0.5">Sin foto</span>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-title text-on-surface text-sm font-bold leading-tight">Pantalón ejemplo</h3>
+<p class="text-xs text-[#3c4949] font-body-default">Marca ejemplo · Pantalón</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-code-data text-code-data text-on-surface bg-white px-1.5 py-0.5 rounded border border-[#E1E9E9]">28 30 32</span>
+<span class="font-code-data text-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+</div>
+</div>
+<button class="bg-white border-2 border-turquesa-texto text-turquesa-texto font-button-text text-xs px-3 py-2 rounded-xl h-9 flex items-center justify-center active:scale-[0.97] transition-all flex-shrink-0">
+          Publicar
+        </button>
+</div>
+<!-- 4. Vestido ejemplo -->
+<div class="bg-niebla p-3 rounded-xl border border-[#E1E9E9] flex items-center justify-between gap-3">
+<div class="flex items-center gap-3">
+<div class="w-[56px] h-[56px] rounded-lg bg-white border border-[#E1E9E9] overflow-hidden flex-shrink-0 flex items-center justify-center">
+<img class="w-full h-full object-cover" data-alt="Elegant boutique dress hanging neatly on a minimalist hanger against a clean white wall background, professional retail lighting, high-contrast clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDamyzvKiZIpT4IVNCMrdXeKEMjKXlyohfaHdtukzTd6ksQ5yDnFF0q8vP6nebKx-iBvZbBDYVM06sKSIvIO1lnWzUzeu3NbjcJuDDDdIpeba5S2PJeg58pxE_pvBXe9s1Y1Vekz1U_rBCQNbN5Q_GlzgLTeADe5Undq4bvPAAhLLc3abZkR9WJ4u04ZTvi1EXY5sdg4zdyZVy63K4W0AFuJ1FTkQivAK3JMzMvA1KRRlx7Q8cNnzwnv3giDI2i5HahYznOLLKxW2qZ"/>
+</div>
+<div class="flex flex-col">
+<h3 class="font-headline-title text-on-surface text-sm font-bold leading-tight">Vestido ejemplo</h3>
+<p class="text-xs text-[#3c4949] font-body-default">Marca ejemplo · Vestido</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="font-code-data text-code-data text-on-surface bg-white px-1.5 py-0.5 rounded border border-[#E1E9E9]">CH M</span>
+<span class="font-code-data text-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-[#E1E9E9] flex-shrink-0">
+<div class="w-2 h-2 rounded-full bg-ok-color"></div>
+<span class="text-xs font-bold text-ok-color">Publicado</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-1 py-2 bg-surface shadow-[0px_-4px_16px_rgba(22,48,47,0.06)]">
+<!-- Inicio -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">home</span>
+<span class="font-nav-label text-nav-label mt-0.5">Inicio</span>
+</a>
+<!-- Vender -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">point_of_sale</span>
+<span class="font-nav-label text-nav-label mt-0.5">Vender</span>
+</a>
+<!-- Escanear -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">barcode_scanner</span>
+<span class="font-nav-label text-nav-label mt-0.5">Escanear</span>
+</a>
+<!-- Etiquetas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">local_offer</span>
+<span class="font-nav-label text-nav-label mt-0.5">Etiquetas</span>
+</a>
+<!-- Productos (Active) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-nav-label text-nav-label mt-0.5 font-bold">Productos</span>
+</a>
+<!-- Ventas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">receipt_long</span>
+<span class="font-nav-label text-nav-label mt-0.5">Ventas</span>
+</a>
+<!-- Salir -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-[0.98] transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">logout</span>
+<span class="font-nav-label text-nav-label mt-0.5">Salir</span>
+</a>
+</nav>
+</body></html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LoloShop | Favoritos</title>
+<!-- Tailwind CSS Script -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "surface-container-lowest": "#ffffff",
+              "on-primary": "#16302F",
+              "surface": "#ffffff",
+              "on-surface": "#16302F",
+              "surface-variant": "#F3F7F7",
+              "outline": "#7F9392",
+              "outline-variant": "#E1E9E9",
+              "primary": "#22B8B8",
+              "primary-container": "#22B8B8",
+              "on-primary-container": "#16302F",
+              "turquesa": "#22B8B8",
+              "turquesa-texto": "#0C7C7C",
+              "tinta": "#16302F",
+              "niebla": "#F3F7F7",
+              "agotado": "#9A3B2E",
+              "disponible": "#1F7A4A",
+            },
+            borderRadius: {
+              DEFAULT: "0.25rem",
+              lg: "0.5rem",
+              xl: "0.75rem",
+              full: "9999px"
+            },
+            spacing: {
+              "space-sm": "0.5rem",
+              "gutter": "0.75rem",
+              "space-xl": "1.5rem",
+              "space-lg": "1rem",
+              "space-xs": "0.25rem",
+              "margin": "1rem",
+              "space-md": "0.75rem"
+            },
+            fontFamily: {
+              "nav-label": ["Plus Jakarta Sans"],
+              "headline-title": ["Plus Jakarta Sans"],
+              "input-text": ["Plus Jakarta Sans"],
+              "headline-hero": ["Plus Jakarta Sans"],
+              "code-data": ["JetBrains Mono"],
+              "body-default": ["Plus Jakarta Sans"],
+              "button-text": ["Plus Jakarta Sans"]
+            },
+            fontSize: {
+              "nav-label": ["11px", { lineHeight: "14px", fontWeight: "600" }],
+              "headline-title": ["20px", { lineHeight: "26px", fontWeight: "700" }],
+              "input-text": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "headline-hero": ["32px", { lineHeight: "38px", fontWeight: "800" }],
+              "code-data": ["14px", { lineHeight: "18px", fontWeight: "500" }],
+              "body-default": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "button-text": ["15px", { lineHeight: "20px", fontWeight: "700" }]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface text-tinta font-body-default antialiased selection:bg-primary/20">
+<!-- TopAppBar JSON & Layout execution -->
+<header class="fixed top-0 left-0 w-full z-50 flex items-center justify-between px-space-lg h-14 bg-surface-container-lowest max-w-[390px] mx-auto right-0 border-b border-outline-variant">
+<a class="text-turquesa-texto font-nav-label text-[14px] flex items-center gap-1 hover:opacity-80 transition-all" href="#">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+            Catálogo
+        </a>
+<div class="font-headline-hero text-[18px] text-turquesa-texto tracking-tight font-extrabold">
+            LoloShop
+        </div>
+<div class="w-16"></div> <!-- spacer for balance -->
+</header>
+<!-- Main Container -->
+<main class="max-w-[390px] mx-auto min-h-screen pt-20 pb-12 px-margin flex flex-col gap-space-lg">
+<!-- Page Title -->
+<h1 class="text-[#0E9494] text-[32px] font-extrabold tracking-tight">Favoritos</h1>
+<!-- Info Card -->
+<div class="bg-niebla p-space-lg rounded-xl border border-outline-variant text-[14px] leading-relaxed text-tinta/80">
+            Tus favoritos se guardan solo en este navegador. Si lo borras o usas otro dispositivo, la lista se pierde. No pedimos cuenta ni datos.
+        </div>
+<!-- Saved Items List -->
+<div class="flex flex-col gap-gutter">
+<!-- Item 1 -->
+<div class="bg-niebla p-space-md rounded-xl border border-outline-variant flex gap-space-md items-start">
+<div class="w-[96px] h-[96px] bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden flex-shrink-0 bg-cover bg-center" data-alt="Un primer plano limpio y detallado de una playera de algodón blanca de alta calidad, doblada ordenadamente sobre una superficie de madera clara, iluminada por una luz natural suave con una estética moderna y minimalista." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD77ti8uvDWsdiUZDExlL_zwmuBJjzk6hy1yVDhIBEzGV-J0aoTYeeTffIrIR7_iYj5t_bYLfJzet6aisNkgtUErh8urJQd6mWnor6ymIVeM2lGtcjSa7uFm3exCvvKHcHsup_n0s93JR0wTEcYS0nKt87JHTpq6wdyiOWZic0XhJWVwhB08fwsU9v3MtGXz2Pp5DlyPzmispD3gP_SeEc35UD1nx9zK9kBbEwB-aqjP4I7MMfY_djP9GiYfHatvjJhsEVtjLduIqcy')"></div>
+<div class="flex flex-col flex-grow justify-between h-full min-h-[96px]">
+<div>
+<div class="text-xs text-outline font-code-data">Marca ejemplo</div>
+<h3 class="font-bold text-[16px] text-tinta leading-tight mt-0.5">Playera ejemplo</h3>
+<div class="flex items-center justify-between mt-1">
+<span class="font-code-data font-bold text-turquesa-texto text-[15px]">$000</span>
+<span class="font-code-data text-xs bg-surface-container-lowest px-2 py-0.5 rounded border border-outline-variant text-tinta">CH M</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm mt-3 pt-2 border-t border-outline-variant/60">
+<button class="flex-1 py-1.5 px-3 rounded-xl border-2 border-turquesa-texto text-turquesa-texto font-button-text text-xs flex items-center justify-center gap-1 hover:bg-turquesa-texto/5 transition-all active:scale-95">
+                            Ver prenda
+                        </button>
+<button class="py-1.5 px-3 rounded-xl border-2 border-agotado text-agotado font-button-text text-xs flex items-center justify-center gap-1 hover:bg-agotado/5 transition-all active:scale-95">
+                            Quitar
+                        </button>
+</div>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-niebla p-space-md rounded-xl border border-outline-variant flex gap-space-md items-start">
+<div class="w-[96px] h-[96px] bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden flex-shrink-0 bg-cover bg-center" data-alt="Fotografía de un elegante vestido casual de diseño contemporáneo en tono neutro, colgado en una percha minimalista de madera dentro de un estudio luminoso con paredes blancas y diseño limpio." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAzQEd04lquSH0R8L1aLXfW5o73VQNRIk9lcTR9O640QpdHIIqcYfJH3Fe-Si6vUmgfYKPVBIZw8KuefJYxSSsl5leqhQuQyHOHnaI2aPq6C14FxilZHOdNoQqYPt0MH5jqqtCOAsmfUqMwm9UC0hTWWoSXo6mlgCQL7MRVT503TAbg72Y62GR59jLVcj2mzRk1PHtzG-TjxS-djVy2LDZBSvcBfS0-InKm5h2xt3bycOqVWwJxgS59ngRocEQTFNWb8ZfYuho_-j8P')"></div>
+<div class="flex flex-col flex-grow justify-between h-full min-h-[96px]">
+<div>
+<div class="text-xs text-outline font-code-data">Marca ejemplo</div>
+<h3 class="font-bold text-[16px] text-tinta leading-tight mt-0.5">Vestido ejemplo</h3>
+<div class="flex items-center justify-between mt-1">
+<span class="font-code-data font-bold text-turquesa-texto text-[15px]">$000</span>
+<span class="font-code-data text-xs bg-surface-container-lowest px-2 py-0.5 rounded border border-outline-variant text-tinta">CH M</span>
+</div>
+</div>
+<div class="flex items-center gap-space-sm mt-3 pt-2 border-t border-outline-variant/60">
+<button class="flex-1 py-1.5 px-3 rounded-xl border-2 border-turquesa-texto text-turquesa-texto font-button-text text-xs flex items-center justify-center gap-1 hover:bg-turquesa-texto/5 transition-all active:scale-95">
+                            Ver prenda
+                        </button>
+<button class="py-1.5 px-3 rounded-xl border-2 border-agotado text-agotado font-button-text text-xs flex items-center justify-center gap-1 hover:bg-agotado/5 transition-all active:scale-95">
+                            Quitar
+                        </button>
+</div>
+</div>
+</div>
+<!-- Item 3 (Dimmed / Out of stock) -->
+<div class="bg-niebla p-space-md rounded-xl border border-outline-variant flex gap-space-md items-start opacity-75">
+<div class="w-[96px] h-[96px] bg-surface-container-lowest rounded-lg border border-outline-variant overflow-hidden flex-shrink-0 bg-cover bg-center grayscale" data-alt="Imagen de una sudadera estilo urbano en tono gris claro doblada con precisión, colocada sobre una superficie lisa en un entorno de tienda de ropa moderna y luminosa." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCy8EEDAibnYgM5aGvtOoXYbhkRlmvsku0ZwGfaD3KUU4kyCEs0QPkLDzv19_TFGbD4iiZvYh34E8KLJ-iGuoqS_66tm_uNUur2d6lflejfneSXADb_lyINEUhYBxFqE2o0rYMEBMJwufSZKWITBJJ1eYXMLR_4xXCEdFFV18DTXPoLvuWynXNyfQbzb5fgfILja-6CCHJyARyKAPE8VJNNViROoZOKozZ4WfHdK-PHtQ-qO7t4l-ggU5XQsRwviBs7zBoDgnHRbpKm')"></div>
+<div class="flex flex-col flex-grow justify-between h-full min-h-[96px]">
+<div>
+<div class="flex items-center gap-1 text-agotado text-xs font-semibold mb-0.5">
+<span class="material-symbols-outlined text-[14px]">warning</span>
+                            Ya no disponible
+                        </div>
+<h3 class="font-bold text-[16px] text-tinta leading-tight">Sudadera ejemplo</h3>
+<div class="flex items-center justify-between mt-1">
+<span class="font-code-data font-bold text-outline text-[15px]">$000</span>
+</div>
+</div>
+<div class="flex items-center justify-end mt-3 pt-2 border-t border-outline-variant/60">
+<button class="w-full py-1.5 px-3 rounded-xl border-2 border-agotado text-agotado font-button-text text-xs flex items-center justify-center gap-1 hover:bg-agotado/5 transition-all active:scale-95">
+                            Quitar
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Dashed Empty-State / Preview Card -->
+<div class="border-2 border-dashed border-outline/60 rounded-xl p-space-xl flex flex-col items-center text-center bg-niebla/50 mt-space-sm">
+<div class="w-12 h-12 rounded-full bg-turquesa/10 flex items-center justify-center text-turquesa-texto mb-space-sm">
+<span class="material-symbols-outlined text-[24px]">favorite</span>
+</div>
+<h4 class="font-bold text-[16px] text-tinta mb-1">Aún no guardas prendas</h4>
+<p class="text-xs text-tinta/70 mb-space-lg max-w-[240px]">Explora el catálogo y guarda tus piezas favoritas para consultarlas aquí.</p>
+<button class="w-full bg-turquesa text-tinta font-button-text py-3 px-6 rounded-xl shadow-none hover:opacity-90 active:scale-97 transition-all flex items-center justify-center gap-2">
+                Ir al catálogo
+            </button>
+</div>
+</main>
+</body></html>
