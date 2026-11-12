@@ -21,6 +21,11 @@ interface SaleProductSearchProps {
 export function SaleProductSearch({ locationId, disabled = false, onAdd }: SaleProductSearchProps) {
   const [problem, setProblem] = useState<{ text: string; login?: boolean } | null>(null);
 
+  // Otra tienda: un aviso de la búsqueda anterior ya no aplica.
+  useEffect(() => {
+    setProblem(null);
+  }, [locationId]);
+
   const pick = async (row: VariantStockRow) => {
     setProblem(null);
     try {
@@ -101,7 +106,7 @@ function HitSizes({
     };
   }, [productId, locationId]);
 
-  if (failed) return <p className="mt-2 text-sm text-[#9A3B2E]">No se pudieron cargar las tallas.</p>;
+  if (failed) return <p className="mt-2 text-sm text-error">No se pudieron cargar las tallas.</p>;
   if (rows === null) return <p className="mt-2 text-sm text-gray-600">Cargando tallas…</p>;
   if (rows.length === 0) return <p className="mt-2 text-sm text-gray-600">Sin tallas en esta tienda.</p>;
   return (
@@ -117,7 +122,7 @@ function HitSizes({
             className="min-h-[44px]"
           >
             <span className="font-mono font-semibold">{r.size}</span>{" "}
-            <span className="text-sm font-normal">{out ? "Sin existencias" : `${r.available} disponibles`}</span>
+            <span className="text-sm font-normal">{out ? "Sin existencias" : `${r.available} ${r.available === 1 ? "disponible" : "disponibles"}`}</span>
           </Button>
         );
       })}

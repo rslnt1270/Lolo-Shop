@@ -203,6 +203,96 @@ describe("/pos escaneo continuo", () => {
     });
   });
 
+  describe("avisos que no se pierden", () => {
+    const okSale = { ok: true, sale: { number: 9, status: "paid" } };
+    const defer = () => {
+      let resolve!: (v: unknown) => void;
+      const promise = new Promise((r) => (resolve = r));
+      return { promise, resolve };
+    };
+    const cobrar = () => fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+    async function chargingWithOneLine() {
+      const sale = defer();
+      actions.createSaleAction.mockReturnValueOnce(sale.promise);
+      await ready();
+      scan("111");
+      await screen.findByText("Agregado: Playera (M) · ×1");
+      cobrar();
+      await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(1));
+      return sale;
+    }
+
+    it("al vaciar la cola tras el cobro, un rechazo no queda tapado por un Agregado", async () => {
+      const sale = await chargingWithOneLine();
+      actions.lookupCodeAction
+        .mockResolvedValueOnce(found("v2", "L", { available: 0, sold: false }, "Camisa"))
+        .mockResolvedValueOnce(found("v3", "XL", { available: 3, sold: false }, "Falda"));
+      scan("222");
+      await screen.findByText("Pendiente para la siguiente venta: 222");
+      scan("333");
+      await screen.findByText("Pendiente para la siguiente venta: 333");
+      await act(async () => sale.resolve(okSale));
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Sin existencias de la talla L en esta tienda: Camisa. Se agregó 1 prenda.");
+      expect(screen.getByText("Falda")).toBeInTheDocument();
+      expect(screen.queryByText("Camisa")).toBeNull();
+    });
+
+    it("segunda pieza del mismo código durante el cobro queda en espera ×2 y se suma al terminar", async () => {
+      const sale = await chargingWithOneLine();
+      actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "L", { available: 5, sold: false }, "Camisa"));
+      scan("222");
+      await screen.findByText("Pendiente para la siguiente venta: 222");
+      scan("222");
+      expect(await screen.findByText("Otra pieza de 222 en espera (×2).")).toBeInTheDocument();
+      expect(screen.getByText("Pendiente para la siguiente venta: 222 · ×2 en espera")).toBeInTheDocument();
+      await act(async () => sale.resolve(okSale));
+      expect(await screen.findByText("Agregado: Camisa (L) · ×2")).toBeInTheDocument();
+      expect(actions.lookupCodeAction).toHaveBeenCalledTimes(2);
+      expect(screen.getByText("×2")).toBeInTheDocument();
+    });
+
+    it("segunda pieza del mismo código mientras su consulta carga suma ×2 al llegar", async () => {
+      const lookup = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(lookup.promise);
+      await ready();
+      scan("111");
+      await screen.findByText("Buscando 111…");
+      scan("111");
+      expect(await screen.findByText("Otra pieza de 111 en espera (×2).")).toBeInTheDocument();
+      expect(actions.lookupCodeAction).toHaveBeenCalledTimes(1);
+      await act(async () => lookup.resolve(found("v1", "M", { available: 5, sold: false })));
+      expect(await screen.findByText("Agregado: Playera (M) · ×2")).toBeInTheDocument();
+    });
+
+    it("segunda pieza en espera sin existencias suficientes: entra una y se avisa el rechazo de la otra", async () => {
+      const lookup = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(lookup.promise);
+      await ready();
+      scan("111");
+      await screen.findByText("Buscando 111…");
+      scan("111");
+      await screen.findByText("Otra pieza de 111 en espera (×2).");
+      await act(async () => lookup.resolve(found("v1", "M", { available: 1, sold: false })));
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("Sin existencias de la talla M en esta tienda: Playera. Se agregó 1 prenda.");
+      expect(screen.queryByText("×2")).toBeNull();
+      expect(screen.getByText("Playera")).toBeInTheDocument();
+    });
+
+    it("fila de error creada durante el cobro se avisa al registrar la venta", async () => {
+      const sale = await chargingWithOneLine();
+      actions.lookupCodeAction.mockRejectedValueOnce(new Error("red"));
+      scan("444");
+      await screen.findByRole("button", { name: "Reintentar 444" });
+      await act(async () => sale.resolve(okSale));
+      expect(
+        await screen.findByText("Venta #9 registrada. No se agregaron: 444. Escanéalos de nuevo si van en otra venta."),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Reintentar 444" })).toBeNull();
+    });
+  });
+
   it("al cambiar de tienda se borran las existencias conocidas y se descarta la consulta de la tienda anterior", async () => {
     actions.fetchLocationsAction.mockResolvedValue([
       { id: "l1", name: "Centro" },

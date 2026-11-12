@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import type { DraftLine } from "@/lib/sales/use-sale-draft";
 
 /** Lectura en curso, por código normalizado (no por variantId: aún no se sabe qué prenda es). */
-export type PendingScan = { code: string; status: "loading" | "error" | "queued" };
+export type PendingScan = { code: string; status: "loading" | "error" | "queued"; extra?: number };
 
 type Props = {
   lines: DraftLine[];
@@ -75,6 +75,9 @@ function PriceField({ line, onCommit, locked }: { line: DraftLine; onCommit: (pr
   );
 }
 
+/** Piezas extra del mismo código que esperan junto a la primera. */
+const waiting = (p: PendingScan) => (p.extra ? ` · ×${1 + p.extra} en espera` : "");
+
 function PendingRows({
   pendingScans,
   onRetry,
@@ -90,9 +93,9 @@ function PendingRows({
       {pendingScans.map((p) => (
         <li key={p.code} className="flex items-center justify-between gap-3 p-4">
           {p.status === "loading" ? (
-            <p className="text-sm text-on-surface-variant">{`Buscando ${p.code}…`}</p>
+            <p className="text-sm text-on-surface-variant">{`Buscando ${p.code}…${waiting(p)}`}</p>
           ) : p.status === "queued" ? (
-            <p className="text-sm text-on-surface-variant">{`Pendiente para la siguiente venta: ${p.code}`}</p>
+            <p className="text-sm text-on-surface-variant">{`Pendiente para la siguiente venta: ${p.code}${waiting(p)}`}</p>
           ) : (
             <>
               <p role="alert" className="text-sm font-semibold text-on-error-container">{`No se pudo buscar ${p.code}.`}</p>

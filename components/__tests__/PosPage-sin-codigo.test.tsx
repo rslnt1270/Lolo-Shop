@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -64,7 +64,7 @@ describe("/pos «Sin código»", () => {
     await ready();
     openSearch();
     searchFor("playera");
-    fireEvent.click(await screen.findByRole("button", { name: /^M\b.*1 disponibles/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^M\b.*1 disponible/ }));
     expect(await screen.findByText("Agregado: Playera Logo (M) · ×1")).toBeInTheDocument();
     expect(actions.lookupCodeAction).toHaveBeenCalledWith("LS-BBBBBB-1", "l1");
     expect(screen.getByRole("button", { name: /^cobrar/i })).toBeEnabled();
@@ -74,7 +74,7 @@ describe("/pos «Sin código»", () => {
     await ready();
     openSearch();
     searchFor("playera");
-    const pick = async () => fireEvent.click(await screen.findByRole("button", { name: /^M\b.*1 disponibles/ }));
+    const pick = async () => fireEvent.click(await screen.findByRole("button", { name: /^M\b.*1 disponible/ }));
     await pick();
     await screen.findByText("Agregado: Playera Logo (M) · ×1");
     await pick();
@@ -88,10 +88,67 @@ describe("/pos «Sin código»", () => {
     await ready();
     openSearch();
     searchFor("playera");
-    fireEvent.click(await screen.findByRole("button", { name: /^M\b.*1 disponibles/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /^M\b.*1 disponible/ }));
     await screen.findByText("Agregado: Playera Logo (M) · ×1");
     fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Sin código" })).toBeDisabled());
-    expect(screen.getByRole("button", { name: /^M\b.*1 disponibles/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^M\b.*1 disponible/ })).toBeDisabled();
+  });
+
+  describe("carrera: el cobro empieza antes de que llegue la consulta de la talla", () => {
+    const defer = () => {
+      let resolve!: (v: unknown) => void;
+      const promise = new Promise((r) => (resolve = r));
+      return { promise, resolve };
+    };
+    const pickM = async () => fireEvent.click(await screen.findByRole("button", { name: /^M\b.*disponible/ }));
+
+    async function withOneLine() {
+      actions.listVariantStockAtAction.mockResolvedValue([
+        { variantId: "v-m", size: "M", sku: "LS-BBBBBB-1", price: 320, available: 5 },
+      ]);
+      actions.lookupCodeAction.mockResolvedValue(lookup(5));
+      await ready();
+      openSearch();
+      searchFor("playera");
+      await pickM();
+      await screen.findByText("Agregado: Playera Logo (M) · ×1");
+    }
+
+    it("con cobro en curso avisa y no cambia el carrito", async () => {
+      await withOneLine();
+      const late = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(late.promise);
+      const sale = defer();
+      actions.createSaleAction.mockReturnValueOnce(sale.promise);
+      await pickM();
+      fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+      await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(1));
+      await act(async () => late.resolve(lookup(5)));
+      expect(await screen.findByText(/Hay un cobro en curso/)).toBeInTheDocument();
+      expect(screen.queryByText("×2")).toBeNull();
+      expect(actions.createSaleAction.mock.calls[0][0].lines).toEqual([{ variantId: "v-m", quantity: 1, unitPrice: 320 }]);
+      await act(async () => sale.resolve({ ok: false, code: "UNAVAILABLE", message: "Lento." }));
+    });
+
+    it("con el carrito bloqueado avisa y no cambia el carrito", async () => {
+      await withOneLine();
+      const late = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(late.promise);
+      actions.createSaleAction.mockRejectedValueOnce(new Error("red"));
+      await pickM();
+      fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+      await screen.findByText(/no sabemos si la venta se registró/i);
+      await act(async () => late.resolve(lookup(5)));
+      expect(await screen.findByText(/Hay un cobro en curso/)).toBeInTheDocument();
+      expect(screen.queryByText("×2")).toBeNull();
+    });
+  });
+
+  it("sin tienda elegida el botón queda deshabilitado y explica por qué", async () => {
+    actions.fetchLocationsAction.mockResolvedValue([]);
+    render(<POSPage />);
+    expect(await screen.findByText("Elige la tienda de la venta.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sin código" })).toBeDisabled();
   });
 });

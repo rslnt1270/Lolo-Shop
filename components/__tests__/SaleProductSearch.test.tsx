@@ -84,6 +84,27 @@ describe("SaleProductSearch", () => {
     expect(screen.getByLabelText(/buscar producto registrado/i)).toHaveValue("");
   });
 
+  it("singular y plural en las existencias: '1 disponible' y '4 disponibles'", async () => {
+    actions.listVariantStockAtAction.mockResolvedValue([
+      { variantId: "v-s", size: "S", sku: "LS-AAAAAA-0", price: 300, available: 1 },
+      rows[1],
+    ]);
+    render(<SaleProductSearch locationId="l1" onAdd={vi.fn()} />);
+    type("playera");
+    expect(await screen.findByText("1 disponible")).toBeInTheDocument();
+    expect(screen.getByText("4 disponibles")).toBeInTheDocument();
+  });
+
+  it("el aviso de búsqueda se limpia al cambiar de tienda", async () => {
+    actions.lookupCodeAction.mockResolvedValue({ found: false, code: "LS-BBBBBB-1" });
+    const { rerender } = render(<SaleProductSearch locationId="l1" onAdd={vi.fn()} />);
+    type("playera");
+    fireEvent.click(await screen.findByRole("button", { name: /^M\b.*4/ }));
+    await screen.findByRole("alert");
+    rerender(<SaleProductSearch locationId="l2" onAdd={vi.fn()} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("deshabilitada (cobro en curso) no deja elegir tallas", async () => {
     const onAdd = vi.fn();
     render(<SaleProductSearch locationId="l1" disabled onAdd={onAdd} />);

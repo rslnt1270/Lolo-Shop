@@ -21,6 +21,7 @@ import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expi
 
 type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
+type ApplyOutcome = { added: number; rejected: string | null; ok: string; title?: string };
 type StockError = { message: string; signature: string; variantId?: string };
 
 const LOCATION_KEY = "loloshop:pos:location";
@@ -40,7 +41,8 @@ export default function POSPage() {
   const [stockError, setStockError] = useState<StockError | null>(null);
   const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
   // Códigos con consulta en curso o fallida: una segunda lectura del mismo código no crea otra fila.
-  const pendingRef = useRef(new Map<string, "loading" | "error" | "queued">());
+  // `extra`: piezas idénticas que llegaron mientras la primera consulta cargaba o esperaba.
+  const pendingRef = useRef(new Map<string, { status: "loading" | "error" | "queued"; extra: number }>());
   // Resultados que llegaron con un cobro en curso (o incierto): esperan para no alterar el carrito que se cobra.
   const heldRef = useRef(new Map<string, Extract<LookupCodeResult, { found: true }>>());
   const [cameraReady, setCameraReady] = useState(false);
@@ -108,10 +110,16 @@ export default function POSPage() {
   const locationRef = useRef(locationId);
   locationRef.current = locationId;
 
+  const syncPending = () =>
+    setPendingScans(Array.from(pendingRef.current, ([c, p]) => ({ code: c, status: p.status, extra: p.extra })));
+
   const setPending = useCallback((code: string, status: "loading" | "error" | "queued" | null) => {
-    if (status) pendingRef.current.set(code, status);
-    else pendingRef.current.delete(code);
-    setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
+    if (status) {
+      const prev = pendingRef.current.get(code);
+      // Las piezas extra sobreviven a loading -> queued; releer una fila en error es reintentar desde cero.
+      pendingRef.current.set(code, { status, extra: status === "error" || !prev ? 0 : prev.extra });
+    } else pendingRef.current.delete(code);
+    syncPending();
   }, []);
 
   // Otra tienda: las existencias conocidas y las lecturas en espera ya no aplican.
@@ -121,19 +129,41 @@ export default function POSPage() {
     heldRef.current.clear();
   }, [locationId, clearAvailability, setPending]);
 
+  /** Agrega `pieces` piezas de la prenda al carrito (cada una valida existencias) y devuelve el resultado sin pintar el aviso. */
   const applyFound = useCallback(
-    (result: Extract<LookupCodeResult, { found: true }>) => {
+    (result: Extract<LookupCodeResult, { found: true }>, pieces = 1): ApplyOutcome => {
       const variant = result.product.variants.find((v) => v.id === result.variantId);
-      if (!variant) return;
-      const added = add({ product: result.product, variant }, result.stock);
-      if (added.ok) {
-        setNotice({ kind: "ok", text: `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}` });
-      } else {
-        setNotice({ kind: "error", text: `Sin existencias de la talla ${added.size} en esta tienda` });
+      if (!variant) return { added: 0, rejected: null, ok: "" };
+      let added = 0;
+      let rejected: string | null = null;
+      for (let i = 0; i < pieces; i++) {
+        const r = add({ product: result.product, variant }, result.stock);
+        if (r.ok) added += 1;
+        else rejected = `Sin existencias de la talla ${r.size} en esta tienda`;
       }
+      return {
+        added,
+        rejected,
+        title: result.product.title,
+        ok: added ? `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}` : "",
+      };
     },
     [add, quantityOf],
   );
+
+  /** Un solo aviso para uno o varios resultados: ningún rechazo queda tapado por un "Agregado". */
+  const noticeFor = useCallback((outcomes: ApplyOutcome[], detailed: boolean): Notice | null => {
+    const rejections = outcomes.filter((o) => o.rejected);
+    const added = outcomes.reduce((n, o) => n + o.added, 0);
+    if (rejections.length === 0) {
+      const last = [...outcomes].reverse().find((o) => o.ok);
+      return last ? { kind: "ok", text: last.ok } : null;
+    }
+    if (!detailed && outcomes.length === 1 && added === 0) return { kind: "error", text: rejections[0].rejected! };
+    const lost = rejections.map((o) => `${o.rejected}: ${o.title}.`).join(" ");
+    const gained = added ? ` ${added === 1 ? "Se agregó 1 prenda." : `Se agregaron ${added} prendas.`}` : "";
+    return { kind: "error", text: `${lost}${gained}` };
+  }, []);
 
   /** Talla elegida en "Sin código": entra al carrito igual que una lectura, con su existencia conocida. */
   const addFromSearch = useCallback(
@@ -142,10 +172,11 @@ export default function POSPage() {
         setNotice({ kind: "error", text: "Hay un cobro en curso: espera a que termine para agregar prendas." });
         return;
       }
-      setNotice(null);
-      applyFound({ found: true, product: match.product, variantId: match.variant.id, stock });
+      setNotice(
+        noticeFor([applyFound({ found: true, product: match.product, variantId: match.variant.id, stock })], false),
+      );
     },
-    [applyFound],
+    [applyFound, noticeFor],
   );
 
   /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
@@ -153,11 +184,15 @@ export default function POSPage() {
     if (submittingRef.current || lockRef.current) return;
     const items = Array.from(heldRef.current.entries());
     heldRef.current.clear();
+    const outcomes: ApplyOutcome[] = [];
     for (const [code, result] of items) {
+      const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
       setPending(code, null);
-      applyFound(result);
+      outcomes.push(applyFound(result, pieces));
     }
-  }, [applyFound, setPending]);
+    const next = noticeFor(outcomes, true);
+    if (next) setNotice(next);
+  }, [applyFound, noticeFor, setPending]);
 
   const runLookup = useCallback(
     async (code: string, store: string) => {
@@ -182,8 +217,10 @@ export default function POSPage() {
             heldRef.current.set(code, result);
             setPending(code, "queued");
           } else {
+            const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
             setPending(code, null);
-            applyFound(result);
+            const next = noticeFor([applyFound(result, pieces)], pieces > 1);
+            if (next) setNotice(next);
           }
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
@@ -202,7 +239,7 @@ export default function POSPage() {
         setNotice({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
       }
     },
-    [applyFound, setPending],
+    [applyFound, noticeFor, setPending],
   );
 
   const handleScan = useCallback(
@@ -215,7 +252,13 @@ export default function POSPage() {
       }
       // Mientras haya una consulta en curso de este código no se abre otra. Si quedó en error, releer es reintentar.
       const state = pendingRef.current.get(code);
-      if (state === "loading" || state === "queued") return;
+      if (state && state.status !== "error") {
+        // Otra pieza idéntica: queda en espera junto a la primera y se suma al llegar.
+        state.extra += 1;
+        syncPending();
+        setNotice({ kind: "ok", text: `Otra pieza de ${code} en espera (×${1 + state.extra}).` });
+        return;
+      }
       setNotice(null);
       void runLookup(code, locationId);
     },
@@ -224,20 +267,20 @@ export default function POSPage() {
 
   /** Quita las filas de lecturas fallidas: no deben pasar a la venta siguiente. */
   const clearErrorRows = useCallback(() => {
-    for (const [code, st] of Array.from(pendingRef.current)) if (st === "error") pendingRef.current.delete(code);
-    setPendingScans(Array.from(pendingRef.current, ([c, st]) => ({ code: c, status: st })));
+    for (const [code, p] of Array.from(pendingRef.current)) if (p.status === "error") pendingRef.current.delete(code);
+    syncPending();
   }, []);
 
   const discardScan = useCallback(
     (code: string) => {
-      if (pendingRef.current.get(code) === "error") setPending(code, null);
+      if (pendingRef.current.get(code)?.status === "error") setPending(code, null);
     },
     [setPending],
   );
 
   const retryScan = useCallback(
     (code: string) => {
-      if (!locationId || pendingRef.current.get(code) === "loading") return;
+      if (!locationId || pendingRef.current.get(code)?.status === "loading") return;
       setNotice(null);
       void runLookup(code, locationId);
     },
@@ -291,12 +334,21 @@ export default function POSPage() {
         // Con la sesión vencida el middleware redirige y Next resuelve la acción con undefined.
         setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
       } else if (result.ok) {
+        // Las lecturas que fallaron durante el cobro no pasan a la venta siguiente: se avisan, no se borran en silencio.
+        const failedCodes = Array.from(pendingRef.current)
+          .filter(([, p]) => p.status === "error")
+          .map(([c]) => c);
+        const lost = failedCodes.length
+          ? ` No se agregaron: ${failedCodes.join(", ")}. Escanéalos de nuevo si van en otra venta.`
+          : "";
         setNotice({
           kind: "ok",
           text:
             result.sale.status === "pending_payment"
-              ? `Venta #${result.sale.number} registrada. Pago por confirmar.`
-              : `Venta #${result.sale.number} registrada`,
+              ? `Venta #${result.sale.number} registrada. Pago por confirmar.${lost}`
+              : failedCodes.length
+                ? `Venta #${result.sale.number} registrada.${lost}`
+                : `Venta #${result.sale.number} registrada`,
         });
         setAlias("");
         setLock(null);
@@ -452,8 +504,11 @@ export default function POSPage() {
             onSubmit={handleScan}
             onNoBarcode={() => setSearchOpen((open) => !open)}
             noBarcodeLabel="Sin código"
-            noBarcodeDisabled={lock !== null || submitting}
+            noBarcodeDisabled={lock !== null || submitting || !locationId}
           />
+          {!locationId && (
+            <p className="text-sm text-on-surface-variant">Elige la tienda de la venta.</p>
+          )}
           {searchOpen && locationId && (
             <SaleProductSearch
               locationId={locationId}

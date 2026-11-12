@@ -136,3 +136,25 @@ describe("SaleCart", () => {
     expect(screen.getByText("Escribe un precio de 0 en adelante.")).toBeInTheDocument();
   });
 });
+
+describe("SaleCart filas pendientes con piezas extra", () => {
+  it("fila en espera con extra muestra ×N en espera", () => {
+    render(
+      <SaleCart
+        lines={[]}
+        canEditPrice={false}
+        onSetQty={() => {}}
+        onSetPrice={() => {}}
+        onRemove={() => {}}
+        pendingScans={[
+          { code: "222", status: "queued", extra: 1 },
+          { code: "333", status: "loading", extra: 2 },
+          { code: "444", status: "queued" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Pendiente para la siguiente venta: 222 · ×2 en espera")).toBeInTheDocument();
+    expect(screen.getByText("Buscando 333… · ×3 en espera")).toBeInTheDocument();
+    expect(screen.getByText("Pendiente para la siguiente venta: 444")).toBeInTheDocument();
+  });
+});
