@@ -137,7 +137,7 @@ export default function EscanearPage() {
     setAddSize(null);
     setSearching(true);
     try {
-      const result = await lookupCodeAction(code);
+      const result = await (locationId ? lookupCodeAction(code, locationId) : lookupCodeAction(code));
       if (result.found) {
         setFound(result);
       } else if (result.error) {
@@ -151,7 +151,7 @@ export default function EscanearPage() {
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [locationId]);
 
   if (status === "loading") {
     return <main className="p-4 text-center">Cargando...</main>;
@@ -171,6 +171,8 @@ export default function EscanearPage() {
   const sizesHere = found && locationId ? stockBySize(found.product, locationId) : [];
   // El servidor solo manda las filas de tu tienda: sin fila aquí, la prenda no está en tu tienda.
   const notInMyStore = !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId);
+  // Prenda ya vendida y sin piezas en esta tienda: se ofrece "Agregar nuevamente" (mismo producto).
+  const soldOut = !!found?.stock?.sold && found.stock.available === 0;
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-2">
@@ -301,7 +303,21 @@ export default function EscanearPage() {
                     En esta tienda: <span className="font-semibold">{stockHere} pzas</span>
                   </p>
                 )}
-                {notInMyStore ? (
+                {soldOut ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-700">Esta prenda ya se vendió. Puedes agregar piezas al mismo producto.</p>
+                    <SumToMyStore
+                      variantId={found.variantId}
+                      locationId={locationId}
+                      label="Agregar nuevamente"
+                      onDone={(available) => {
+                        setIsError(false);
+                        setMessage(`Piezas sumadas: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
+                        reset();
+                      }}
+                    />
+                  </div>
+                ) : notInMyStore ? (
                   <div className="space-y-2">
                     <p className="text-sm text-gray-700">Esta prenda no está en tu tienda</p>
                     <SumToMyStore
