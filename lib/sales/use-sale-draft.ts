@@ -27,7 +27,11 @@ export interface DraftLine {
   /** Precio de cobro; arranca igual al de lista. */
   unitPrice: number;
   quantity: number;
+  /** Piezas de la talla en la tienda elegida al escanear; null = no confirmado. */
+  available: number | null;
 }
+
+export type AddResult = { ok: true } | { ok: false; reason: "NO_STOCK"; size: string };
 
 /**
  * Borrador de la venta en curso. El `clientRequestId` nace con el borrador:
@@ -84,13 +88,32 @@ export function useSaleDraft() {
     [renewRequestId],
   );
 
-  const add = useCallback((match: VariantMatch) => {
-    setLines((prev) => {
-      if (prev.some((l) => l.variantId === match.variant.id)) {
-        return prev.map((l) => (l.variantId === match.variant.id ? { ...l, quantity: l.quantity + 1 } : l));
+  // Espejo síncrono de `lines`: lecturas seguidas en el mismo ciclo ven el estado ya actualizado.
+  const linesRef = useRef<DraftLine[]>([]);
+  const commit = useCallback((next: DraftLine[]) => {
+    linesRef.current = next;
+    setLines(next);
+  }, []);
+
+  const add = useCallback(
+    (match: VariantMatch, stock?: { available: number; sold: boolean }): AddResult => {
+      const prev = linesRef.current;
+      const size = match.variant.size ?? match.variant.title;
+      const available = stock ? stock.available : null;
+      const existing = prev.find((l) => l.variantId === match.variant.id);
+      if (existing) {
+        const known = available ?? existing.available;
+        if (known !== null && existing.quantity + 1 > known) return { ok: false, reason: "NO_STOCK", size };
+        commit(
+          prev.map((l) =>
+            l.variantId === match.variant.id ? { ...l, quantity: l.quantity + 1, available: known } : l,
+          ),
+        );
+        return { ok: true };
       }
+      if (available !== null && available < 1) return { ok: false, reason: "NO_STOCK", size };
       const price = Number(match.variant.price);
-      return [
+      commit([
         ...prev,
         {
           variantId: match.variant.id,
@@ -101,31 +124,34 @@ export function useSaleDraft() {
           listPrice: price,
           unitPrice: price,
           quantity: 1,
+          available,
         },
-      ];
-    });
-  }, []);
+      ]);
+      return { ok: true };
+    },
+    [commit],
+  );
 
   const setQty = useCallback((variantId: string, qty: number) => {
     if (!Number.isFinite(qty)) return;
     const quantity = Math.floor(qty);
     if (quantity < 1) return;
-    setLines((prev) => prev.map((l) => (l.variantId === variantId ? { ...l, quantity } : l)));
-  }, []);
+    commit(linesRef.current.map((l) => (l.variantId === variantId ? { ...l, quantity } : l)));
+  }, [commit]);
 
   const setPrice = useCallback((variantId: string, price: number) => {
     if (!Number.isFinite(price) || price < 0) return;
-    setLines((prev) => prev.map((l) => (l.variantId === variantId ? { ...l, unitPrice: price } : l)));
-  }, []);
+    commit(linesRef.current.map((l) => (l.variantId === variantId ? { ...l, unitPrice: price } : l)));
+  }, [commit]);
 
   const remove = useCallback((variantId: string) => {
-    setLines((prev) => prev.filter((l) => l.variantId !== variantId));
-  }, []);
+    commit(linesRef.current.filter((l) => l.variantId !== variantId));
+  }, [commit]);
 
   const reset = useCallback(() => {
-    setLines([]);
+    commit([]);
     renewRequestId();
-  }, [renewRequestId]);
+  }, [renewRequestId, commit]);
 
   return { lines, add, setQty, setPrice, remove, clientRequestId, reset, renewRequestId, markRejected, markUncertain, isUncertain, requestIdFor };
 }
