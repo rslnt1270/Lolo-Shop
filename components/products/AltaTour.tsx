@@ -20,8 +20,17 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
   const t = useMotionTiming();
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const returnRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
-    if (open) setStep(0);
+    if (!open) return;
+    setStep(0);
+    returnRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      const el = returnRef.current;
+      returnRef.current = null;
+      if (el && el !== document.body && el.isConnected) el.focus();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -41,7 +50,22 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
         aria-modal="true"
         aria-labelledby="alta-tour-title"
         onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
+          if (e.key === "Escape") {
+            onClose();
+            return;
+          }
+          if (e.key !== "Tab") return;
+          const items = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []);
+          if (items.length === 0) return;
+          const first = items[0];
+          const lastEl = items[items.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            lastEl.focus();
+          } else if (!e.shiftKey && document.activeElement === lastEl) {
+            e.preventDefault();
+            first.focus();
+          }
         }}
         className="w-full max-w-sm space-y-4 overflow-hidden rounded-xl bg-white p-4 shadow-lg"
       >

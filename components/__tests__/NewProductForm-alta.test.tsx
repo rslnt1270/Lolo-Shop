@@ -68,7 +68,7 @@ const pickBrand = async (name = "ALO") => {
   fireEvent.mouseDown(await screen.findByRole("option", { name }));
 };
 async function fillAll({ withBrand = true, mode = "stock" as "stock" | "catalog" } = {}) {
-  if (mode === "catalog") fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+  if (mode === "catalog") fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
   fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   await dept("d1");
   fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });

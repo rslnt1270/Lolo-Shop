@@ -61,7 +61,7 @@ const titleKey = (t: string) => t.trim().replace(/\s+/g, " ").toLowerCase();
 
 const MODE_OPTIONS: { value: EntryMode; label: string }[] = [
   { value: "stock", label: "Solo stock" },
-  { value: "catalog", label: "Para catálogo" },
+  { value: "catalog", label: "Catálogo" },
 ];
 
 export const OFFLINE_TEXT = "Sin internet no se puede guardar. Tus datos siguen aquí.";
@@ -193,6 +193,15 @@ export function NewProductForm({
   useEffect(() => {
     if (!hasSeenTour()) setTourOpen(true);
   }, []);
+  const howRef = useRef<HTMLButtonElement>(null);
+  const tourWasOpen = useRef(false);
+  useEffect(() => {
+    if (tourWasOpen.current && !tourOpen) {
+      const a = document.activeElement;
+      if (!a || a === document.body) howRef.current?.focus();
+    }
+    tourWasOpen.current = tourOpen;
+  }, [tourOpen]);
   const closeTour = () => {
     markTourSeen();
     setTourOpen(false);
@@ -526,6 +535,7 @@ export function NewProductForm({
         {locationName && <p className="text-sm font-medium text-gray-800">Registrando en: {locationName}</p>}
         <p className="text-sm text-gray-500">Completa los datos y agrega una fila por talla.</p>
         <button
+          ref={howRef}
           type="button"
           onClick={() => setTourOpen(true)}
           className="inline-flex min-h-[44px] items-center text-sm font-medium text-turquesa-texto underline"

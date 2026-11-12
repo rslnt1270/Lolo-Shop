@@ -43,10 +43,17 @@ describe("NewProductForm: dos modos de alta", () => {
     uploadProductImageAction.mockReset();
   });
 
-  it("ofrece el selector Solo stock / Para catálogo, con Solo stock por defecto", () => {
+  it("ofrece el selector Solo stock / Catálogo, con Solo stock por defecto", () => {
     render1();
     expect(screen.getByRole("radio", { name: "Solo stock" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Para catálogo" })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "Catálogo" })).not.toBeChecked();
+  });
+
+  it("el selector de modo dice Solo stock y Catálogo", () => {
+    render1();
+    const labels = screen.getAllByRole("radio").map((r) => r.getAttribute("aria-label") ?? r.closest("label")?.textContent?.trim());
+    expect(labels).toEqual(expect.arrayContaining(["Solo stock", "Catálogo"]));
+    expect(screen.queryByRole("radio", { name: /para catálogo/i })).toBeNull();
   });
 
   it("en Solo stock no hay capturas y explica que no aparece en el catálogo", () => {
@@ -60,25 +67,25 @@ describe("NewProductForm: dos modos de alta", () => {
   it("el campo Descripción está en los dos modos", () => {
     render1();
     expect(screen.getByLabelText(/descripción/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     expect(screen.getByLabelText(/descripción/i)).toBeInTheDocument();
   });
 
-  it("en Para catálogo aparecen las dos capturas y las fotos son recomendadas, no obligatorias", () => {
+  it("en Catálogo aparecen las dos capturas y las fotos son recomendadas, no obligatorias", () => {
     render1();
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     expect(screen.getByText("Foto de frente")).toBeInTheDocument();
     expect(screen.getByText("Foto de atrás")).toBeInTheDocument();
     expect(screen.getAllByText("Recomendada")).toHaveLength(2);
     expect(screen.getByRole("button", { name: /guardar producto/i })).toBeEnabled();
   });
 
-  it("en Para catálogo sube las dos fotos y envía mode, imageUrl, backImageUrl y descripción", async () => {
+  it("en Catálogo sube las dos fotos y envía mode, imageUrl, backImageUrl y descripción", async () => {
     uploadProductImageAction
       .mockResolvedValueOnce({ ok: true, url: "https://x.public.blob.vercel-storage.com/productos/f.jpg" })
       .mockResolvedValueOnce({ ok: true, url: "https://x.public.blob.vercel-storage.com/productos/b.jpg" });
     render1();
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     await fillRest();
     fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón" } });
     screen.getAllByText("capturar").forEach((b) => fireEvent.click(b));
@@ -104,14 +111,14 @@ describe("NewProductForm: dos modos de alta", () => {
   it("avisa el cambio de modo y arranca con el modo recordado", () => {
     const onModeChange = vi.fn();
     render1({ initialMode: "catalog", onModeChange });
-    expect(screen.getByRole("radio", { name: "Para catálogo" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Catálogo" })).toBeChecked();
     fireEvent.click(screen.getByRole("radio", { name: "Solo stock" }));
     expect(onModeChange).toHaveBeenCalledWith("stock");
   });
 
   it("la explicación de las fotos recomendadas está enlazada al botón de guardar", () => {
     render1();
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     expect(screen.getByText(/Recomendadas: frente y atrás\. Sin las dos fotos/)).toBeInTheDocument();
     expect(screen.getByText(/Falta completar registro fotográfico/)).toBeInTheDocument();
   });
