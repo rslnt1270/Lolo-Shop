@@ -112,7 +112,7 @@ describe("NewProductForm: dos modos de alta", () => {
   it("la explicación de las fotos recomendadas está enlazada al botón de guardar", () => {
     render1();
     fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
-    expect(screen.getByText(/Recomendadas, sobre fondo blanco/)).toBeInTheDocument();
+    expect(screen.getByText(/Recomendadas\. Sin las dos fotos/)).toBeInTheDocument();
     expect(screen.getByText(/Falta completar registro fotográfico/)).toBeInTheDocument();
   });
 

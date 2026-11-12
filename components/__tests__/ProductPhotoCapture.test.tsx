@@ -17,7 +17,6 @@ const analysis = (ok: boolean) => ({ ok, meanLuma: 0, stdLuma: 0, whiteFraction:
 const edited = () => new File(["x"], "producto.jpg", { type: "image/jpeg" });
 const approve = vi.fn(async () => ({ file: edited(), analysis: analysis(true) }));
 const reject = vi.fn(async () => ({ file: edited(), analysis: analysis(false) }));
-const REJECT_TEXT = "El fondo no está en blanco. Repite la foto con la prenda sobre una superficie blanca.";
 const pick = (container: HTMLElement) => {
   const input = container.querySelector("input[type=file]") as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File(["x"], "a.jpg", { type: "image/jpeg" })] } });
@@ -49,19 +48,16 @@ describe("ProductPhotoCapture: lado de la foto", () => {
 describe("ProductPhotoCapture: guía y análisis de fondo", () => {
   it("review: la guía de encuadre aparece antes de tomar la foto", () => {
     render(<ProductPhotoCapture processFile={approve} onCapture={vi.fn()} onClear={vi.fn()} />);
-    expect(screen.getByTestId("framing-guide")).toBeInTheDocument();
-    expect(screen.getByText("Coloca la prenda sobre una superficie blanca y céntrala en el marco.")).toBeInTheDocument();
+    expect(screen.getByText("Toma la prenda completa. Cualquier fondo sirve.")).toBeInTheDocument();
   });
 
-  it("C7: foto rechazada no se sube y muestra el aviso de repetir", async () => {
+  it("C7: una foto que el análisis habría rechazado se acepta, se previsualiza y llega a onCapture", async () => {
     const onCapture = vi.fn();
     const { container } = render(<ProductPhotoCapture processFile={reject} onCapture={onCapture} onClear={vi.fn()} />);
     pick(container);
-    expect(await screen.findByRole("alert")).toHaveTextContent(REJECT_TEXT);
-    expect(onCapture).not.toHaveBeenCalled();
-    expect(screen.queryByAltText(/vista previa/i)).toBeNull();
-    // Solo se puede repetir: la guía y el botón de tomar siguen ahí.
-    expect(screen.getByRole("button", { name: /tomar o subir foto/i })).toBeEnabled();
+    await waitFor(() => expect(onCapture).toHaveBeenCalledTimes(1));
+    expect(await screen.findByAltText(/vista previa/i)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("C7 (aceptada): foto aprobada llama onCapture", async () => {
@@ -90,16 +86,17 @@ describe("ProductPhotoCapture: guía y análisis de fondo", () => {
 });
 
 describe("ProductPhotoButton: la ficha usa el mismo análisis", () => {
-  it("C18: la foto desde la ficha pasa por el mismo análisis", async () => {
+  it("C18: la foto desde la ficha se sube aunque el análisis la habría rechazado", async () => {
     const { container, unmount } = render(
       <ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} processFile={reject} />
     );
     fireEvent.click(screen.getByRole("button", { name: "Agregar foto de frente de Gorra" }));
     pick(container);
-    expect(await screen.findByRole("alert")).toHaveTextContent(REJECT_TEXT);
-    expect(actions.updateProductImageAction).not.toHaveBeenCalled();
-    expect(actions.uploadProductImageAction).not.toHaveBeenCalled();
+    await waitFor(() => expect(actions.updateProductImageAction).toHaveBeenCalledTimes(1));
+    expect(actions.updateProductImageAction).toHaveBeenCalledWith("p1", expect.any(FormData), { photosAnalyzed: true });
+    expect(screen.queryByRole("alert")).toBeNull();
     unmount();
+    actions.updateProductImageAction.mockClear();
 
     const ok = render(<ProductPhotoButton productId="p1" productTitle="Gorra" hasImage={false} processFile={approve} />);
     fireEvent.click(screen.getByRole("button", { name: "Agregar foto de frente de Gorra" }));
@@ -158,14 +155,17 @@ describe("ProductPhotoButton: la ficha usa el mismo análisis", () => {
     expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeDisabled();
   });
 
-  it("con una foto de catálogo rechazada no se puede guardar", async () => {
+  it("con fotos de catálogo que el análisis habría rechazado sí se puede guardar", async () => {
     const { container } = render(
       <ProductPhotoButton productId="p1" hasImage={false} catalogChecked={false} processFile={reject} />
     );
     fireEvent.click(screen.getByRole("button", { name: "Tomar fotos de catálogo (frente y atrás)" }));
-    pick(container);
-    await screen.findAllByRole("alert");
-    expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeDisabled();
-    expect(actions.setCatalogPhotosAction).not.toHaveBeenCalled();
+    for (const input of Array.from(container.querySelectorAll("input[type=file]"))) {
+      fireEvent.change(input, { target: { files: [new File(["x"], "a.jpg", { type: "image/jpeg" })] } });
+    }
+    await waitFor(() => expect(screen.getByRole("button", { name: "Guardar fotos" })).toBeEnabled());
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar fotos" }));
+    await waitFor(() => expect(actions.setCatalogPhotosAction).toHaveBeenCalledWith("p1", expect.objectContaining({ photosAnalyzed: true })));
   });
 });

@@ -5,9 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { useMotionTiming } from "@/lib/motion/use-reduced-motion";
 import { defaultProcessFile, type ProcessFile } from "@/lib/image/process-file";
 
-export const FRAMING_GUIDE = "Coloca la prenda sobre una superficie blanca y céntrala en el marco.";
-export const BACKGROUND_REJECTED =
-  "El fondo no está en blanco. Repite la foto con la prenda sobre una superficie blanca.";
+export const FRAMING_GUIDE = "Toma la prenda completa. Cualquier fondo sirve.";
 
 /** Desplazamiento horizontal repetido `count` veces; con 0 no se mueve. */
 export function shakeKeyframes(count: number): number[] {
@@ -34,7 +32,6 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [shakeKey, setShakeKey] = useState(0);
   const t = useMotionTiming();
   const sideWord = side === "back" ? "atrás" : side === "front" ? "frente" : null;
   const forSide = sideWord ? ` de ${sideWord}` : "";
@@ -54,13 +51,8 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
     setBusy(true);
     setError("");
     try {
-      const { file: edited, analysis } = await processFile(file);
-      if (!analysis.ok) {
-        // Foto rechazada: no se conserva ni se entrega; solo se puede repetir.
-        setError(BACKGROUND_REJECTED);
-        setShakeKey((k) => k + 1);
-        return;
-      }
+      // Decisión del dueño (2026-11-12): sin requisito de fondo blanco; toda foto procesada se acepta.
+      const { file: edited } = await processFile(file);
       if (preview) URL.revokeObjectURL(preview);
       setPreview(URL.createObjectURL(edited));
       onCapture(edited);
@@ -121,15 +113,6 @@ export function ProductPhotoCapture({ onCapture, onClear, onBusyChange, side, pr
         </div>
       ) : (
         <div className="space-y-2">
-          <motion.div
-            key={shakeKey}
-            data-testid="framing-guide"
-            animate={{ x: shakeKeyframes(shakeKey > 0 && error ? t.rejectShakeCount : 0) }}
-            transition={{ duration: t.rejectShakeMs / 1000, ease: "linear" }}
-            className="relative mx-auto flex aspect-square w-full max-w-[200px] items-center justify-center rounded-lg border-2 border-dashed border-borde-control bg-white"
-          >
-            <div aria-hidden="true" className="h-3/5 w-3/5 rounded-md border-2 border-turquesa-texto/60" />
-          </motion.div>
           <p className="text-sm text-gray-700">{FRAMING_GUIDE}</p>
           <Button
             onClick={() => inputRef.current?.click()}

@@ -395,7 +395,7 @@ export function NewProductForm({
         mode: catalog ? "catalog" : "stock",
         imageUrl,
         backImageUrl,
-        // Las fotos solo llegan de la captura, que ya revisó el fondo blanco.
+        // Las fotos solo llegan de la captura de la app.
         photosAnalyzed: photos.length > 0,
       };
       sent = true;
@@ -570,7 +570,7 @@ export function NewProductForm({
         <section aria-labelledby="fotos-producto" className="space-y-3">
           <h4 id="fotos-producto" className="text-sm font-semibold text-gray-900">Fotos del producto</h4>
           <p id={photosHelpId} className="text-sm text-gray-600">
-            Recomendadas, sobre fondo blanco. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
+            Recomendadas. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
           </p>
           <div role="group" aria-labelledby="foto-frente-label">
             <p className="mb-1 flex items-baseline justify-between text-sm">
