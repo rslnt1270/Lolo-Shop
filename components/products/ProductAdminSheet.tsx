@@ -19,12 +19,13 @@ import {
 import { formatPriceChange, formatPriceShort } from "@/lib/products/format";
 import { COMMA_CENTS_MESSAGE, hasCommaCents, isBigPriceDrop, isBigPriceRise, parsePriceInput } from "@/lib/products/price-input";
 import { ProductPhotoButton } from "./ProductPhotoButton";
+import { PublishControl } from "./PublishControl";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
 
 interface Props {
   product: Product;
-  locations: Pick<Location, "id" | "name">[];
+  locations: Pick<Location, "id" | "name" | "type" | "isPublic">[];
   /** Rol del JWT: solo decide qué se muestra. El servidor vuelve a validar en cada acción. */
   role: Role;
   onClose: () => void;
@@ -364,6 +365,13 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               </p>
             )}
           </div>
+
+          {canEditData && (
+            <section aria-label="Sitio web" className="space-y-3 rounded-xl border border-[#E1E9E9] p-3.5">
+              <h3 className="border-b border-[#E1E9E9] pb-1 text-sm font-bold text-[#16302F]">Sitio web</h3>
+              <PublishControl product={product} locations={locations} onChanged={onChanged} />
+            </section>
+          )}
 
           {canEditData && (
             <section aria-label="Datos del producto" className="space-y-3.5 rounded-xl border border-[#E1E9E9] p-3.5">

@@ -603,6 +603,19 @@ export class PrismaDataSource implements InventoryDataSource {
     await this.db.product.update({ where: { id: productId }, data: { isActive: active } });
   }
 
+  async setProductPublished(productId: string, published: boolean): Promise<void> {
+    const res = await this.db.product.updateMany({ where: { id: productId }, data: { isPublished: published } });
+    if (res.count === 0) throw new ProductNotFoundError();
+  }
+
+  async getProductForPublish(productId: string): Promise<Product | null> {
+    const p = await this.db.product.findFirst({
+      where: { id: productId, isActive: true, mergedIntoId: null },
+      include: { variants: { include: { inventory: true }, orderBy: { createdAt: "asc" } }, department: true },
+    });
+    return p ? toProduct(p, p.variants.map(toVariant)) : null;
+  }
+
   async setVariantActive(variantId: string, active: boolean): Promise<void> {
     if (active) {
       const v = await this.db.variant.findUnique({ where: { id: variantId }, select: { productId: true, size: true } });

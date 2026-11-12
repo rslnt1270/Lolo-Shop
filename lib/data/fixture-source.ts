@@ -364,6 +364,17 @@ export class FixtureDataSource implements InventoryDataSource {
     product.isActive = active;
   }
 
+  async setProductPublished(productId: string, published: boolean): Promise<void> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) throw new ProductNotFoundError();
+    product.isPublished = published;
+  }
+
+  async getProductForPublish(productId: string): Promise<Product | null> {
+    const p = this.products.find((x) => x.id === productId);
+    return p && p.isActive !== false && !p.mergedIntoId ? p : null;
+  }
+
   async setVariantActive(variantId: string, active: boolean): Promise<void> {
     const match = await this.getProductByVariantId(variantId);
     if (!match) throw new ProductNotFoundError("La talla ya no existe.");

@@ -22,6 +22,7 @@ import {
   assignProductTypeAction,
   listPriceChangesAction,
   setProductActiveAction,
+  setProductPublishedAction,
   setVariantActiveAction,
   updateProductAction,
   updateVariantPriceAction,
@@ -263,5 +264,72 @@ describe("assignDepartmentAction", () => {
     departmentFind.mockResolvedValue({ isActive: false });
     await expect(assignDepartmentAction(["prod-1"], "d9")).resolves.toMatchObject({ ok: false, code: "INVALID" });
     expect((await ds.getProducts())[0].departmentId).toBe("dept-hombre");
+  });
+});
+
+describe("setProductPublishedAction", () => {
+  const makeEligible = async (over: Record<string, unknown> = {}) => {
+    const p = (await ds.getProducts())[0];
+    Object.assign(p, { imageUrl: "https://blob/f.jpg", backImageUrl: "https://blob/b.jpg", description: "Hoodie negro", ...over });
+    return p;
+  };
+
+  it("colaborador → FORBIDDEN y no escribe", async () => {
+    const p = await makeEligible();
+    as("collaborator", "loc-1");
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(p.isPublished).not.toBe(true);
+  });
+
+  it("sesión vieja de owner con rol colaborador en la base → FORBIDDEN", async () => {
+    const p = await makeEligible();
+    // El JWT diría owner, pero la base (currentUserOrNull) devuelve colaborador.
+    getCurrentUser.mockResolvedValue({ id: "u1", role: "collaborator", locationId: "loc-1" });
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(p.isPublished).not.toBe(true);
+  });
+
+  it("sin sesión → SESSION", async () => {
+    getCurrentUser.mockRejectedValue(new UnauthenticatedError());
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "SESSION" });
+  });
+
+  it("producto no elegible → INVALID con el texto del primer hueco", async () => {
+    const p = await makeEligible({ backImageUrl: null, description: null });
+    const r = await setProductPublishedAction("prod-1", true);
+    expect(r).toEqual({ ok: false, code: "INVALID", message: "Falta la foto de atrás." });
+    expect(p.isPublished).not.toBe(true);
+  });
+
+  it("sin existencias en tienda pública → INVALID", async () => {
+    await makeEligible();
+    for (const l of (ds as unknown as { locations: { isPublic?: boolean }[] }).locations) l.isPublic = false;
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "INVALID", message: "No hay piezas en una tienda pública." });
+  });
+
+  it("manager publica un producto elegible aunque catalogPhotosCheckedAt sea nulo", async () => {
+    const p = await makeEligible({ catalogPhotosCheckedAt: null });
+    as("manager", "loc-1");
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toEqual({ ok: true });
+    expect(p.isPublished).toBe(true);
+  });
+
+  it("despublicar no exige elegibilidad", async () => {
+    const p = await makeEligible({ isPublished: true, imageUrl: null, description: null });
+    await expect(setProductPublishedAction("prod-1", false)).resolves.toEqual({ ok: true });
+    expect(p.isPublished).toBe(false);
+  });
+
+  it("producto inexistente, inactivo o unido → NOT_FOUND", async () => {
+    await expect(setProductPublishedAction("nope", true)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+    await makeEligible({ isActive: false });
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+    await makeEligible({ isActive: true, mergedIntoId: "prod-2" });
+    await expect(setProductPublishedAction("prod-1", false)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+  });
+
+  it("published no booleano → INVALID", async () => {
+    await makeEligible();
+    await expect(setProductPublishedAction("prod-1", "true" as unknown as boolean)).resolves.toMatchObject({ ok: false, code: "INVALID" });
   });
 });

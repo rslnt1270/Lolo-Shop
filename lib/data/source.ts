@@ -289,6 +289,13 @@ export interface InventoryDataSource {
    * `InventoryRuleError`. Lanza `ProductNotFoundError` si no existe.
    */
   setProductActive(productId: string, active: boolean): Promise<void>;
+  /**
+   * Publica o despublica en el sitio: escribe solo `isPublished`. La elegibilidad la decide el llamador.
+   * Lanza `ProductNotFoundError` si no existe.
+   */
+  setProductPublished(productId: string, published: boolean): Promise<void>;
+  /** Producto con variantes e inventario para decidir si se puede publicar. `null` si no existe, está inactivo o unido. */
+  getProductForPublish(productId: string): Promise<Product | null>;
   /** Igual que `setProductActive`, para una talla. */
   setVariantActive(variantId: string, active: boolean): Promise<void>;
   /** Asigna el departamento a varios productos; devuelve cuántos existían. */
