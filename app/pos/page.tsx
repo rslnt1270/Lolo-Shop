@@ -24,6 +24,16 @@ type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
 type ApplyOutcome = { added: number; rejected: string | null; ok: string; title?: string };
 type StockError = { message: string; signature: string; variantId?: string };
 
+/** Aviso del cobro primero y el posterior después: error si alguno lo es, y conserva el enlace de sesión. */
+function combineNotices(first: Notice, second: Notice): Notice {
+  const lead = /[.!?]$/.test(first.text) ? first.text : `${first.text}.`;
+  return {
+    kind: first.kind === "error" || second.kind === "error" ? "error" : "ok",
+    text: `${lead} ${second.text}`,
+    ...(first.login || second.login ? { login: true } : {}),
+  };
+}
+
 const LOCATION_KEY = "loloshop:pos:location";
 
 export default function POSPage() {
@@ -39,6 +49,8 @@ export default function POSPage() {
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [stockError, setStockError] = useState<StockError | null>(null);
+  // Último aviso del cobro: sigue visible (y se le agrega lo que llegue después) hasta que la cajera actúe.
+  const lastOutcomeRef = useRef<Notice | null>(null);
   const [pendingScans, setPendingScans] = useState<PendingScan[]>([]);
   // Códigos con consulta en curso o fallida: una segunda lectura del mismo código no crea otra fila.
   // `extra`: piezas idénticas que llegaron mientras la primera consulta cargaba o esperaba.
@@ -172,6 +184,7 @@ export default function POSPage() {
         setNotice({ kind: "error", text: "Hay un cobro en curso: espera a que termine para agregar prendas." });
         return;
       }
+      lastOutcomeRef.current = null;
       setNotice(
         noticeFor([applyFound({ found: true, product: match.product, variantId: match.variant.id, stock })], false),
       );
@@ -180,6 +193,11 @@ export default function POSPage() {
   );
 
   /** Aplica al carrito las lecturas que esperaban. Solo si ya no hay cobro en curso ni incierto. */
+  /** Aviso de algo que llegó solo (consulta que terminó): no pisa el del cobro, se le agrega. */
+  const notify = useCallback((n: Notice) => {
+    setNotice(lastOutcomeRef.current ? combineNotices(lastOutcomeRef.current, n) : n);
+  }, []);
+
   const flushHeld = useCallback((): Notice | null => {
     if (submittingRef.current || lockRef.current) return null;
     const items = Array.from(heldRef.current.entries());
@@ -205,12 +223,12 @@ export default function POSPage() {
         }
         if (!result) {
           setPending(code, null);
-          setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
+          notify({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
           const variant = result.product.variants.find((v) => v.id === result.variantId);
           if (!variant) {
             setPending(code, null);
-            setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
+            notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
           } else if (submittingRef.current || lockRef.current) {
             // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
             heldRef.current.set(code, result);
@@ -219,15 +237,15 @@ export default function POSPage() {
             const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
             setPending(code, null);
             const next = noticeFor([applyFound(result, pieces)], pieces > 1);
-            if (next) setNotice(next);
+            if (next) notify(next);
           }
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
           setPending(code, "error");
-          setNotice({ kind: "error", text: result.error, login: result.error === SESSION_EXPIRED_TEXT });
+          notify({ kind: "error", text: result.error, login: result.error === SESSION_EXPIRED_TEXT });
         } else {
           setPending(code, null);
-          setNotice({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
+          notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
         }
       } catch {
         if (store !== locationRef.current) {
@@ -235,10 +253,10 @@ export default function POSPage() {
           return;
         }
         setPending(code, "error");
-        setNotice({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
+        notify({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
       }
     },
-    [applyFound, noticeFor, setPending],
+    [applyFound, noticeFor, notify, setPending],
   );
 
   const handleScan = useCallback(
@@ -255,9 +273,11 @@ export default function POSPage() {
         // Otra pieza idéntica: queda en espera junto a la primera y se suma al llegar.
         state.extra += 1;
         syncPending();
+        lastOutcomeRef.current = null;
         setNotice({ kind: "ok", text: `Otra pieza de ${code} en espera (×${1 + state.extra}).` });
         return;
       }
+      lastOutcomeRef.current = null;
       setNotice(null);
       void runLookup(code, locationId);
     },
@@ -280,6 +300,7 @@ export default function POSPage() {
   const retryScan = useCallback(
     (code: string) => {
       if (!locationId || pendingRef.current.get(code)?.status === "loading") return;
+      lastOutcomeRef.current = null;
       setNotice(null);
       void runLookup(code, locationId);
     },
@@ -315,6 +336,7 @@ export default function POSPage() {
     }
     submittingRef.current = true;
     setSubmitting(true);
+    lastOutcomeRef.current = null;
     setNotice(null);
     let outcome: Notice | null = null;
     const say = (n: Notice) => {
@@ -341,7 +363,7 @@ export default function POSPage() {
         // Las lecturas que fallaron durante el cobro no pasan a la venta siguiente: se avisan, no se borran en silencio.
         const failedCodes = Array.from(pendingRef.current)
           .filter(([, p]) => p.status === "error")
-          .map(([c]) => c);
+          .map(([c, p]) => (p.extra ? `${c} (×${1 + p.extra})` : c));
         const lost = failedCodes.length
           ? ` No se agregaron: ${failedCodes.join(", ")}. Escanéalos de nuevo si van en otra venta.`
           : "";
@@ -388,6 +410,9 @@ export default function POSPage() {
         draft.markRejected(requestSignature);
         if (result.code === "NO_STOCK") {
           setStockError({ message: result.message, signature, variantId: result.variantId });
+          // Se registra como resultado (sin pintarlo: ya va junto a la línea) para que, si la cola cambia
+          // las líneas, el motivo del rechazo siga en el aviso.
+          outcome = { kind: "error", text: result.message };
         } else {
           say({ kind: "error", text: result.message });
         }
@@ -405,18 +430,11 @@ export default function POSPage() {
       // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
       // El aviso del cobro va primero y no se pisa con el de las lecturas en espera.
       const flushed = flushHeld();
-      if (flushed) {
-        const first = outcome as Notice | null;
-        if (!first) setNotice(flushed);
-        else {
-          const lead = /[.!?]$/.test(first.text) ? first.text : `${first.text}.`;
-          setNotice({
-            kind: first.kind === "error" || flushed.kind === "error" ? "error" : "ok",
-            text: `${lead} ${flushed.text}`,
-            ...(first.login || flushed.login ? { login: true } : {}),
-          });
-        }
-      }
+      const first = outcome as Notice | null;
+      const shown = first && flushed ? combineNotices(first, flushed) : (first ?? flushed);
+      if (flushed && shown) setNotice(shown);
+      // Lo que llegue después (una consulta que seguía en curso) se agrega a este aviso.
+      lastOutcomeRef.current = shown;
     }
   };
 
@@ -427,6 +445,7 @@ export default function POSPage() {
     setStockError(null);
     setAlias("");
     draft.reset();
+    lastOutcomeRef.current = null;
     const flushed = flushHeld();
     setNotice(flushed);
   };

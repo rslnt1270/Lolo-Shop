@@ -280,6 +280,47 @@ describe("/pos escaneo continuo", () => {
       expect(await screen.findByText("Agregado: Playera (M) · ×2")).toBeInTheDocument();
     });
 
+    it("una consulta que sigue en curso al terminar el cobro no pisa el aviso de la venta", async () => {
+      const sale = await chargingWithOneLine();
+      const lookup = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(lookup.promise);
+      scan("222");
+      await screen.findByText("Buscando 222…");
+      await act(async () => sale.resolve(okSale));
+      await screen.findByText(/Venta #9 registrada/);
+      await act(async () => lookup.resolve(found("v2", "L", { available: 3, sold: false }, "Camisa")));
+      const status = await screen.findByRole("status");
+      expect(status).toHaveTextContent("Venta #9 registrada");
+      expect(status).toHaveTextContent("Agregado: Camisa (L) · ×1");
+    });
+
+    it("NO_STOCK con una lectura en espera que entra: el motivo del rechazo sigue en el aviso", async () => {
+      const sale = await chargingWithOneLine();
+      actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "L", { available: 3, sold: false }, "Camisa"));
+      scan("222");
+      await screen.findByText("Pendiente para la siguiente venta: 222");
+      await act(async () =>
+        sale.resolve({ ok: false, code: "NO_STOCK", message: "No alcanzan las piezas de Playera.", variantId: "v1" }),
+      );
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent("No alcanzan las piezas de Playera.");
+      expect(alert).toHaveTextContent("Agregado: Camisa (L) · ×1");
+    });
+
+    it("el aviso de filas en error incluye las piezas en espera", async () => {
+      const sale = await chargingWithOneLine();
+      let fail!: (e: unknown) => void;
+      actions.lookupCodeAction.mockReturnValueOnce(new Promise((_, rej) => (fail = rej)));
+      scan("444");
+      await screen.findByText("Buscando 444…");
+      scan("444");
+      await screen.findByText("Otra pieza de 444 en espera (×2).");
+      await act(async () => fail(new Error("red")));
+      await screen.findByRole("button", { name: "Reintentar 444" });
+      await act(async () => sale.resolve(okSale));
+      expect(await screen.findByText(/No se agregaron: 444 \(×2\)\./)).toBeInTheDocument();
+    });
+
     it("segunda pieza del mismo código durante el cobro queda en espera ×2 y se suma al terminar", async () => {
       const sale = await chargingWithOneLine();
       actions.lookupCodeAction.mockResolvedValueOnce(found("v2", "L", { available: 5, sold: false }, "Camisa"));
