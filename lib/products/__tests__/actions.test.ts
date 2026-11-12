@@ -320,12 +320,30 @@ describe("setProductPublishedAction", () => {
     expect(p.isPublished).toBe(false);
   });
 
-  it("producto inexistente, inactivo o unido → NOT_FOUND", async () => {
+  it("publicar un producto inexistente, inactivo o unido → NOT_FOUND", async () => {
     await expect(setProductPublishedAction("nope", true)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
     await makeEligible({ isActive: false });
     await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
     await makeEligible({ isActive: true, mergedIntoId: "prod-2" });
-    await expect(setProductPublishedAction("prod-1", false)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+    await expect(setProductPublishedAction("prod-1", true)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+  });
+
+  it("despublicar un producto inactivo o unido sí se permite (sale del sitio)", async () => {
+    const p = await makeEligible({ isPublished: true, isActive: false });
+    await expect(setProductPublishedAction("prod-1", false)).resolves.toEqual({ ok: true });
+    expect(p.isPublished).toBe(false);
+    await makeEligible({ isPublished: true, isActive: true, mergedIntoId: "prod-2" });
+    await expect(setProductPublishedAction("prod-1", false)).resolves.toEqual({ ok: true });
+    expect(p.isPublished).toBe(false);
+    await expect(setProductPublishedAction("nope", false)).resolves.toMatchObject({ ok: false, code: "NOT_FOUND" });
+  });
+
+  it("desactivar un producto publicado lo despublica; reactivarlo no lo vuelve a publicar", async () => {
+    const p = await makeEligible({ isPublished: true });
+    await expect(setProductActiveAction("prod-1", false)).resolves.toEqual({ ok: true });
+    expect(p.isPublished).toBe(false);
+    await expect(setProductActiveAction("prod-1", true)).resolves.toEqual({ ok: true });
+    expect(p.isPublished).toBe(false);
   });
 
   it("published no booleano → INVALID", async () => {

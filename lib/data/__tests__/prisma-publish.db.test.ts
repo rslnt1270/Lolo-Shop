@@ -44,4 +44,26 @@ describe.skipIf(!hasTestDb)("publicar: setProductPublished y getProductForPublis
     expect(await ds.getProductForPublish(target.id)).not.toBeNull();
     await expect(ds.setProductPublished("no-existe", true)).rejects.toThrow();
   });
+
+  it("desactivar quita isPublished y reactivar no lo restituye", async () => {
+    const p = await testPrisma.product.create({ data: { title: "Blusa", brand: "Guess", isPublished: true } });
+    await ds.setProductActive(p.id, false);
+    expect(await testPrisma.product.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ isActive: false, isPublished: false });
+    await ds.setProductActive(p.id, true);
+    expect(await testPrisma.product.findUniqueOrThrow({ where: { id: p.id } })).toMatchObject({ isActive: true, isPublished: false });
+  });
+
+  it("unir despublica los orígenes y no toca al destino", async () => {
+    const user = await testPrisma.user.create({ data: { username: "owner", name: "Lolo", password: "x", role: "owner" } });
+    const brand = await testPrisma.brand.create({ data: { name: "Guess", slug: "guess" } });
+    const mk = (title: string, sku: string) =>
+      testPrisma.product.create({
+        data: { title, brand: "Guess", brandId: brand.id, isPublished: true, variants: { create: [{ sku, title: sku, size: sku, price: 100 }] } },
+      });
+    const target = await mk("Polo", "M");
+    const source = await mk("Polo L", "L");
+    await ds.mergeProducts(target.id, [source.id], user.id);
+    expect((await testPrisma.product.findUniqueOrThrow({ where: { id: source.id } })).isPublished).toBe(false);
+    expect((await testPrisma.product.findUniqueOrThrow({ where: { id: target.id } })).isPublished).toBe(true);
+  });
 });

@@ -219,9 +219,10 @@ export async function setProductPublishedAction(productId: string, published: bo
   if (typeof published !== "boolean") return invalid("Indica si el producto se publica o se quita del sitio.");
   const ds = getDataSource();
   try {
-    const product = await ds.getProductForPublish(productId);
-    if (!product) return notFound("Ese producto ya no existe.");
+    // Quitar del sitio siempre se permite (también inactivo o unido); solo publicar pasa por la elegibilidad.
     if (published) {
+      const product = await ds.getProductForPublish(productId);
+      if (!product) return notFound("Ese producto ya no existe.");
       const storeIds = publicStoreIds(await ds.getLocations());
       const { eligible, gaps } = catalogEligibility({
         imageUrl: product.imageUrl,

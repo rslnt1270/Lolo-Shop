@@ -367,8 +367,8 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
           </div>
 
           {canEditData && (
-            <section aria-label="Sitio web" className="space-y-3 rounded-xl border border-[#E1E9E9] p-3.5">
-              <h3 className="border-b border-[#E1E9E9] pb-1 text-sm font-bold text-[#16302F]">Sitio web</h3>
+            <section aria-label="Sitio web" className="space-y-3 rounded-xl border border-gray-200 p-3.5">
+              <h3 className="border-b border-gray-200 pb-1 text-sm font-bold text-tinta">Sitio web</h3>
               <PublishControl product={product} locations={locations} onChanged={onChanged} />
             </section>
           )}
@@ -654,10 +654,10 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
               aria-modal="true"
               aria-labelledby="ficha-confirm-title"
               aria-describedby="ficha-confirm-desc"
-              className="w-full max-w-[351px] space-y-4 rounded-2xl border border-[#E1E9E9] bg-white p-5 shadow-xl"
+              className="w-full max-w-[351px] space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-xl"
             >
               <div>
-                <h3 id="ficha-confirm-title" className="text-base font-bold leading-tight text-[#16302F]">
+                <h3 id="ficha-confirm-title" className="text-base font-bold leading-tight text-tinta">
                   {confirm.kind === "product"
                     ? `¿Desactivar ${product.title}?`
                     : `¿Desactivar la talla ${confirmVariant?.size || confirmVariant?.title}?`}

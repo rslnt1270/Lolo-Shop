@@ -138,6 +138,9 @@ describe.skipIf(!hasTestDb)("precio por talla, desactivar y departamento en lote
     expect(d.soldTotal).toBe(899);
 
     await ds.setProductActive(productId, true);
+    // Desactivar despublica: reactivar no lo vuelve al sitio hasta un nuevo "Publicar".
+    expect(await getPublicCatalog(new PrismaDataSource(testPrisma))).toEqual([]);
+    await ds.setProductPublished(productId, true);
     expect((await getPublicCatalog(new PrismaDataSource(testPrisma))).map((p) => p.title)).toContain("Playera");
   });
 

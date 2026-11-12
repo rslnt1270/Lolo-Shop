@@ -600,7 +600,8 @@ export class PrismaDataSource implements InventoryDataSource {
     if (active && p.mergedIntoId) {
       throw new InventoryRuleError("Este producto se unió con otro y no se puede reactivar.");
     }
-    await this.db.product.update({ where: { id: productId }, data: { isActive: active } });
+    // Desactivar también quita del sitio: reactivar no lo vuelve a exponer sin un nuevo "Publicar".
+    await this.db.product.update({ where: { id: productId }, data: active ? { isActive: true } : { isActive: false, isPublished: false } });
   }
 
   async setProductPublished(productId: string, published: boolean): Promise<void> {
@@ -765,7 +766,7 @@ export class PrismaDataSource implements InventoryDataSource {
       await tx.product.updateMany({ where: { mergedIntoId: { in: toMove } }, data: { mergedIntoId: targetId } });
       await tx.product.updateMany({
         where: { id: { in: toMove } },
-        data: { isActive: false, mergedIntoId: targetId, mergedAt: new Date(), mergedById: userId },
+        data: { isActive: false, isPublished: false, mergedIntoId: targetId, mergedAt: new Date(), mergedById: userId },
       });
       // La talla ya vive en las variantes: el título del destino queda sin ella ("Polo - M" → "Polo").
       const cleanTitle = stripTrailingSize(target.title);

@@ -362,6 +362,7 @@ export class FixtureDataSource implements InventoryDataSource {
       throw new InventoryRuleError("Este producto se unió con otro y no se puede reactivar.");
     }
     product.isActive = active;
+    if (!active) product.isPublished = false;
   }
 
   async setProductPublished(productId: string, published: boolean): Promise<void> {
@@ -536,6 +537,7 @@ export class FixtureDataSource implements InventoryDataSource {
       target.variants.push(...src.variants);
       src.variants = [];
       src.isActive = false;
+      src.isPublished = false;
       src.mergedIntoId = targetId;
     }
     void userId;
