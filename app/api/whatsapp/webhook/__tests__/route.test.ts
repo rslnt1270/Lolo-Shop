@@ -21,7 +21,8 @@ describe("webhook WhatsApp", () => {
   beforeEach(async () => {
     state.ds = new FixtureDataSource();
     const store = (await state.ds.getLocations()).find((l) => l.type === "store")!;
-    await state.ds.createProduct({ title: "Playera Nike", brand: "Nike", brandId: "b", departmentId: "d", publicCode: "K7Q2M", category: "c", variants: [{ barcode: "1", sku: "LS-1", size: "M", price: 1, initialStock: 3 }], locationId: store.id, userId: "u", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" });
+    const { product: nike } = await state.ds.createProduct({ description: "Playera", title: "Playera Nike", brand: "Nike", brandId: "b", departmentId: "d", publicCode: "K7Q2M", category: "c", variants: [{ barcode: "1", sku: "LS-1", size: "M", price: 1, initialStock: 3 }], locationId: store.id, userId: "u", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" });
+    nike.isPublished = true;
     state.spy = vi.spyOn(state.ds, "getProducts") as never;
   });
 
@@ -59,9 +60,10 @@ describe("webhook WhatsApp: producto unido", () => {
     state.ds = new FixtureDataSource();
     const store = (await state.ds.getLocations()).find((l) => l.type === "store")!;
     const mk = (title: string, code: string, size: string) =>
-      state.ds.createProduct({ title, brand: "Nautica", brandId: "b", departmentId: "d", publicCode: code, category: "c", variants: [{ barcode: null, sku: `LS-${code}`, size, price: 1, initialStock: 3 }], locationId: store.id, userId: "u", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" });
+      state.ds.createProduct({ description: "d", title, brand: "Nautica", brandId: "b", departmentId: "d", publicCode: code, category: "c", variants: [{ barcode: null, sku: `LS-${code}`, size, price: 1, initialStock: 3 }], locationId: store.id, userId: "u", imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg" });
     const a = await mk("Polo Nautica", "AAAAA", "M");
     const b = await mk("Polo Nautica L", "BBBBB", "L");
+    a.product.isPublished = true;
     await state.ds.mergeProducts(a.product.id, [b.product.id], "u");
     const out = await send("Código BBBBB talla M");
     expect(out).toContain('"Polo Nautica"');

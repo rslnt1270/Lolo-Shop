@@ -1,4 +1,5 @@
-import type { Product } from "@/lib/domain/types";
+import type { Location, Product } from "@/lib/domain/types";
+import { catalogEligibility, hasStockInPublicStore } from "@/lib/domain/catalog-eligibility";
 import { sortSizes } from "@/lib/domain/sizes";
 import type { InventoryDataSource } from "./source";
 
@@ -55,13 +56,35 @@ export function toPublicProduct(
   };
 }
 
-/** Catálogo público: la fuente ya filtra (activos, sin unir, con frente y atrás); aquí se exige alguna variante activa. */
+/** Tiendas que cuentan para el sitio: type store e isPublic distinto de false (ausente = pública). */
+export function publicStoreIds(locations: Location[]): Set<string> {
+  return new Set(locations.filter((l) => l.type === "store" && l.isPublic !== false).map((l) => l.id));
+}
+
+/** Regla de verdad del sitio: publicado por owner/manager Y elegible (fotos, descripción, existencias). */
+function isPublicListed(p: Product, storeIds: ReadonlySet<string>): boolean {
+  return (
+    p.isPublished === true &&
+    catalogEligibility({
+      imageUrl: p.imageUrl,
+      backImageUrl: p.backImageUrl,
+      description: p.description,
+      hasStockInPublicStore: hasStockInPublicStore(p, storeIds),
+    }).eligible
+  );
+}
+
+/**
+ * Catálogo público: la fuente prefiltra (activos, sin unir, publicados, con frente y atrás);
+ * aquí se exige publicado + elegible y alguna talla disponible en una tienda pública.
+ */
 export async function getPublicCatalog(ds: InventoryDataSource): Promise<PublicProduct[]> {
   const [products, locations] = await Promise.all([ds.getCatalogProducts(), ds.getLocations()]);
-  const storeIds = new Set(locations.filter((l) => l.type === "store").map((l) => l.id));
+  const storeIds = publicStoreIds(locations);
   return products
+    .filter((p) => isPublicListed(p, storeIds))
     .map((p) => toPublicProduct({ ...p, publicCode: p.publicCode ?? null }, storeIds))
-    .filter((p) => p.sizes.length > 0);
+    .filter((p) => p.sizes.some((x) => x.available));
 }
 
 /** Búsqueda del bot: solo por título, marca y categoría (nunca por SKU). */
@@ -73,14 +96,15 @@ export function matchesPublicQuery(p: PublicProduct, query: string): boolean {
 
 /**
  * Producto público por código: resuelve uniones (el código de un producto unido
- * devuelve el que se quedó) y proyecta solo si es público: activo, con las dos
- * fotos y alguna talla activa. Lo usan el bot de WhatsApp, el modal y la ficha.
+ * devuelve el que se quedó) y proyecta solo si es público: activo, publicado,
+ * elegible y con alguna talla disponible. Lo usan el bot de WhatsApp, el modal y la ficha.
  */
 export async function findPublicByCode(ds: InventoryDataSource, code: string): Promise<PublicProduct | null> {
   const product = await ds.getProductByPublicCode(code);
   if (!product || product.isActive === false || !product.imageUrl || !product.backImageUrl) return null;
   const locations = await ds.getLocations();
-  const storeIds = new Set(locations.filter((l) => l.type === "store").map((l) => l.id));
+  const storeIds = publicStoreIds(locations);
+  if (!product.isPublished || !isPublicListed(product, storeIds)) return null;
   const projected = toPublicProduct({ ...product, publicCode: product.publicCode ?? null }, storeIds);
-  return projected.sizes.length > 0 ? projected : null;
+  return projected.sizes.some((x) => x.available) ? projected : null;
 }

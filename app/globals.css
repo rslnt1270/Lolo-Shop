@@ -5,6 +5,56 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Pantalla móvil: barra inferior, área segura y altura real ──────────────
+   Fuente única para la barra de navegación inferior (NavBar, < md) y para
+   toda barra fija/pegajosa que deba quedar ENCIMA de ella.
+   - --nav-h: alto del contenido de la barra (sin el área segura).
+   - --safe-bottom: indicador de inicio (iPhone) / barra de gestos (Android).
+     Requiere viewport-fit=cover (export `viewport` en app/layout.tsx).
+   - --bottom-nav-offset: lo que tapa la barra inferior. Es 0 en md+ y en
+     pantallas sin barra (/pos, /login, /catalogo, sin sesión): la barra lleva
+     data-bottom-nav y :has() lo detecta. Si el navegador no soporta :has(),
+     se queda el valor móvil (lo seguro: nada queda tapado). */
+:root {
+  --nav-h: 4rem;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --bottom-nav-offset: calc(var(--nav-h) + var(--safe-bottom));
+  /* Relleno inferior de una barra pegajosa: el área segura solo cuando no hay
+     barra de navegación debajo (si la hay, ella ya cubre el área segura). */
+  --sticky-safe-pb: 0px;
+}
+
+:root:not(:has([data-bottom-nav])) {
+  --bottom-nav-offset: 0px;
+  --sticky-safe-pb: var(--safe-bottom);
+}
+
+@media (min-width: 768px) {
+  :root {
+    --bottom-nav-offset: 0px;
+    --sticky-safe-pb: var(--safe-bottom);
+  }
+}
+
+body {
+  padding-bottom: var(--bottom-nav-offset);
+  /* Horizontal (iPhone en horizontal): el contenido no entra bajo la muesca. */
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+@layer utilities {
+  /* Altura completa de la pantalla visible: 100vh de respaldo y 100dvh donde
+     exista (las barras del navegador móvil ya no empujan el contenido). */
+  .min-h-pantalla {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
 /* Botones: movimiento (spec paleta-botones §3) */
 .lolo-btn {
   transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;

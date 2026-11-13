@@ -395,7 +395,7 @@ export function NewProductForm({
         mode: catalog ? "catalog" : "stock",
         imageUrl,
         backImageUrl,
-        // Las fotos solo llegan de la captura, que ya revisó el fondo blanco.
+        // Las fotos solo llegan de la captura de la app.
         photosAnalyzed: photos.length > 0,
       };
       sent = true;
@@ -570,7 +570,7 @@ export function NewProductForm({
         <section aria-labelledby="fotos-producto" className="space-y-3">
           <h4 id="fotos-producto" className="text-sm font-semibold text-gray-900">Fotos del producto</h4>
           <p id={photosHelpId} className="text-sm text-gray-600">
-            Recomendadas, sobre fondo blanco. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
+            Recomendadas. Sin las dos fotos el producto queda en «Falta completar registro fotográfico».
           </p>
           <div role="group" aria-labelledby="foto-frente-label">
             <p className="mb-1 flex items-baseline justify-between text-sm">
@@ -780,7 +780,7 @@ export function NewProductForm({
         <p role="status" className="rounded-md bg-green-50 p-3 text-sm font-medium text-green-800">{stockAdded}</p>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-col gap-2 border-t border-gray-100 bg-white px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2">
+      <div className="sticky bottom-[var(--bottom-nav-offset)] md:bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-gray-100 bg-white px-4 pb-[max(0.5rem,var(--sticky-safe-pb))] pt-2">
         <Button type="submit" loading={loading} disabled={photoBusy} className="w-full">
           {loading ? "Guardando…" : photoBusy ? "Procesando foto…" : "Guardar producto"}
         </Button>

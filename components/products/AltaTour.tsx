@@ -7,7 +7,7 @@ import { useMotionTiming } from "@/lib/motion/use-reduced-motion";
 export const TOUR_STEPS = [
   { title: "Escanea la etiqueta", body: "Apunta la cámara al código de la etiqueta. Si no se lee, escríbelo a mano." },
   { title: "Elige si va al catálogo", body: "Decide si la prenda se publica con fotos o solo se registra en inventario." },
-  { title: "Toma fotos sobre fondo blanco", body: "Fotografía el frente y la parte de atrás sobre una superficie blanca." },
+  { title: "Toma las fotos", body: "Fotografía el frente y la parte de atrás de la prenda completa." },
 ] as const;
 
 interface AltaTourProps {
@@ -34,7 +34,7 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
   const dur = t.stepMs / 1000;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 pb-[max(1rem,var(--safe-bottom))] sm:items-center">
       <div
         ref={dialogRef}
         role="dialog"

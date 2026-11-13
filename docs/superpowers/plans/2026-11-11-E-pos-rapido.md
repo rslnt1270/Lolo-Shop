@@ -8,6 +8,8 @@
 
 **Tech Stack:** Next.js (App Router) + React + TypeScript, Prisma sobre PostgreSQL, Vitest + React Testing Library (`npm test`), Vitest con base real (`npm run test:db`), html5-qrcode, Vercel (preview).
 
+> **Revisión 2026-11-12 (entrega 2).** Tasks 1–4 salieron a producción en `main` d05d68b (PR #34, grupos G16–G17 y la ronda final f802cb7): `getStockAt`, `listVariantStockAt`, `lookupCodeAction(raw, locationId?)` con `stock`, `listVariantStockAtAction`, `Scanner continuous` con `SAME_CODE_GAP_MS`, `DraftLine.available`, filas `PendingScan` (`loading | error | queued`), cola `heldRef` durante el cobro y carrito bloqueado con cobro incierto. Pendientes: Task 5 (G22), Task 6 (G23) y la nueva **Task 6a** (avisos del POS que no se pierden, minors G17 de la entrega 1), Tasks 7–8 (G24). Cronograma: `docs/superpowers/plans/2026-11-12-entrega-2-cronograma.md`. La decisión del 2026-11-12 (fotos sin fondo blanco) no toca este plan.
+
 **Spec:** `docs/superpowers/specs/2026-11-11-alcance-inventario-simplificado-design.md` (§1, §5, §5.1–5.3). Se lee junto con `docs/superpowers/specs/2026-11-11-alta-producto-tienda-design.md` (§6 referencia, C21 y C22). Decisiones: `.superpowers/sdd/2026-11-11-version-final/decisiones.md` (2, 4 y 7).
 
 **Orden de mezcla (cronograma §3):** sexto, después de B base, A, las migraciones, G y D; antes de C. Consume de A `lookupCodeAction` ya recortada al inventario del colaborador y `recordStockMovementAction` solo con `restock`; de G, `Product.category` = `ProductType.name`; de H, `Product.color`.
@@ -54,7 +56,7 @@
   - `lookupCodeAction(raw: string, locationId?: string): Promise<LookupCodeResult>`. Si llega `locationId`, primero `assertCanOperate(user, locationId)`; si falla, `{ found: false, code, error: "Solo puedes operar en tu tienda asignada." }` sin consultar existencias. Cuando hay `found: true` y `locationId`, incluye `stock?: { available: number; sold: boolean }`. Sin `locationId` el resultado no cambia. `/pos` y `/escanear` (Task 5) pasan su tienda. El recorte de inventario del colaborador (A Task 7) se conserva.
   - `listVariantStockAtAction(productId: string, locationId: string): Promise<VariantStockRow[] | null>` en `lib/actions.ts`: `null` sin sesión; `assertCanOperate` → `[]` si la tienda no es suya; llama `listVariantStockAt`. `VariantStockRow = { variantId: string; size: string; sku: string; price: number; available: number }`. Es la única puerta del cliente a `listVariantStockAt`.
 
-- [ ] **Step 1: Escribir la prueba de base de `getStockAt`**
+- [x] **Step 1: Escribir la prueba de base de `getStockAt`**
 
 En `lib/data/__tests__/prisma-stock.db.test.ts` agregar:
 
@@ -67,21 +69,21 @@ it("getStockAt devuelve available de la talla en la tienda y sold=true solo si h
 });
 ```
 
-- [ ] **Step 2: Ejecutar la prueba y ver que falla**
+- [x] **Step 2: Ejecutar la prueba y ver que falla**
 
 Run: `npm run test:db -- -t "getStockAt"`
 Expected: FAIL con "getStockAt is not a function".
 
-- [ ] **Step 3: Implementar `getStockAt` y `listVariantStockAt`**
+- [x] **Step 3: Implementar `getStockAt` y `listVariantStockAt`**
 
 Agregar los dos métodos a `DataSource` (`lib/data/source.ts`) y su implementación en `prisma-source.ts` (consultas `inventoryLevel.findUnique` por `variantId_locationId` y `saleLine.count`) y en `fixture-source.ts` (mismo contrato con los datos de prueba). Sin upsert: sin fila, `available: 0`.
 
-- [ ] **Step 4: Ejecutar la prueba y ver que pasa**
+- [x] **Step 4: Ejecutar la prueba y ver que pasa**
 
 Run: `npm run test:db -- -t "getStockAt"`
 Expected: PASS.
 
-- [ ] **Step 5: Escribir la prueba de `lookupCodeAction` con tienda**
+- [x] **Step 5: Escribir la prueba de `lookupCodeAction` con tienda**
 
 Crear `lib/__tests__/lookup-code-stock.test.ts` con mocks de `getDataSource` y `currentUserOrNull` (mismo patrón que `lib/sales/__tests__/actions.test.ts`):
 
@@ -99,21 +101,21 @@ it("lookupCodeAction con locationId ajeno responde el error de tienda", async ()
 it("listVariantStockAtAction de un colaborador en otra tienda devuelve []", async () => {});
 ```
 
-- [ ] **Step 6: Ejecutar la prueba y ver que falla**
+- [x] **Step 6: Ejecutar la prueba y ver que falla**
 
 Run: `npm test -- lib/__tests__/lookup-code-stock.test.ts`
 Expected: FAIL (`stock` no existe).
 
-- [ ] **Step 7: Implementar en `lookupCodeAction`**
+- [x] **Step 7: Implementar en `lookupCodeAction`**
 
 Firma: `lookupCodeAction(raw: string, locationId?: string)`. Si `locationId` es texto no vacío, `assertCanOperate(user, locationId)` antes de buscar (`ForbiddenError` → `found: false` con su mensaje). Si `found`, llamar `getStockAt(match.variant.id, locationId)` y agregar `stock`. Agregar `listVariantStockAtAction` con la misma guarda. Si falla esa consulta, devolver `found: true` sin `stock` (el carrito lo tratará como "por confirmar", ver Task 3). Tipo: `{ found: true; product; variantId; stock?: { available: number; sold: boolean } }`.
 
-- [ ] **Step 8: Ejecutar pruebas y ver que pasan**
+- [x] **Step 8: Ejecutar pruebas y ver que pasan**
 
 Run: `npm test -- lib/__tests__/lookup-code-stock.test.ts && npm run test:db -- -t "getStockAt"`
 Expected: PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add lib/data/source.ts lib/data/prisma-source.ts lib/data/fixture-source.ts lib/actions.ts lib/data/__tests__/prisma-stock.db.test.ts lib/__tests__/lookup-code-stock.test.ts
@@ -133,7 +135,7 @@ git commit -m "feat(pos): consulta de existencias por talla en la tienda"
 - Consumes: nada de tareas previas.
 - Produces: prop nueva `continuous?: boolean` (por defecto `false`) y constante exportada `SAME_CODE_GAP_MS = 1000`. Con `continuous` true: `onScan` se llama una vez por presentación y la cámara sigue corriendo; no se llama `stopScanner` ni `setStatus("idle")` tras una lectura. "Presentación" (decisión 2): el mismo código vuelve a emitirse solo si pasaron ≥ `SAME_CODE_GAP_MS` sin leerlo (la prenda salió del cuadro); un código distinto se emite en cuanto se confirma. Sin `continuous`, el comportamiento es idéntico al actual (usado por `/escanear`).
 
-- [ ] **Step 1: Escribir las pruebas**
+- [x] **Step 1: Escribir las pruebas**
 
 ```tsx
 it("modo continuo: tras una lectura confirmada la cámara sigue activa y onScan recibe el código", () => {
@@ -152,21 +154,21 @@ it("sin continuous, tras una lectura la cámara se detiene (comportamiento de /e
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver que fallan las dos primeras**
+- [x] **Step 2: Ejecutar y ver que fallan las dos primeras**
 
 Run: `npm test -- components/__tests__/Scanner-continuous.test.tsx`
 Expected: FAIL en las pruebas de modo continuo; la de sin `continuous` pasa.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 En `handleDecoded`, si `continuous`: no marcar `handledRef`, no llamar `stopScanner`, no cambiar `status`. Mantener la confirmación de dos lecturas consecutivas (`lastRef`) para descartar lecturas falsas. Guardar `{ code, lastSeenAt }` de la última emisión y actualizar `lastSeenAt` en cada lectura de ese código; emitir el mismo código otra vez solo si `now - lastSeenAt >= SAME_CODE_GAP_MS`. Bajar o quitar piezas se hace en el carrito ("−" y "Quitar"), no en el escáner. Respetar los formatos de `SCAN_FORMAT_NAMES` (D Task 7).
 
-- [ ] **Step 4: Ejecutar pruebas de regresión y ver que pasan**
+- [x] **Step 4: Ejecutar pruebas de regresión y ver que pasan**
 
 Run: `npm test -- components/__tests__/Scanner`
 Expected: PASS (las existentes sin cambios y las nuevas).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add components/inventory/Scanner.tsx components/__tests__/Scanner-continuous.test.tsx
@@ -188,7 +190,7 @@ git commit -m "feat(scanner): modo continuo opt-in para escaneo de ventas"
   - `add(match: VariantMatch, stock?: { available: number; sold: boolean }): { ok: true } | { ok: false; reason: "NO_STOCK"; size: string }`. Con `stock.available === 0` devuelve `NO_STOCK` sin agregar. Si la talla ya está en el carrito, `quantity + 1` solo si `available === null || quantity + 1 <= available`; si no, `NO_STOCK`.
   - `setQty` y `remove` sin cambio de firma. `setQty` no baja de 1 (el botón "−" se deshabilita en 1; "Quitar" elimina la línea).
 
-- [ ] **Step 1: Escribir las pruebas**
+- [x] **Step 1: Escribir las pruebas**
 
 ```ts
 it("add con el mismo variantId suma quantity a 2 y la línea se muestra como ×2", () => {});
@@ -200,21 +202,21 @@ it("add con available 0 devuelve NO_STOCK y no crea la línea", () => {});
 it("remove elimina la línea completa aunque tenga quantity 2", () => {});
 ```
 
-- [ ] **Step 2: Ejecutar y ver que fallan**
+- [x] **Step 2: Ejecutar y ver que fallan**
 
 Run: `npm test -- lib/sales/__tests__/use-sale-draft.test.ts`
 Expected: FAIL en los casos nuevos.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Agregar `available` a `DraftLine`. En `add`, validar contra `available` cuando no es null. `reset()` y `renewRequestId()` no cambian. No tocar `requestIdFor`, `markRejected`, `markUncertain`, `isUncertain`.
 
-- [ ] **Step 4: Ejecutar y ver que pasan**
+- [x] **Step 4: Ejecutar y ver que pasan**
 
 Run: `npm test -- lib/sales/__tests__/use-sale-draft.test.ts`
 Expected: PASS (incluye los casos previos de id de la petición).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/sales/use-sale-draft.ts lib/sales/__tests__/use-sale-draft.test.ts
@@ -242,7 +244,7 @@ Reglas de `handleScan(code)`:
 4. Si la consulta falla (error de red o `error` en el resultado), la fila del código queda `status: "error"` con "Reintentar" (`onRetry(code)` repite la consulta). No se duplica ni se pierde. Un segundo escaneo del mismo código mientras hay fila pendiente no crea otra fila.
 5. `found: false` sin error: quita la fila y muestra `No encontramos el código {código}`.
 
-- [ ] **Step 1: Escribir las pruebas**
+- [x] **Step 1: Escribir las pruebas**
 
 ```tsx
 it("escanear no vuelve a montar el escáner: el mock de Scanner se renderiza una sola vez", () => {});
@@ -262,21 +264,21 @@ it("NO_STOCK en el cobro conserva el carrito y marca la línea", () => {
 });
 ```
 
-- [ ] **Step 2: Ejecutar y ver que fallan**
+- [x] **Step 2: Ejecutar y ver que fallan**
 
 Run: `npm test -- components/__tests__/PosPage-scan.test.tsx`
 Expected: FAIL.
 
-- [ ] **Step 3: Implementar**
+- [x] **Step 3: Implementar**
 
 Cambios en `app/pos/page.tsx`: `<Scanner continuous>` sin `key` dinámico (quitar `scannerKey` y su `setScannerKey`); estado `pendingScans`; `handleScan` según las 5 reglas; pasar `locationId` a `lookupCodeAction`. Cambios en `SaleCart.tsx` según el Interfaces (filas pendientes arriba de las líneas, "×N", "−" deshabilitado en 1, "Quitar"). No se cambia `charge`, `requestSignature`, ni el manejo de `PRICE_CHANGED` / `UNAVAILABLE` / `request_conflict`.
 
-- [ ] **Step 4: Ejecutar pruebas de cobro y de escaneo**
+- [x] **Step 4: Ejecutar pruebas de cobro y de escaneo**
 
 Run: `npm test -- components/__tests__/PosPage components/__tests__/SaleCart`
 Expected: PASS. Todas las pruebas existentes de `PosPage.test.tsx` (incluidas "tras un error de red, reintentar manda el mismo clientRequestId" y "PRICE_CHANGED: …") deben pasar sin cambios.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add app/pos/page.tsx components/sales/SaleCart.tsx components/__tests__/PosPage-scan.test.tsx
@@ -285,79 +287,66 @@ git commit -m "feat(pos): escaneo continuo con cámara abierta y existencias por
 
 ---
 
-### Task 5: "Agregar nuevamente" en `/escanear` para prendas ya vendidas
+### Task 5: "Agregar nuevamente" en `/escanear` para prendas ya vendidas — G22
+
+**Estado del código (d05d68b):** `app/escanear/page.tsx` llama `lookupCodeAction(code)` **sin** tienda (función `handleScan`), así que `found.stock` nunca llega; el resultado siempre muestra `SumToMyStore` (en la rama `notInMyStore` con el aviso "Esta prenda no está en tu tienda" y en la otra sin aviso). `SumToMyStore` (`components/inventory/SumToMyStore.tsx`) tiene props `{ variantId, locationId, quantity?, defaultQuantity?, onDone }` y su texto sale de `sumLabel(n)`. `FixtureDataSource.getStockAt` siempre devuelve `sold: false` porque las ventas viven en otra fixture (`FixtureSalesDataSource`); por eso las pruebas de esta tarea **simulan `sold` con el mock de `lookupCodeAction`** (carry G16) y la parte de base real la cubre `prisma-stock.db.test.ts`.
 
 **Files:**
-- Modify: `app/escanear/page.tsx` (pasa `locationId` a `lookupCodeAction`; si `stock.sold && stock.available === 0` en la tienda del usuario, muestra el aviso y "Agregar nuevamente")
-- Modify: `components/inventory/SumToMyStore.tsx` (prop opcional `label?: string`, por defecto el texto actual de `sumLabel`)
-- Test: `app/escanear/__tests__/page.test.tsx` (se agregan casos)
-- Test: `lib/__tests__/actions-stock.test.ts` (se agrega caso de tienda ajena si A no lo dejó)
+- Modify: `app/escanear/page.tsx` (`handleScan` pasa `locationId` a `lookupCodeAction`; con `found.stock?.sold && found.stock.available === 0` muestra el aviso y `SumToMyStore label="Agregar nuevamente"`; en los demás casos, igual que hoy)
+- Modify: `components/inventory/SumToMyStore.tsx` (prop opcional `label?: string`; si llega, sustituye a `sumLabel(shown)` en el botón; "Sumando…" no cambia)
+- Test: `app/escanear/__tests__/page.test.tsx` (agregar casos), `components/__tests__/SumToMyStore.test.tsx` (nuevo, solo la prop `label`)
 
 **Interfaces:**
-- Consumes: `lookupCodeAction(code, locationId)` con `stock.sold` (Task 1); `SumToMyStore` y `recordStockMovementAction({ kind: "restock", ... })` (existentes; A Task 6 los deja como única entrada de piezas, con `assertCanOperate` y `requestId` idempotente).
+- Consumes: `lookupCodeAction(code, locationId)` con `stock` (Task 1, ya en `main`); `SumToMyStore` y `recordStockMovementAction({ kind: "restock", ... })` (con `assertCanOperate` y `requestId` idempotente).
 - Produces: sin acción nueva. **No existe `restockSoldVariantAction`.** No crea `Product` ni `Variant`.
 
 Reglas:
-1. Solo en `/escanear` (decisión 7). En `/pos` una prenda vendida sin piezas solo muestra "Sin existencias de la talla X en esta tienda" (Task 4).
-2. Texto: `Esta prenda ya se vendió. Puedes agregar piezas al mismo producto.` y botón `SumToMyStore` con `label="Agregar nuevamente"`, que pide cuántas piezas (1 a `MAX_STOCK_QUANTITY`) y llama `recordStockMovementAction` en la tienda del usuario.
-3. La tienda la valida el servidor: un colaborador solo suma en su tienda (`assertCanOperate`); `/escanear` siempre pasa la tienda de la sesión.
+1. Solo en `/escanear` (decisión 7). En `/pos` una prenda vendida sin piezas solo muestra "Sin existencias de la talla X en esta tienda".
+2. Texto: `Esta prenda ya se vendió. Puedes agregar piezas al mismo producto.` y `SumToMyStore label="Agregar nuevamente"`.
+3. Si `lookupCodeAction` responde el error de tienda ("Solo puedes operar en tu tienda asignada."), se muestra como `lookupError`, sin resultado.
+4. Owner sin tienda elegida todavía: se llama sin `locationId` (comportamiento actual, sin "Agregar nuevamente").
 
 - [ ] **Step 1: Escribir las pruebas**
 
 ```ts
 // app/escanear/__tests__/page.test.tsx
+it("escanear manda la tienda del usuario a lookupCodeAction", () => {});
 it("prenda vendida sin piezas en la tienda muestra 'Agregar nuevamente'", () => {
   // lookupCodeAction -> { found: true, stock: { available: 0, sold: true } }
 });
 it("Agregar nuevamente llama recordStockMovementAction con kind restock, la tienda del usuario y el mismo requestId en el reintento", () => {});
-it("prenda con piezas no muestra 'Agregar nuevamente'", () => {});
+it("prenda con piezas o nunca vendida no muestra 'Agregar nuevamente'", () => {});
 
-// lib/__tests__/actions-stock.test.ts
-it("restock del colaborador en otra tienda: FORBIDDEN y no escribe", () => {});
+// components/__tests__/SumToMyStore.test.tsx
+it("label sustituye el texto del botón; sin label usa sumLabel", () => {});
 ```
 
-- [ ] **Step 2: Ejecutar y ver que fallan**
-
-Run: `npx vitest run app/escanear/__tests__/page.test.tsx lib/__tests__/actions-stock.test.ts`
-Expected: FAIL en los casos nuevos de `/escanear` (el de tienda ajena puede pasar si A ya lo dejó; queda como regresión).
-
-- [ ] **Step 3: Implementar**
-
-Cambios de Files. No tocar `recordStockMovementAction` salvo que la prueba de tienda ajena falle (en ese caso, el fallo es de A: reportarlo).
-
-- [ ] **Step 4: Ejecutar y ver que pasan**
-
-Run: el comando de Step 2 y `npm run test:db -- -t "RESTOCK"`.
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add app/escanear components/inventory/SumToMyStore.tsx app/escanear/__tests__/page.test.tsx lib/__tests__/actions-stock.test.ts
-git commit -m "feat(escanear): agregar nuevamente piezas a una prenda ya vendida"
-```
+- [ ] **Step 2: Ejecutar y ver que fallan.** Run: `npx vitest run app/escanear/__tests__/page.test.tsx components/__tests__/SumToMyStore.test.tsx` → FAIL en los nuevos.
+- [ ] **Step 3: Implementar** según Files. No tocar `recordStockMovementAction` (la prueba "colaborador en otra tienda → FORBIDDEN" de restock ya existe en `lib/__tests__/actions-stock.test.ts`; correrla como regresión).
+- [ ] **Step 4: Ejecutar y ver que pasan.** El comando de Step 2, `npx vitest run lib/__tests__/actions-stock.test.ts lib/__tests__/lookup-code-stock.test.ts` y `npm run test:db -- -t "getStockAt"` → PASS.
+- [ ] **Step 5: Commit.** `git commit -m "feat(escanear): agregar nuevamente piezas a una prenda ya vendida"`
 
 ---
 
-### Task 6: Botón "Sin código" con búsqueda de productos registrados
+### Task 6: Botón "Sin código" con búsqueda de productos registrados — G23
+
+**Estado del código (d05d68b):** `searchProducts` (`lib/data/prisma-source.ts`, `lib/data/fixture-source.ts`) busca código público exacto y luego `title`/`brand` (`contains`, insensible), hasta `MAX_SEARCH_RESULTS`. `ProductSearchHit = { productId, title, brand, publicCode, imageUrl, sizes }`. `ExistingProductSearch` **no tiene archivo de prueba propio**: su comportamiento lo cubren `app/escanear/__tests__/page.test.tsx`, `components/__tests__/NewProductForm-sizes.test.tsx` y `lib/__tests__/actions-sizes.test.ts`. En `/pos`, `ManualCodeEntry onNoBarcode` hoy pone el aviso "Una prenda sin código no se puede vender aquí: dala de alta primero en Escanear."
 
 **Files:**
-- Modify: `components/products/ExistingProductSearch.tsx` (props opcionales: `searchAction`, `heading`, `placeholder`, `pickLabel`, `hideNewButton`; por defecto el comportamiento actual)
-- Create: `components/sales/SaleProductSearch.tsx` (envuelve `ExistingProductSearch` con `searchAction` de ventas y la elección de talla)
-- Modify: `lib/data/prisma-source.ts` y `lib/data/fixture-source.ts` (`searchProducts` también busca por tipo, color y SKU interno)
+- Modify: `components/products/ExistingProductSearch.tsx` (props opcionales `heading`, `placeholder`, `pickLabel`, `hideNewButton`; por defecto el comportamiento actual)
+- Create: `components/sales/SaleProductSearch.tsx`
+- Modify: `lib/data/prisma-source.ts` y `lib/data/fixture-source.ts` (`searchProducts`: el `OR` gana `category`, `color` y `variants: { some: { isActive: true, sku: { in: codeCandidates(q) } } }`)
 - Modify: `lib/data/source.ts` (solo el comentario de `searchProducts`)
-- Modify: `app/pos/page.tsx` (`ManualCodeEntry` `onNoBarcode` abre `SaleProductSearch`)
-- Test: `components/__tests__/SaleProductSearch.test.tsx` (crear)
-- Test: `lib/data/__tests__/prisma-products.db.test.ts` (C21) y `lib/data/__tests__/prisma-sales.db.test.ts` (C22)
+- Modify: `app/pos/page.tsx` (`onNoBarcode` abre `SaleProductSearch` con la tienda de la venta; el carrito bloqueado (`lock !== null || submitting`) deshabilita "Sin código")
+- Test: `components/__tests__/SaleProductSearch.test.tsx` (crear), `lib/data/__tests__/prisma-products.db.test.ts` (C21), `lib/data/__tests__/prisma-sales.db.test.ts` (C22), `lib/data/__tests__/fixture-source.test.ts` (paridad de `searchProducts`)
 
 **Interfaces:**
-- Consumes: `listVariantStockAtAction(productId, locationId)` (Task 1), `add` del carrito (Task 3), `Product.color` (H), `Product.category` = `ProductType.name` (G).
+- Consumes: `searchProductsAction(query)` (firma sin cambio), `listVariantStockAtAction(productId, locationId)` y `VariantStockRow` (Task 1), `add` del carrito (Task 3), `Product.color` (H), `Product.category` = `ProductType.name` (G).
 - Produces:
-  - **Una sola acción de búsqueda:** `searchProductsAction(query: string): Promise<ProductSearchHit[] | null>` (firma sin cambio) la usan `/escanear` y `/pos`. No se crea `searchRegisteredProductsAction`. D no implementa búsqueda (su antigua Task 6 se movió aquí).
-  - `SaleProductSearch` props: `{ locationId: string; onAdd(match: VariantMatch, stock: { available: number; sold: boolean }): void }`.
-  - `searchProducts(query)` (en `InventoryDataSource`, firma sin cambio) amplía el criterio: código público exacto, título, marca, `category` (el "tipo": con G es `ProductType.name`; no existe campo `tipo`), `color` y SKU interno de variantes activas (con `codeCandidates` para códigos). Solo productos activos y sin unir; máximo `MAX_SEARCH_RESULTS`.
+  - `SaleProductSearch({ locationId: string; disabled?: boolean; onAdd(match: VariantMatch, stock: { available: number; sold: boolean }): void })`. Para armar `VariantMatch` sin otra acción, usa `lookupCodeAction(row.sku, locationId)` de la talla elegida (devuelve `product`, `variantId` y `stock` ya recortados al colaborador).
+  - **Una sola acción de búsqueda** para `/escanear` y `/pos`. No se crea `searchRegisteredProductsAction`.
 
-Reglas de la búsqueda: no es texto libre; cada resultado muestra tallas con su existencia en la tienda elegida (de `listVariantStockAt`); elegir un producto y una talla con existencias agrega la línea con `add` y resta esa talla al vender. Talla sin existencias no se puede elegir (se muestra deshabilitada con la leyenda "Sin existencias").
+Reglas: cada resultado muestra sus tallas con existencia en la tienda elegida; talla sin existencias deshabilitada con "Sin existencias"; elegir talla con existencias agrega la línea con `add`. Si la tienda cambia, la búsqueda se limpia.
 
 - [ ] **Step 1: Escribir las pruebas**
 
@@ -366,108 +355,86 @@ Reglas de la búsqueda: no es texto libre; cada resultado muestra tallas con su 
 it("consulta sin resultados muestra 'No encontramos productos con «…»' y no agrega nada", () => {});
 it("elegir producto y talla con existencias agrega la línea de esa talla", () => {});
 it("talla con cero existencias aparece deshabilitada con 'Sin existencias'", () => {});
+it("caracteres especiales en la consulta no rompen la búsqueda", () => {});
 
 // lib/data/__tests__/prisma-products.db.test.ts
-it("C21 (db): \"Sin código\" encuentra por tipo, marca, color o código interno", () => {
-  // producto con category "Playeras" (tipo), brand "ALO", color "Rosa": "playeras", "alo", "rosa" y el sku interno lo devuelven
-});
-it("C21 (db): texto que no es producto no devuelve nada", () => {
-  // searchProducts("zzzz-no-existe") -> []
-});
+it("C21 (db): \"Sin código\" encuentra por tipo, marca, color o código interno", () => {});
+it("C21 (db): texto que no es producto no devuelve nada", () => {});
 
 // lib/data/__tests__/prisma-sales.db.test.ts
-it("C22 (db): vender por referencia descuenta la talla", () => {
-  // stock 3 de la talla M; venta de 1 por ese variantId (elegido desde la búsqueda) -> M queda en 2 y las demás tallas sin cambio
-});
+it("C22 (db): vender por referencia descuenta la talla", () => {});
 ```
 
-- [ ] **Step 2: Ejecutar y ver que fallan**
-
-Run: `npm test -- components/__tests__/SaleProductSearch.test.tsx && npm run test:db -- -t "C2[12]"`
-Expected: FAIL.
-
-- [ ] **Step 3: Implementar**
-
-`ExistingProductSearch` conserva su comportamiento por defecto (las pruebas `ExistingProductSearch` existentes en `components/__tests__/` deben pasar sin cambios). `SaleProductSearch` usa `searchProductsAction` y `listVariantStockAtAction`. El botón "Sin código" en `/pos` reemplaza el aviso actual "Una prenda sin código no se puede vender aquí…" en `ManualCodeEntry`.
-
-- [ ] **Step 4: Ejecutar y ver que pasan**
-
-Run: `npm test -- components/__tests__/SaleProductSearch.test.tsx components/__tests__/ExistingProductSearch && npm run test:db -- -t "searchProducts|C2[12]"`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add components/products/ExistingProductSearch.tsx components/sales/SaleProductSearch.tsx lib/actions.ts lib/data/ app/pos/page.tsx components/__tests__/SaleProductSearch.test.tsx
-git commit -m "feat(pos): venta sin código desde búsqueda de productos registrados"
-```
+- [ ] **Step 2: Ejecutar y ver que fallan.** Run: `npm test -- components/__tests__/SaleProductSearch.test.tsx lib/data/__tests__/fixture-source.test.ts && npm run test:db -- -t "C2[12]"` → FAIL.
+- [ ] **Step 3: Implementar.** `ExistingProductSearch` conserva su comportamiento por defecto.
+- [ ] **Step 4: Ejecutar y ver que pasan.** Run: `npm test -- components/__tests__/SaleProductSearch.test.tsx components/__tests__/NewProductForm-sizes.test.tsx app/escanear/__tests__/page.test.tsx lib/__tests__/actions-sizes.test.ts components/__tests__/PosPage && npm run test:db -- -t "searchProducts|C2[12]"` → PASS.
+- [ ] **Step 5: Commit.** `git commit -m "feat(pos): venta sin código desde búsqueda de productos registrados"`
 
 ---
 
-### Task 7: Regresión del cobro y de la capa de datos
+### Task 6a: Avisos del POS que no se pierden (minors G17 de la entrega 1) — G24
+
+**Estado del código (d05d68b), `app/pos/page.tsx`:**
+- `flushHeld` aplica la cola con `applyFound` en un bucle; cada llamada hace `setNotice(...)`, así que un rechazo ("Sin existencias de la talla M en esta tienda") queda tapado por el "Agregado: …" siguiente.
+- `handleScan` sale en silencio si el código está `loading` o `queued`: una segunda pieza idéntica presentada mientras su consulta está en curso o en espera se ignora sin aviso. (Con `Scanner continuous`, una segunda emisión del mismo código ya es una segunda presentación: `SAME_CODE_GAP_MS`.)
+- Tras una venta exitosa, `clearErrorRows()` borra sin aviso las filas en error creadas durante el cobro (`Cobrar` ya está deshabilitado con filas en error antes de cobrar).
 
 **Files:**
-- Test (sin cambios de código): `components/__tests__/PosPage.test.tsx`, `lib/sales/__tests__/actions.test.ts`, `lib/data/__tests__/prisma-sales.db.test.ts`, `lib/sales/__tests__/use-sale-draft.test.ts`
+- Modify: `app/pos/page.tsx` (`flushHeld`, `handleScan`, `applyFound`, rama `result.ok` de `charge`)
+- Modify: `components/sales/SaleCart.tsx` (fila `queued`/`loading` muestra "×N en espera" si hay piezas extra)
+- Modify: `components/sales/SaleCart.tsx` tipo `PendingScan` → `{ code: string; status: "loading" | "error" | "queued"; extra?: number }`
+- Test: `components/__tests__/PosPage-scan.test.tsx` (agregar casos), `components/__tests__/SaleCart.test.tsx` (caso `extra`)
 
 **Interfaces:**
-- Consumes: todo lo anterior.
-- Produces: confirmación de que el cobro no cambió.
+- `applyFound(result): { ok: true } | { ok: false; text: string }` (devuelve el resultado en vez de solo pintar el aviso).
+- `pendingRef: Map<string, { status: "loading" | "error" | "queued"; extra: number }>`.
 
-- [ ] **Step 1: Verificar que `clientRequestId` y el cobro no cambiaron**
+Reglas:
+1. **Rechazo visible al vaciar la cola:** `flushHeld` junta los resultados; si hubo algún rechazo, el aviso final es de error y lista los rechazos (`Sin existencias de la talla M en esta tienda: Playera Nike rosa.`), seguido de "Se agregaron N prendas." si las hubo. Ningún rechazo queda tapado.
+2. **Segunda pieza idéntica:** si llega el mismo código con estado `loading` o `queued`, `extra += 1` y el aviso dice `Otra pieza de {código} en espera (×{1 + extra}).` Al aplicar, `add` se llama `1 + extra` veces; cada llamada valida existencias (la regla `NO_STOCK` de `add` no cambia) y los rechazos siguen la regla 1. Con estado `error`, releer sigue siendo reintentar (sin `extra`).
+3. **Filas en error tras la venta:** en la rama `result.ok`, antes de `clearErrorRows()`, si hay filas `error`, el aviso queda `Venta #{n} registrada. No se agregaron: {códigos}. Escanéalos de nuevo si van en otra venta.` (sigue siendo `kind: "ok"`; la venta sí se registró).
+4. Nada de esto toca `charge` fuera de la rama `result.ok`, `requestIdFor`, `renewRequestId`, `markUncertain`, `markRejected` ni el bloqueo.
 
-Run: `git diff main -- lib/sales/actions.ts lib/data/prisma-sales-source.ts`
-Expected: sin diferencias. Si hay diferencias, parar y revisar con el dueño.
-
-- [ ] **Step 2: Ejecutar pruebas de cobro**
-
-Run: `npm test -- components/__tests__/PosPage.test.tsx lib/sales/__tests__/actions.test.ts lib/sales/__tests__/use-sale-draft.test.ts`
-Expected: PASS, sin cambios de expectativa en ninguna prueba existente.
-
-- [ ] **Step 3: Ejecutar base real de ventas**
-
-Run: `npm run test:db -- lib/data/__tests__/prisma-sales.db.test.ts`
-Expected: PASS.
-
-- [ ] **Step 4: Commit**
-
-No hay cambios en este paso. No se crea commit.
+- [ ] **Step 1: Escribir las pruebas** (`PosPage-scan.test.tsx`):
+  - `"al vaciar la cola tras el cobro, un rechazo no queda tapado por un Agregado"`
+  - `"segunda pieza del mismo código durante el cobro queda en espera ×2 y se suma al terminar"`
+  - `"segunda pieza del mismo código mientras su consulta carga suma ×2 al llegar"`
+  - `"segunda pieza en espera sin existencias suficientes: entra una y se avisa el rechazo de la otra"`
+  - `"fila de error creada durante el cobro se avisa al registrar la venta"`
+  - `SaleCart.test.tsx`: `"fila en espera con extra muestra ×N en espera"`
+- [ ] **Step 2: Ejecutar y ver que fallan.** Run: `npm test -- components/__tests__/PosPage-scan.test.tsx components/__tests__/SaleCart.test.tsx` → FAIL en los nuevos.
+- [ ] **Step 3: Implementar** según Reglas.
+- [ ] **Step 4: Ejecutar y ver que pasan.** Run: `npm test -- components/__tests__/PosPage components/__tests__/SaleCart lib/sales/__tests__/use-sale-draft.test.ts` → PASS, incluidas todas las pruebas existentes de `PosPage.test.tsx` sin cambio de expectativas.
+- [ ] **Step 5: Commit.** `git commit -m "fix(pos): avisos de rechazo, segunda pieza en espera y filas en error tras la venta"`
 
 ---
 
-### Task 8: Gate de preview y de base antes de mezclar
+### Task 7: Regresión del cobro y de la capa de datos — G24
 
-**Files:** ninguno (verificación y despliegue de preview).
+**Files:** sin cambios de código. Pruebas: `components/__tests__/PosPage.test.tsx`, `components/__tests__/PosPage-scan.test.tsx`, `lib/sales/__tests__/actions.test.ts`, `lib/data/__tests__/prisma-sales.db.test.ts`, `lib/sales/__tests__/use-sale-draft.test.ts`.
 
-**Interfaces:**
-- Consumes: ramas de Tasks 1 a 7.
-- Produces: evidencia de preview y de pruebas para el dueño.
+- [ ] **Step 1: El servidor del cobro no cambió.** Run: `git diff main -- lib/sales/actions.ts lib/data/prisma-sales-source.ts lib/sales/use-sale-draft.ts` → sin diferencias. Si hay, parar y revisar con el dueño.
+- [ ] **Step 2:** `npm test -- components/__tests__/PosPage components/__tests__/SaleCart lib/sales/__tests__/actions.test.ts lib/sales/__tests__/use-sale-draft.test.ts` → PASS.
+- [ ] **Step 3:** `npm run test:db -- lib/data/__tests__/prisma-sales.db.test.ts` → PASS.
+- [ ] **Step 4:** sin commit.
 
-- [ ] **Step 1: Pruebas completas**
+---
 
-Run: `npm test && npm run test:db && npm run lint && npm run build`
-Expected: todo en verde. `npm run test:db` es obligatorio para mezclar.
+### Task 8: Gate de preview y de base antes de mezclar — G24
 
-- [ ] **Step 2: Preview de Vercel, sin producción**
-
-Run: `vercel:deploy` (preview, sin argumento `prod`).
-Expected: URL de preview. No se despliega a producción.
-
-- [ ] **Step 3: Prueba manual en el preview**
-
-Con una tienda de prueba y una prenda registrada: escanear 3 prendas seguidas sin reiniciar la cámara; sostener una prenda frente a la cámara (suma una vez) y volver a presentarla (×2); talla sin existencias (mensaje exacto); "Agregar nuevamente" en `/escanear` con una prenda vendida; colaborador sin acceso a la otra tienda; "Sin código" con búsqueda por tipo, marca y color; cobrar y confirmar que la venta resta la talla correcta.
-Expected: cada punto se cumple. Sin registro de cliente real en la base de producción.
-
-- [ ] **Step 4: Mezclar solo con evidencia**
-
-Solo después de Steps 1 a 3 y de la aprobación del dueño. No hay `prisma migrate` ni deploy directo a producción.
+- [ ] **Step 1:** `npm test && npm run test:db && npm run lint && npm run build` → todo en verde; `test:db` obligatorio para mezclar.
+- [ ] **Step 2: Preview de Vercel** (sin `prod`), contra la rama de Neon `ventas-prueba`, nunca la base de producción.
+- [ ] **Step 3: Prueba manual en el preview:** escanear 3 prendas seguidas sin reiniciar la cámara; sostener una prenda (suma una vez) y presentarla de nuevo (×2); escanear durante un cobro dos piezas iguales (×2 en espera) y una sin existencias (rechazo visible al terminar); "Agregar nuevamente" en `/escanear` con una prenda vendida; colaborador sin acceso a la otra tienda; "Sin código" por tipo, marca, color y código interno; cobrar y confirmar que se resta la talla correcta.
+- [ ] **Step 4: Mezclar solo con evidencia** y aprobación del dueño. Sin `prisma migrate` ni despliegue directo a producción.
 
 ---
 
 ## Preguntas abiertas (no las responde el spec)
 
-1. ~~Lectura repetida con cámara abierta.~~ **Resuelta (decisión 2):** una vez por presentación (`SAME_CODE_GAP_MS = 1000`, Task 2); "×N" con controles para bajar o quitar. El valor de 1000 ms se calibra en el ensayo.
-2. ~~¿"Agregar nuevamente" vive en `/pos` o en `/escanear`?~~ **Resuelta (decisión 7):** en `/escanear`, Task 5, con la tienda validada en el servidor.
-3. **¿Qué significa "ya se vendió"?** Este plan usa "existe una `SaleLine` de la variante". Sigue abierta; no bloquea.
-4. ~~"Tipo" en la búsqueda "Sin código".~~ **Resuelta:** busca por `category`, que con G es `ProductType.name`; sin campo `tipo`.
-5. ~~Permisos de "Agregar nuevamente".~~ **Resuelta:** cualquier rol con sesión, solo en su tienda (`recordStockMovementAction` con `restock` y `assertCanOperate`).
-6. **Preview y base.** ¿El preview de Vercel usa la base de producción? Si sí, las pruebas manuales de Task 8 escriben ventas reales. Usar `ventas-prueba` (cronograma, ensayo del 18).
+1. ~~Lectura repetida con cámara abierta.~~ **Resuelta (decisión 2)**; `SAME_CODE_GAP_MS = 1000` se calibra en tienda (minor G16: si el decodificador pierde lecturas > 1 s con la prenda en cuadro, suma otra; la red de seguridad es ×N y quitar).
+2. ~~¿"Agregar nuevamente" vive en `/pos` o en `/escanear`?~~ **Resuelta (decisión 7).**
+3. **¿Qué significa "ya se vendió"?** Existe una `SaleLine` de la variante (incluye ventas canceladas). No bloquea.
+4. ~~"Tipo" en la búsqueda.~~ **Resuelta:** `category` = `ProductType.name`.
+5. ~~Permisos de "Agregar nuevamente".~~ **Resuelta:** cualquier rol con sesión, solo en su tienda.
+6. **Preview y base:** el preview usa `ventas-prueba`; nunca escribir ventas de prueba en producción.
+7. **Fuera de esta entrega (minors G17 aceptados):** canal/método/alias editables con carrito bloqueado; `NO_STOCK` en reintento incierto deja el carrito bloqueado (rígido pero seguro). Quedan para F (venta sin internet), que reescribe el cobro.

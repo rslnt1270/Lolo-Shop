@@ -123,6 +123,8 @@ Cada criterio se verifica con una prueba automática (T) o manual en celular (M)
 
 ## 8. Decisiones de la revisión (2026-11-11)
 
+> 2026-11-12: el dueño quitó el requisito de fondo blanco; toda foto capturada se acepta; la edición para catálogo la hace el dueño.
+
 Resuelven las preguntas del revisor independiente.
 
 - **Fotos de tienda:** se eliminan. Las fotos de catálogo son obligatoriamente de fondo blanco; una foto de tienda no entra al catálogo ni al sitio.

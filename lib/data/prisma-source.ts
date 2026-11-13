@@ -161,7 +161,7 @@ export class PrismaDataSource implements InventoryDataSource {
 
   async getCatalogProducts(): Promise<Product[]> {
     const prods = await this.db.product.findMany({
-      where: { isActive: true, mergedIntoId: null, imageUrl: { not: null }, backImageUrl: { not: null } },
+      where: { isActive: true, mergedIntoId: null, isPublished: true, imageUrl: { not: null }, backImageUrl: { not: null } },
       orderBy: [{ createdAt: "desc" }, { id: "asc" }],
       include: { variants: { include: { inventory: true } }, department: true },
     });
