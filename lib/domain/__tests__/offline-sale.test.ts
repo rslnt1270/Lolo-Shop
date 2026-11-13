@@ -4,6 +4,7 @@ import {
   isPriceKnown,
   offlineFolio,
   planOfflineLine,
+  resolveOfflineTimes,
   resolveSoldAt,
   validateOfflineSale,
 } from "../offline-sale";
@@ -109,4 +110,39 @@ describe("textos y folio", () => {
     });
   });
   it("folio local", () => expect(offlineFolio(ID)).toBe("L-3f9a2c1b"));
+});
+
+describe("resolveOfflineTimes", () => {
+  const now = new Date("2026-11-12T12:00:00.000Z");
+  const h = (n: number) => n * 60 * 60 * 1000;
+  const iso = (ms: number) => new Date(now.getTime() + ms).toISOString();
+
+  it("copia de 1 h antes de la venta: sin sesgo; precios desde la copia", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(2)), snapshotAt: iso(-h(3)) }, now);
+    expect(r).toEqual({ soldAt: new Date(iso(-h(2))), skewed: false, priceSince: new Date(iso(-h(3))) });
+  });
+  it("copia de exactamente 24 h antes de la venta es válida", () => {
+    expect(resolveOfflineTimes({ soldAt: iso(-h(1)), snapshotAt: iso(-h(25)) }, now).skewed).toBe(false);
+  });
+  it("copia de más de 24 h antes de la venta se marca", () => {
+    expect(resolveOfflineTimes({ soldAt: iso(-h(1)), snapshotAt: iso(-h(25) - 1000) }, now).skewed).toBe(true);
+  });
+  it("copia con fecha futura (+6 min respecto al servidor) se marca y no habilita cambios de precio", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(1)), snapshotAt: iso(6 * 60 * 1000) }, now);
+    expect(r.skewed).toBe(true);
+    expect(r.priceSince).toEqual(now);
+  });
+  it("copia generada más de 5 min después de la venta se marca", () => {
+    expect(resolveOfflineTimes({ soldAt: iso(-h(2)), snapshotAt: iso(-h(1)) }, now).skewed).toBe(true);
+  });
+  it("hora de venta absurda: usa now y se marca", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(24 * 8)), snapshotAt: iso(-h(24 * 8) - h(1)) }, now);
+    expect(r.skewed).toBe(true);
+    expect(r.soldAt).toEqual(now);
+  });
+  it("los cambios de precio nunca se miran más allá de 7 días", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(24 * 7) + h(1)), snapshotAt: iso(-h(24 * 7) - h(1)) }, now);
+    expect(r.skewed).toBe(false);
+    expect(r.priceSince).toEqual(new Date(iso(-h(24 * 7))));
+  });
 });

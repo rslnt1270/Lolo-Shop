@@ -6,8 +6,17 @@ import {
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
+  REVIEW_REASONS,
   type NewSaleInput,
+  type ReviewReason,
 } from "@/lib/domain/sale";
+import {
+  isPriceKnown,
+  planOfflineLine,
+  resolveOfflineTimes,
+  validateOfflineSale,
+  type OfflineMeta,
+} from "@/lib/domain/offline-sale";
 import { fixtureProducts } from "./fixtures";
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
 import {
@@ -16,6 +25,7 @@ import {
   RECENT_SALES_LIMIT,
   isValidLowStockThreshold,
   type DashboardData,
+  type CreateSaleOptions,
   type DashboardQuery,
   type SaleRecord,
   type SalesDataSource,
@@ -26,7 +36,11 @@ const splitKey = (key: string) => {
   const [variantId, locationId] = key.split("|");
   return { variantId, locationId };
 };
-const copy = (s: SaleRecord): SaleRecord => ({ ...s, lines: s.lines.map((l) => ({ ...l })) });
+const copy = (s: SaleRecord): SaleRecord => ({
+  ...s,
+  reviewReasons: [...s.reviewReasons],
+  lines: s.lines.map((l) => ({ ...l })),
+});
 
 let seq = 0;
 
@@ -45,6 +59,9 @@ export class FixtureSalesDataSource implements SalesDataSource {
   private brandOf = new Map<string, string>();
   private titleOf = new Map<string, { title: string; size: string }>();
   private aliasOf = new Map<string, string | null>();
+  private priceOf = new Map<string, number>();
+  private inactive = new Set<string>();
+  private priceChanges: { variantId: string; oldPrice: number; newPrice: number; at: Date }[] = [];
 
   constructor(products: Product[] = fixtureProducts) {
     for (const p of products) {
@@ -52,6 +69,8 @@ export class FixtureSalesDataSource implements SalesDataSource {
         this.variants.add(v.id);
         this.brandOf.set(v.id, p.brand);
         this.titleOf.set(v.id, { title: p.title, size: v.size });
+        this.priceOf.set(v.id, v.price);
+        if (v.isActive === false || p.isActive === false || p.mergedIntoId) this.inactive.add(v.id);
         for (const lvl of v.inventory) this.stock.set(stockKey(v.id, lvl.locationId), lvl.available);
       }
     }
@@ -62,11 +81,18 @@ export class FixtureSalesDataSource implements SalesDataSource {
     return this.stock.get(stockKey(variantId, locationId)) ?? null;
   }
 
+  /** Para pruebas: registra un cambio de precio (como `PriceChange`) y fija el precio nuevo. */
+  recordPriceChange(variantId: string, oldPrice: number, newPrice: number, at: Date = new Date()): void {
+    this.priceChanges.push({ variantId, oldPrice, newPrice, at });
+    this.priceOf.set(variantId, newPrice);
+  }
+
   async hasClientRequest(clientRequestId: string): Promise<boolean> {
     return this.byRequestId.has(clientRequestId);
   }
 
-  async createSale(input: NewSaleInput, userId: string): Promise<SaleRecord> {
+  async createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord> {
+    if (opts?.offline) return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true);
     const checked = validateNewSale(input);
     if (!checked.ok) throw new SalesRuleError(checked.message);
     const sale = checked.value;
@@ -117,6 +143,64 @@ export class FixtureSalesDataSource implements SalesDataSource {
     return copy(rec);
   }
 
+  /** Mismas reglas que Prisma (spec F §8.3): descuenta hasta 0 y guarda el faltante. */
+  private createOfflineSale(input: NewSaleInput, userId: string, offline: OfflineMeta, checkPrice: boolean): SaleRecord {
+    const checked = validateOfflineSale({ ...input, ...offline });
+    if (!checked.ok) throw new SalesRuleError(checked.message);
+    const { soldAt, snapshotAt, ...sale } = checked.value;
+
+    const existing = this.byRequestId.get(sale.clientRequestId);
+    if (existing) {
+      if (!isSameSaleRequest(existing, sale)) throw new SaleRequestConflictError(existing.number);
+      return copy(existing);
+    }
+    if (sale.lines.some((l) => !this.variants.has(l.variantId))) {
+      throw new SalesRuleError("Un producto de la venta ya no existe.");
+    }
+
+    const now = new Date();
+    const times = resolveOfflineTimes({ soldAt, snapshotAt }, now);
+    const reasons = new Set<ReviewReason>();
+    const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : 1));
+    const planned = lines.map((l) => {
+      const key = stockKey(l.variantId, sale.locationId);
+      const { taken, shortfall } = planOfflineLine(this.stock.get(key) ?? null, l.quantity);
+      if (taken > 0) this.stock.set(key, this.stock.get(key)! - taken);
+      if (shortfall > 0) reasons.add("insufficient_stock");
+      return { ...l, shortfall };
+    });
+    if (checkPrice) {
+      for (const l of lines) {
+        const recent = this.priceChanges.filter((c) => c.variantId === l.variantId && c.at >= times.priceSince);
+        if (!isPriceKnown(l.unitPrice, this.priceOf.get(l.variantId) ?? 0, recent)) reasons.add("price_unverified");
+      }
+    }
+    if (lines.some((l) => this.inactive.has(l.variantId))) reasons.add("inactive_product");
+    if (times.skewed) reasons.add("clock_skew");
+
+    const rec: SaleRecord = {
+      id: `sale-${++seq}`,
+      number: this.nextNumber++,
+      status: initialStatus(sale.paymentMethod),
+      channel: sale.channel,
+      paymentMethod: sale.paymentMethod,
+      total: saleTotal(lines),
+      businessDate: businessDateMx(times.soldAt),
+      locationId: sale.locationId,
+      createdById: userId,
+      createdAt: now.toISOString(),
+      origin: "offline",
+      soldAt: times.soldAt.toISOString(),
+      reviewStatus: reasons.size > 0 ? "pending" : null,
+      reviewReasons: REVIEW_REASONS.filter((r) => reasons.has(r)),
+      lines: planned,
+    };
+    this.sales.set(rec.id, rec);
+    this.byRequestId.set(sale.clientRequestId, rec);
+    this.aliasOf.set(rec.id, sale.customerAlias ?? null);
+    return copy(rec);
+  }
+
   async confirmPayment(saleId: string, _userId: string, reference?: string): Promise<SaleRecord> {
     if (reference && reference.trim().length > MAX_REFERENCE_LENGTH) {
       throw new SalesRuleError(`La referencia no puede pasar de ${MAX_REFERENCE_LENGTH} caracteres.`);
@@ -138,10 +222,14 @@ export class FixtureSalesDataSource implements SalesDataSource {
       throw new SalesRuleError("Esta venta ya no se puede anular.");
     }
     s.status = "cancelled";
+    if (s.reviewStatus === "pending") s.reviewStatus = "rejected";
     if (itemsReturned) {
       for (const line of s.lines) {
+        // Solo lo que sí se descontó.
+        const qty = line.quantity - line.shortfall;
+        if (qty <= 0) continue;
         const key = stockKey(line.variantId, s.locationId);
-        this.stock.set(key, (this.stock.get(key) ?? 0) + line.quantity);
+        this.stock.set(key, (this.stock.get(key) ?? 0) + qty);
       }
     }
     return copy(s);

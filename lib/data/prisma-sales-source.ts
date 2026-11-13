@@ -13,6 +13,13 @@ import {
   type NewSaleInput,
   type SaleStatus,
 } from "../domain/sale";
+import {
+  isPriceKnown,
+  planOfflineLine,
+  resolveOfflineTimes,
+  validateOfflineSale,
+  type OfflineMeta,
+} from "../domain/offline-sale";
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
@@ -22,6 +29,7 @@ import {
   isValidLowStockThreshold,
   type DashboardData,
   type DashboardQuery,
+  type CreateSaleOptions,
   type SaleRecord,
   type SalesDataSource,
 } from "./sales-source";
@@ -97,7 +105,10 @@ export class PrismaSalesDataSource implements SalesDataSource {
     return (await this.db.sale.count({ where: { clientRequestId } })) > 0;
   }
 
-  async createSale(input: NewSaleInput, userId: string): Promise<SaleRecord> {
+  async createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord> {
+    // Venta cobrada sin internet: camino aparte (spec F §8.3); el de abajo no cambia.
+    if (opts?.offline) return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true);
+
     // Paso 1 (ER §3.1): validación fuera de la transacción.
     const checked = validateNewSale(input);
     if (!checked.ok) throw new SalesRuleError(checked.message);
@@ -205,6 +216,173 @@ export class PrismaSalesDataSource implements SalesDataSource {
     }
   }
 
+  /**
+   * Spec F §8.3: misma idempotencia y orden de bloqueo que en línea, pero nunca
+   * lanza por stock. Por renglón bloquea la fila (`FOR UPDATE`), descuenta
+   * `min(available, quantity)` y guarda el resto en `shortfall`. Movement solo
+   * por lo descontado. Cualquier razón deja la venta en revisión del dueño.
+   */
+  private async createOfflineSale(
+    input: NewSaleInput,
+    userId: string,
+    offline: OfflineMeta,
+    checkPrice: boolean,
+  ): Promise<SaleRecord> {
+    const checked = validateOfflineSale({ ...input, ...offline });
+    if (!checked.ok) throw new SalesRuleError(checked.message);
+    const { soldAt: rawSoldAt, snapshotAt: rawSnapshotAt, ...sale } = checked.value;
+
+    // 1. Replay o conflicto, antes de todo.
+    const existing = await this.findByClientRequestId(sale.clientRequestId);
+    if (existing) return replayOrConflict(existing, sale);
+
+    const variants = await this.db.variant.findMany({
+      where: { id: { in: sale.lines.map((l) => l.variantId) } },
+      select: {
+        id: true,
+        isActive: true,
+        price: true,
+        product: {
+          select: {
+            id: true,
+            isActive: true,
+            mergedIntoId: true,
+            brandId: true,
+            departmentId: true,
+            productTypeId: true,
+            category: true,
+          },
+        },
+      },
+    });
+    const byId = new Map(variants.map((v) => [v.id, v]));
+    // 2. Variante inexistente: no hay a qué registrar la venta.
+    if (sale.lines.some((l) => !byId.has(l.variantId))) {
+      throw new SalesRuleError("Un producto de la venta ya no existe.");
+    }
+
+    const now = new Date();
+    const times = resolveOfflineTimes({ soldAt: rawSoldAt, snapshotAt: rawSnapshotAt }, now);
+    const reasons = new Set<ReviewReason>();
+    // Inactiva o unida a otro producto: la prenda ya salió, se acepta.
+    if (variants.some((v) => !v.isActive || !v.product.isActive || v.product.mergedIntoId)) {
+      reasons.add("inactive_product");
+    }
+    // 5. Precio: el vigente o un oldPrice/newPrice de cambios desde la copia (≤ 7 días).
+    if (checkPrice) {
+      const changes = await this.db.priceChange.findMany({
+        where: { variantId: { in: [...byId.keys()] }, createdAt: { gte: times.priceSince } },
+        select: { variantId: true, oldPrice: true, newPrice: true },
+      });
+      for (const line of sale.lines) {
+        const recent = changes
+          .filter((c) => c.variantId === line.variantId)
+          .map((c) => ({ oldPrice: Number(c.oldPrice), newPrice: Number(c.newPrice) }));
+        if (!isPriceKnown(line.unitPrice, Number(byId.get(line.variantId)!.price), recent)) {
+          reasons.add("price_unverified");
+        }
+      }
+    }
+    // 6. Reloj del teléfono o copia fuera de vigencia.
+    if (times.skewed) reasons.add("clock_skew");
+
+    const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : a.variantId > b.variantId ? 1 : 0));
+
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const created = await tx.sale.create({
+          data: {
+            clientRequestId: sale.clientRequestId,
+            channel: sale.channel,
+            paymentMethod: sale.paymentMethod,
+            status: initialStatus(sale.paymentMethod),
+            locationId: sale.locationId,
+            total: saleTotal(lines),
+            // 7. Día de negocio de la venta en el teléfono; createdAt es la llegada.
+            businessDate: new Date(`${businessDateMx(times.soldAt)}T00:00:00.000Z`),
+            stockCommittedAt: now,
+            createdAt: now,
+            createdById: userId,
+            paymentReference: sale.paymentReference ?? null,
+            customerAlias: sale.customerAlias ?? null,
+            origin: "offline",
+            soldAt: times.soldAt,
+            offlineSnapshotAt: new Date(rawSnapshotAt),
+          },
+        });
+
+        // 3. Por renglón en orden de variantId: bloquear, descontar hasta 0.
+        const planned: { variantId: string; quantity: number; unitPrice: number; taken: number; shortfall: number }[] = [];
+        for (const line of lines) {
+          const rows = await tx.$queryRaw<{ available: number }[]>(Prisma.sql`
+            SELECT "available" FROM "InventoryLevel"
+            WHERE "variantId" = ${line.variantId} AND "locationId" = ${sale.locationId}
+            FOR UPDATE`);
+          const { taken, shortfall } = planOfflineLine(rows[0]?.available ?? null, line.quantity);
+          if (taken > 0) {
+            // Condicional aunque la fila ya está bloqueada: nunca negativo.
+            const { count } = await tx.inventoryLevel.updateMany({
+              where: { variantId: line.variantId, locationId: sale.locationId, available: { gte: taken } },
+              data: { available: { decrement: taken } },
+            });
+            if (count !== 1) throw new Error("El stock cambió con la fila bloqueada.");
+          }
+          if (shortfall > 0) reasons.add("insufficient_stock");
+          planned.push({ ...line, taken, shortfall });
+        }
+
+        await tx.saleLine.createMany({
+          data: planned.map((line) => {
+            const product = byId.get(line.variantId)!.product;
+            return {
+              saleId: created.id,
+              variantId: line.variantId,
+              productId: product.id,
+              brandId: product.brandId,
+              departmentId: product.departmentId,
+              productTypeId: product.productTypeId,
+              category: product.category,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              shortfall: line.shortfall,
+            };
+          }),
+        });
+        // 4. Movement solo por lo descontado: la suma sigue cuadrando con available.
+        const movements = planned.filter((l) => l.taken > 0);
+        if (movements.length > 0) {
+          await tx.movement.createMany({
+            data: movements.map((line) => ({
+              variantId: line.variantId,
+              locationId: sale.locationId,
+              userId,
+              delta: -line.taken,
+              type: "SALE" as const,
+              saleId: created.id,
+              timestamp: now,
+            })),
+          });
+        }
+
+        // 8. Revisión del dueño si hay alguna razón (orden fijo).
+        if (reasons.size > 0) {
+          await tx.sale.update({
+            where: { id: created.id },
+            data: { reviewStatus: "pending", reviewReasons: REVIEW_REASONS.filter((r) => reasons.has(r)) },
+          });
+        }
+
+        return toRecord(await tx.sale.findUniqueOrThrow({ where: { id: created.id }, include: saleWithLines }));
+      }, SALE_TX_OPTIONS);
+    } catch (err) {
+      if (isClientRequestIdRace(err)) {
+        const winner = await this.findByClientRequestId(sale.clientRequestId);
+        if (winner) return replayOrConflict(winner, sale);
+      }
+      throw err;
+    }
+  }
+
   async confirmPayment(saleId: string, userId: string, reference?: string): Promise<SaleRecord> {
     const ref = reference?.trim() || undefined;
     if (ref && ref.length > MAX_REFERENCE_LENGTH) {
@@ -237,6 +415,13 @@ export class PrismaSalesDataSource implements SalesDataSource {
         where: { id: saleId, status: { in: ["pending_payment", "paid"] } },
         data: { status: "cancelled", cancelReason, cancelledById: userId, cancelledAt: now },
       });
+      // Anular una venta en revisión es rechazarla (spec F §9).
+      if (count > 0) {
+        await tx.sale.updateMany({
+          where: { id: saleId, reviewStatus: "pending" },
+          data: { reviewStatus: "rejected", reviewedById: userId, reviewedAt: now },
+        });
+      }
       const s = await tx.sale.findUnique({ where: { id: saleId }, include: saleWithLines });
       if (!s) throw new SalesRuleError("La venta no existe.");
       if (count === 0) throw new SalesRuleError("Esta venta ya no se puede anular.");
@@ -244,7 +429,8 @@ export class PrismaSalesDataSource implements SalesDataSource {
       if (itemsReturned) {
         // Mismo orden por variantId que al vender; las líneas ya vienen ordenadas.
         for (const line of s.lines) {
-          const qty = line.quantity - line.returnedQuantity;
+          // Solo lo que sí se descontó: el faltante nunca salió del stock.
+          const qty = line.quantity - line.returnedQuantity - line.shortfall;
           if (qty <= 0) continue;
           await tx.inventoryLevel.upsert({
             where: { variantId_locationId: { variantId: line.variantId, locationId: s.locationId } },

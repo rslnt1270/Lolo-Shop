@@ -128,3 +128,80 @@ describe("FixtureSalesDataSource.getDashboard: alias y Ventas de hoy", () => {
     expect(withRecent.recentSales!.map((r) => r.saleId)).toEqual([b.id, a.id]);
   });
 });
+
+describe("FixtureSalesDataSource sin internet", () => {
+  const HOUR = 60 * 60 * 1000;
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const meta = (soldMsAgo = HOUR, gap = HOUR) => ({ soldAt: ago(soldMsAgo), snapshotAt: ago(soldMsAgo + gap) });
+  const line = (quantity: number, unitPrice = 450, variantId = "var-2") => ({ variantId, quantity, unitPrice });
+
+  it("stock insuficiente: descuenta hasta 0, guarda el faltante y queda en revisión", async () => {
+    const ds = new FixtureSalesDataSource();
+    const m = meta();
+    const rec = await ds.createSale(sale([line(2)]), "u1", { offline: m });
+    expect(rec).toMatchObject({ origin: "offline", soldAt: m.soldAt, reviewStatus: "pending", reviewReasons: ["insufficient_stock"] });
+    expect(rec.lines).toEqual([{ variantId: "var-2", quantity: 2, unitPrice: 450, shortfall: 1 }]);
+    expect(ds.available("var-2", "loc-1")).toBe(0);
+  });
+
+  it("con stock suficiente no queda en revisión; sin fila el faltante es todo", async () => {
+    const ds = new FixtureSalesDataSource();
+    const ok = await ds.createSale(sale([line(2, 450, "var-1")]), "u1", { offline: meta() });
+    expect(ok.reviewStatus).toBeNull();
+    const none = await ds.createSale({ ...sale([line(1, 450, "var-1")]), locationId: "loc-x" }, "u1", { offline: meta() });
+    expect(none.lines[0].shortfall).toBe(1);
+    expect(ds.available("var-1", "loc-x")).toBeNull();
+  });
+
+  it("replay con el mismo id no descuenta dos veces", async () => {
+    const ds = new FixtureSalesDataSource();
+    const input = sale([line(1, 450, "var-1")]);
+    const m = meta();
+    const a = await ds.createSale(input, "u1", { offline: m });
+    const b = await ds.createSale(input, "u1", { offline: m });
+    expect(b.number).toBe(a.number);
+    expect(ds.available("var-1", "loc-1")).toBe(2);
+  });
+
+  it("variante inexistente lanza SalesRuleError", async () => {
+    const ds = new FixtureSalesDataSource();
+    await expect(ds.createSale(sale([line(1, 450, "var-x")]), "u1", { offline: meta() })).rejects.toThrow(
+      "Un producto de la venta ya no existe.",
+    );
+  });
+
+  it("precio: solo con checkPrice; un cambio posterior a la copia lo valida, uno anterior no", async () => {
+    const ds = new FixtureSalesDataSource();
+    // loc-2 tiene 5 de var-1: el stock alcanza en las cuatro ventas.
+    const at2 = (opts: Parameters<FixtureSalesDataSource["createSale"]>[2]) =>
+      ds.createSale({ ...sale([line(1, 400, "var-1")]), locationId: "loc-2" }, "u1", opts).then((r) => r.reviewReasons);
+    expect(await at2({ offline: meta() })).toEqual([]);
+    expect(await at2({ offline: meta(), checkPrice: true })).toEqual(["price_unverified"]);
+    ds.recordPriceChange("var-1", 400, 450, new Date(Date.now() - 3 * HOUR));
+    expect(await at2({ offline: meta(HOUR, HOUR), checkPrice: true })).toEqual(["price_unverified"]);
+    ds.recordPriceChange("var-1", 400, 450, new Date(Date.now() - HOUR / 2));
+    expect(await at2({ offline: meta(HOUR, HOUR), checkPrice: true })).toEqual([]);
+  });
+
+  it("reloj: 8 días atrás o copia de más de 24 h → clock_skew", async () => {
+    const ds = new FixtureSalesDataSource();
+    const old = await ds.createSale(sale([line(1, 450, "var-1")]), "u1", { offline: meta(8 * 24 * HOUR) });
+    expect(old.reviewReasons).toEqual(["clock_skew"]);
+    const stale = await ds.createSale(sale([line(1, 450, "var-1")]), "u1", { offline: meta(HOUR, 25 * HOUR) });
+    expect(stale.reviewReasons).toEqual(["clock_skew"]);
+  });
+
+  it("checkPrice sin offline se ignora", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await ds.createSale(sale([line(1, 400, "var-1")]), "u1", { checkPrice: true });
+    expect(rec).toMatchObject({ origin: "online", reviewStatus: null });
+  });
+
+  it("anular con devolución reingresa quantity - shortfall y una venta en revisión queda rejected", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await ds.createSale(sale([line(2)]), "u1", { offline: meta() });
+    const cancelled = await ds.cancelSale(rec.id, "owner", "Rechazada", true);
+    expect(cancelled.reviewStatus).toBe("rejected");
+    expect(ds.available("var-2", "loc-1")).toBe(1);
+  });
+});

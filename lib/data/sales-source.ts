@@ -1,3 +1,4 @@
+import type { OfflineMeta } from "@/lib/domain/offline-sale";
 import type { NewSaleInput, PaymentMethod, ReviewReason, SaleChannel, SaleOrigin, SaleReviewStatus, SaleStatus } from "@/lib/domain/sale";
 
 export interface SaleRecord {
@@ -21,6 +22,14 @@ export interface SaleRecord {
   reviewReasons: ReviewReason[];
   /** Ordenados por variantId. `shortfall`: piezas vendidas sin existencia (sin internet). */
   lines: { variantId: string; quantity: number; unitPrice: number; shortfall: number }[];
+}
+
+/** Opciones de `createSale`. Sin `offline` el camino en línea no cambia. */
+export interface CreateSaleOptions {
+  /** Venta cobrada sin internet: descuenta hasta 0 y registra el faltante (spec F §8.3). */
+  offline?: OfflineMeta;
+  /** Solo con `offline`: verifica el precio contra `PriceChange` (la acción lo pide para colaborador). */
+  checkPrice?: boolean;
 }
 
 /** Fechas de negocio `YYYY-MM-DD`, inclusivas. */
@@ -102,8 +111,14 @@ export interface SalesDataSource {
    * ya creada; con otra tienda, canal, método o renglones lanza
    * `SaleRequestConflictError`. Si falta stock en algún renglón lanza
    * `InsufficientStockError` y no deja nada.
+   *
+   * Con `opts.offline` (venta cobrada sin internet) nunca lanza por stock:
+   * descuenta `min(available, quantity)` por renglón, guarda el resto en
+   * `shortfall` y, si hay faltante, producto inactivo, precio no verificado o
+   * reloj raro, deja la venta con `reviewStatus = "pending"`. Variante
+   * inexistente: `SalesRuleError`. `checkPrice` sin `offline` se ignora.
    */
-  createSale(input: NewSaleInput, userId: string): Promise<SaleRecord>;
+  createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord>;
   /**
    * ¿Ya hay una venta con este `clientRequestId`? Sirve para no evaluar reglas
    * previas (p. ej. el cambio de precio) en un reintento: lo resuelve `createSale`.
@@ -113,7 +128,9 @@ export interface SalesDataSource {
   confirmPayment(saleId: string, userId: string, reference?: string): Promise<SaleRecord>;
   /**
    * Anula una venta `pending_payment` o `paid`. `reason` obligatorio. Si
-   * `itemsReturned`, reingresa el stock a la tienda de la venta con `Movement RETURN`.
+   * `itemsReturned`, reingresa a la tienda de la venta, por renglón,
+   * `quantity − returnedQuantity − shortfall` (solo lo que sí se descontó) con
+   * `Movement RETURN`. Si la venta estaba en revisión (`pending`), queda `rejected`.
    */
   cancelSale(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord>;
   getDashboard(q: DashboardQuery): Promise<DashboardData>;

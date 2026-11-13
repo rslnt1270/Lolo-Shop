@@ -11,6 +11,10 @@ export type OfflineSaleValidation = { ok: true; value: OfflineSaleInput } | { ok
 
 export const CLOCK_SKEW_FUTURE_MS = 5 * 60 * 1000;
 export const CLOCK_SKEW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
+/** Vigencia de la copia de precios y existencias con la que se puede cobrar sin internet. */
+export const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** Ventana de `PriceChange` para verificar el precio cobrado. */
+export const PRICE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
   insufficient_stock: "Faltó stock",
@@ -54,6 +58,36 @@ export function resolveSoldAt(soldAt: string, now: Date): { at: Date; skewed: bo
   const diff = at.getTime() - now.getTime();
   if (diff > CLOCK_SKEW_FUTURE_MS || diff < -CLOCK_SKEW_PAST_MS) return { at: now, skewed: true };
   return { at, skewed: false };
+}
+
+/**
+ * Horas de una venta sin internet vistas desde el servidor (`now`):
+ * - `soldAt`: la del teléfono, o `now` si es absurda (ver `resolveSoldAt`).
+ * - `skewed`: hora de venta absurda, copia con fecha futura (> now + 5 min),
+ *   copia generada más de 5 min después de la venta, o copia de más de 24 h
+ *   respecto a la venta. El cliente ya bloquea estos casos con su reloj; si
+ *   llegan aquí, el reloj del teléfono no es confiable.
+ * - `priceSince`: desde cuándo cuentan los `PriceChange` para verificar el
+ *   precio: la copia (su `oldPrice` es lo que el teléfono pudo tener), nunca
+ *   antes de `now − 7 días` ni después de `now`.
+ */
+export function resolveOfflineTimes(
+  meta: OfflineMeta,
+  now: Date,
+): { soldAt: Date; skewed: boolean; priceSince: Date } {
+  const sold = resolveSoldAt(meta.soldAt, now);
+  const snap = parseIso(meta.snapshotAt);
+  const nowMs = now.getTime();
+  let skewed = sold.skewed;
+  if (!snap || snap.getTime() - nowMs > CLOCK_SKEW_FUTURE_MS) {
+    skewed = true;
+  } else if (!sold.skewed) {
+    const gap = sold.at.getTime() - snap.getTime();
+    if (gap < -CLOCK_SKEW_FUTURE_MS || gap > SNAPSHOT_MAX_AGE_MS) skewed = true;
+  }
+  const floor = nowMs - PRICE_LOOKBACK_MS;
+  const since = snap ? Math.min(Math.max(snap.getTime(), floor), nowMs) : nowMs;
+  return { soldAt: sold.at, skewed, priceSince: new Date(since) };
 }
 
 const cents = (n: number) => Math.round(n * 100);
