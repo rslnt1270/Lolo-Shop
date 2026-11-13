@@ -32,6 +32,28 @@ export interface CreateSaleOptions {
   checkPrice?: boolean;
 }
 
+/** Una venta sin internet por aprobar (spec F §9). */
+export interface ReviewItem {
+  saleId: string;
+  number: number;
+  locationId: string;
+  locationName: string;
+  cashierName: string;
+  /** Hora de la venta en el teléfono (ISO 8601). */
+  soldAt: string | null;
+  /** Hora de llegada al servidor (ISO 8601). */
+  createdAt: string;
+  total: number;
+  paymentMethod: PaymentMethod;
+  reasons: ReviewReason[];
+  lines: { variantId: string; productTitle: string; size: string; quantity: number; shortfall: number; unitPrice: number }[];
+}
+
+/** Máximo de ventas en la lista de revisión. */
+export const REVIEW_LIST_LIMIT = 100;
+/** Máximo de caracteres de la nota de aprobación. */
+export const MAX_REVIEW_NOTE_LENGTH = 200;
+
 /** Fechas de negocio `YYYY-MM-DD`, inclusivas. */
 export interface DashboardQuery {
   from: string;
@@ -60,6 +82,8 @@ export interface DashboardData {
   /** Cobrado: solo paid. */
   collectedTotal: number;
   salesCount: number;
+  /** Ventas sin internet por aprobar en las tiendas del alcance (sin filtro de fecha). */
+  pendingReviewCount: number;
   byDay: { date: string; total: number; count: number }[];
   byLocation: { locationId: string; total: number }[];
   byChannel: { channel: SaleChannel; total: number }[];
@@ -133,6 +157,21 @@ export interface SalesDataSource {
    * `Movement RETURN`. Si la venta estaba en revisión (`pending`), queda `rejected`.
    */
   cancelSale(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord>;
+  /** Ventas con `reviewStatus = pending`, la más vieja primero (máx. 100). */
+  listSalesForReview(): Promise<ReviewItem[]>;
+  /**
+   * Aprueba una venta en revisión: `approved` + auditoría + nota opcional (≤ 200).
+   * El stock no cambia. Si ya no está pendiente lanza
+   * `SalesRuleError("Esta venta ya no está por aprobar.")`. Solo la gana una
+   * de dos llamadas simultáneas.
+   */
+  approveReview(saleId: string, userId: string, note?: string): Promise<SaleRecord>;
+  /**
+   * Rechaza una venta en revisión (motivo obligatorio ≤ 200): `rejected` +
+   * `cancelled` en una transacción. Si `itemsReturned`, reingresa por renglón
+   * `quantity − returnedQuantity − shortfall` con `Movement RETURN`.
+   */
+  rejectReview(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord>;
   getDashboard(q: DashboardQuery): Promise<DashboardData>;
   /** Umbral global de stock bajo (AppSetting `lowStockThreshold`), entero 0–99. */
   getLowStockThreshold(): Promise<number>;

@@ -6,6 +6,7 @@ import {
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
+  MAX_CANCEL_REASON_LENGTH,
   REVIEW_REASONS,
   type NewSaleInput,
   type ReviewReason,
@@ -23,10 +24,13 @@ import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   LOW_STOCK_LIMIT,
   RECENT_SALES_LIMIT,
+  REVIEW_LIST_LIMIT,
+  MAX_REVIEW_NOTE_LENGTH,
   isValidLowStockThreshold,
   type DashboardData,
   type CreateSaleOptions,
   type DashboardQuery,
+  type ReviewItem,
   type SaleRecord,
   type SalesDataSource,
 } from "./sales-source";
@@ -235,6 +239,68 @@ export class FixtureSalesDataSource implements SalesDataSource {
     return copy(s);
   }
 
+  async listSalesForReview(): Promise<ReviewItem[]> {
+    return [...this.sales.values()]
+      .filter((s) => s.reviewStatus === "pending")
+      .sort((a, b) => (a.createdAt === b.createdAt ? a.number - b.number : a.createdAt < b.createdAt ? -1 : 1))
+      .slice(0, REVIEW_LIST_LIMIT)
+      .map((s) => ({
+        saleId: s.id,
+        number: s.number,
+        locationId: s.locationId,
+        // El fixture no guarda nombres de tienda ni de usuario: usa los ids.
+        locationName: s.locationId,
+        cashierName: s.createdById,
+        soldAt: s.soldAt,
+        createdAt: s.createdAt,
+        total: s.total,
+        paymentMethod: s.paymentMethod,
+        reasons: [...s.reviewReasons],
+        lines: s.lines.map((l) => ({
+          variantId: l.variantId,
+          productTitle: this.titleOf.get(l.variantId)?.title ?? "",
+          size: this.titleOf.get(l.variantId)?.size ?? "",
+          quantity: l.quantity,
+          shortfall: l.shortfall,
+          unitPrice: l.unitPrice,
+        })),
+      }));
+  }
+
+  async approveReview(saleId: string, _userId: string, note?: string): Promise<SaleRecord> {
+    const cleanNote = note?.trim() || undefined;
+    if (cleanNote && cleanNote.length > MAX_REVIEW_NOTE_LENGTH) {
+      throw new SalesRuleError(`La nota no puede pasar de ${MAX_REVIEW_NOTE_LENGTH} caracteres.`);
+    }
+    const s = this.sales.get(saleId);
+    if (!s || s.reviewStatus !== "pending") throw new SalesRuleError("Esta venta ya no está por aprobar.");
+    s.reviewStatus = "approved";
+    return copy(s);
+  }
+
+  async rejectReview(saleId: string, _userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord> {
+    const cleanReason = reason.trim();
+    if (!cleanReason) throw new SalesRuleError("Escribe el motivo del rechazo.");
+    if (cleanReason.length > MAX_CANCEL_REASON_LENGTH) {
+      throw new SalesRuleError(`El motivo no puede pasar de ${MAX_CANCEL_REASON_LENGTH} caracteres.`);
+    }
+    const s = this.sales.get(saleId);
+    if (!s || s.reviewStatus !== "pending" || (s.status !== "pending_payment" && s.status !== "paid")) {
+      throw new SalesRuleError("Esta venta ya no está por aprobar.");
+    }
+    s.status = "cancelled";
+    s.reviewStatus = "rejected";
+    if (itemsReturned) {
+      for (const line of s.lines) {
+        const qty = line.quantity - line.shortfall;
+        if (qty <= 0) continue;
+        const key = stockKey(line.variantId, s.locationId);
+        this.stock.set(key, (this.stock.get(key) ?? 0) + qty);
+      }
+    }
+    return copy(s);
+  }
+
   /** Misma forma que Prisma; el fixture no tiene departamentos ni `minStock`. */
   async getDashboard(q: DashboardQuery): Promise<DashboardData> {
     const inScope = (loc: string) => q.locationIds === "all" || q.locationIds.includes(loc);
@@ -266,6 +332,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
       soldTotal: sum(valid),
       collectedTotal: sum(valid.filter((s) => s.status === "paid")),
       salesCount: valid.length,
+      pendingReviewCount: all.filter((s) => s.reviewStatus === "pending").length,
       byDay: group((s) => s.businessDate)
         .map(([date, rows]) => ({ date, total: sum(rows), count: rows.length }))
         .sort((a, b) => (a.date < b.date ? -1 : 1)),

@@ -205,3 +205,66 @@ describe("FixtureSalesDataSource sin internet", () => {
     expect(ds.available("var-2", "loc-1")).toBe(1);
   });
 });
+
+describe("FixtureSalesDataSource: revisión del dueño", () => {
+  const HOUR = 60 * 60 * 1000;
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const meta = () => ({ soldAt: ago(HOUR), snapshotAt: ago(2 * HOUR) });
+  const pend = async (ds: FixtureSalesDataSource) =>
+    ds.createSale(sale([{ variantId: "var-2", quantity: 2, unitPrice: 450 }]), "u1", { offline: meta() });
+  const q = { from: "2000-01-01", to: "2999-12-31", locationIds: "all" as const, pendingScope: "all_dates" as const };
+
+  it("aprobar deja approved y no cambia available", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await pend(ds);
+    const out = await ds.approveReview(rec.id, "owner", "ok");
+    expect(out.reviewStatus).toBe("approved");
+    expect(ds.available("var-2", "loc-1")).toBe(0);
+  });
+
+  it("rechazar con devolución reingresa quantity - shortfall; sin devolución no toca stock", async () => {
+    const ds = new FixtureSalesDataSource();
+    const a = await pend(ds);
+    expect(await ds.rejectReview(a.id, "owner", "No procede", true)).toMatchObject({ status: "cancelled", reviewStatus: "rejected" });
+    expect(ds.available("var-2", "loc-1")).toBe(1);
+    const b = await ds.createSale(sale([{ variantId: "var-2", quantity: 2, unitPrice: 450 }]), "u1", { offline: meta() });
+    await ds.rejectReview(b.id, "owner", "No procede", false);
+    expect(ds.available("var-2", "loc-1")).toBe(0);
+  });
+
+  it("no pendiente, motivo vacío y notas largas lanzan SalesRuleError", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await pend(ds);
+    await expect(ds.approveReview(rec.id, "owner", "x".repeat(201))).rejects.toThrow(SalesRuleError);
+    await expect(ds.rejectReview(rec.id, "owner", " ", true)).rejects.toThrow(SalesRuleError);
+    await expect(ds.rejectReview(rec.id, "owner", "x".repeat(201), true)).rejects.toThrow(SalesRuleError);
+    await ds.approveReview(rec.id, "owner");
+    await expect(ds.approveReview(rec.id, "owner")).rejects.toThrow("Esta venta ya no está por aprobar.");
+    await expect(ds.rejectReview(rec.id, "owner", "tarde", true)).rejects.toThrow("Esta venta ya no está por aprobar.");
+    await expect(ds.approveReview("nope", "owner")).rejects.toThrow(SalesRuleError);
+  });
+
+  it("listSalesForReview lista solo pendientes, más vieja primero", async () => {
+    const ds = new FixtureSalesDataSource();
+    const a = await pend(ds);
+    const b = await ds.createSale(sale([{ variantId: "var-2", quantity: 1, unitPrice: 450 }]), "u1", { offline: meta() });
+    const items = await ds.listSalesForReview();
+    expect(items.map((i) => i.saleId)).toEqual([a.id, b.id]);
+    expect(items[0]).toMatchObject({ number: a.number, locationId: "loc-1", total: 900, reasons: ["insufficient_stock"] });
+    expect(items[0].lines[0]).toMatchObject({ variantId: "var-2", quantity: 2, shortfall: 1, unitPrice: 450 });
+    await ds.approveReview(a.id, "owner");
+    expect((await ds.listSalesForReview()).map((i) => i.saleId)).toEqual([b.id]);
+  });
+
+  it("pendingReviewCount cuenta solo pending del alcance; en revisión suma en soldTotal y rechazada no", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await pend(ds);
+    const d = await ds.getDashboard(q);
+    expect(d.pendingReviewCount).toBe(1);
+    expect(d.soldTotal).toBe(900);
+    expect((await ds.getDashboard({ ...q, locationIds: ["loc-2"] })).pendingReviewCount).toBe(0);
+    await ds.rejectReview(rec.id, "owner", "No procede", true);
+    const after = await ds.getDashboard(q);
+    expect(after).toMatchObject({ pendingReviewCount: 0, soldTotal: 0 });
+  });
+});

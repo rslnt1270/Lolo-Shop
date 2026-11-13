@@ -126,7 +126,7 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource.getDashboard", () => {
     await seedSales();
     const d = await ds.getDashboard({ from: today, to: today, locationIds: [], pendingScope: "range" });
     expect(d).toEqual({
-      soldTotal: 0, collectedTotal: 0, salesCount: 0, byDay: [], byLocation: [], byChannel: [],
+      soldTotal: 0, collectedTotal: 0, salesCount: 0, pendingReviewCount: 0, byDay: [], byLocation: [], byChannel: [],
       byPaymentMethod: [], byBrand: [], byDepartment: [], pendingPayments: [], lowStock: [],
     });
   });

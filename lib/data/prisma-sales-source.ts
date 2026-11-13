@@ -8,6 +8,7 @@ import {
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
+  MAX_CANCEL_REASON_LENGTH,
   REVIEW_REASONS,
   type ReviewReason,
   type NewSaleInput,
@@ -26,10 +27,13 @@ import {
   LOW_STOCK_LIMIT,
   LOW_STOCK_THRESHOLD_KEY,
   RECENT_SALES_LIMIT,
+  REVIEW_LIST_LIMIT,
+  MAX_REVIEW_NOTE_LENGTH,
   isValidLowStockThreshold,
   type DashboardData,
   type DashboardQuery,
   type CreateSaleOptions,
+  type ReviewItem,
   type SaleRecord,
   type SalesDataSource,
 } from "./sales-source";
@@ -80,6 +84,38 @@ function toRecord(s: SaleWithLines): SaleRecord {
     })),
   };
 }
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Reingresa a la tienda de la venta, por renglón y en orden de variantId,
+ * solo lo que sí se descontó (`quantity − returnedQuantity − shortfall`), con
+ * `Movement RETURN`. Llamar solo tras ganar el cambio condicional de estado.
+ */
+async function restock(tx: Tx, s: SaleWithLines, userId: string, now: Date): Promise<void> {
+  for (const line of s.lines) {
+    const qty = line.quantity - line.returnedQuantity - line.shortfall;
+    if (qty <= 0) continue;
+    await tx.inventoryLevel.upsert({
+      where: { variantId_locationId: { variantId: line.variantId, locationId: s.locationId } },
+      update: { available: { increment: qty } },
+      create: { variantId: line.variantId, locationId: s.locationId, available: qty },
+    });
+    await tx.movement.create({
+      data: {
+        variantId: line.variantId,
+        locationId: s.locationId,
+        userId,
+        delta: qty,
+        type: "RETURN",
+        saleId: s.id,
+        timestamp: now,
+      },
+    });
+  }
+}
+
+const NOT_PENDING_REVIEW = "Esta venta ya no está por aprobar.";
 
 /** Mismo `clientRequestId`: idempotente si es el mismo cobro; si no, conflicto. */
 function replayOrConflict(existing: SaleRecord, request: NewSaleInput): SaleRecord {
@@ -426,30 +462,86 @@ export class PrismaSalesDataSource implements SalesDataSource {
       if (!s) throw new SalesRuleError("La venta no existe.");
       if (count === 0) throw new SalesRuleError("Esta venta ya no se puede anular.");
 
-      if (itemsReturned) {
-        // Mismo orden por variantId que al vender; las líneas ya vienen ordenadas.
-        for (const line of s.lines) {
-          // Solo lo que sí se descontó: el faltante nunca salió del stock.
-          const qty = line.quantity - line.returnedQuantity - line.shortfall;
-          if (qty <= 0) continue;
-          await tx.inventoryLevel.upsert({
-            where: { variantId_locationId: { variantId: line.variantId, locationId: s.locationId } },
-            update: { available: { increment: qty } },
-            create: { variantId: line.variantId, locationId: s.locationId, available: qty },
-          });
-          await tx.movement.create({
-            data: {
-              variantId: line.variantId,
-              locationId: s.locationId,
-              userId,
-              delta: qty,
-              type: "RETURN",
-              saleId: s.id,
-              timestamp: now,
-            },
-          });
-        }
-      }
+      if (itemsReturned) await restock(tx, s, userId, now);
+      return toRecord(s);
+    }, SALE_TX_OPTIONS);
+  }
+
+  async listSalesForReview(): Promise<ReviewItem[]> {
+    const rows = await this.db.sale.findMany({
+      where: { reviewStatus: "pending" },
+      orderBy: [{ createdAt: "asc" }, { number: "asc" }],
+      take: REVIEW_LIST_LIMIT,
+      include: {
+        location: { select: { name: true } },
+        createdBy: { select: { name: true, username: true } },
+        lines: {
+          orderBy: { variantId: "asc" },
+          include: { variant: { select: { size: true, product: { select: { title: true } } } } },
+        },
+      },
+    });
+    return rows.map((s) => ({
+      saleId: s.id,
+      number: s.number,
+      locationId: s.locationId,
+      locationName: s.location.name,
+      cashierName: s.createdBy.name || s.createdBy.username,
+      soldAt: s.soldAt ? s.soldAt.toISOString() : null,
+      createdAt: s.createdAt.toISOString(),
+      total: Number(s.total),
+      paymentMethod: s.paymentMethod,
+      reasons: s.reviewReasons.filter((r): r is ReviewReason => (REVIEW_REASONS as readonly string[]).includes(r)),
+      lines: s.lines.map((l) => ({
+        variantId: l.variantId,
+        productTitle: l.variant.product.title,
+        size: l.variant.size,
+        quantity: l.quantity,
+        shortfall: l.shortfall,
+        unitPrice: Number(l.unitPrice),
+      })),
+    }));
+  }
+
+  async approveReview(saleId: string, userId: string, note?: string): Promise<SaleRecord> {
+    const cleanNote = note?.trim() || undefined;
+    if (cleanNote && cleanNote.length > MAX_REVIEW_NOTE_LENGTH) {
+      throw new SalesRuleError(`La nota no puede pasar de ${MAX_REVIEW_NOTE_LENGTH} caracteres.`);
+    }
+    // Cambio condicional: de dos aprobaciones o rechazos simultáneos, gana uno.
+    const { count } = await this.db.sale.updateMany({
+      where: { id: saleId, reviewStatus: "pending" },
+      data: { reviewStatus: "approved", reviewedById: userId, reviewedAt: new Date(), reviewNote: cleanNote ?? null },
+    });
+    if (count === 0) throw new SalesRuleError(NOT_PENDING_REVIEW);
+    return toRecord(await this.db.sale.findUniqueOrThrow({ where: { id: saleId }, include: saleWithLines }));
+  }
+
+  async rejectReview(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord> {
+    const cancelReason = reason.trim();
+    if (!cancelReason) throw new SalesRuleError("Escribe el motivo del rechazo.");
+    if (cancelReason.length > MAX_CANCEL_REASON_LENGTH) {
+      throw new SalesRuleError(`El motivo no puede pasar de ${MAX_CANCEL_REASON_LENGTH} caracteres.`);
+    }
+    return this.db.$transaction(async (tx) => {
+      const now = new Date();
+      // El UPDATE condicional bloquea la fila: solo una transacción pasa de pending a rejected.
+      const { count } = await tx.sale.updateMany({
+        where: { id: saleId, reviewStatus: "pending", status: { in: ["pending_payment", "paid"] } },
+        data: {
+          reviewStatus: "rejected",
+          reviewedById: userId,
+          reviewedAt: now,
+          reviewNote: cancelReason,
+          status: "cancelled",
+          cancelReason,
+          cancelledById: userId,
+          cancelledAt: now,
+        },
+      });
+      if (count === 0) throw new SalesRuleError(NOT_PENDING_REVIEW);
+      const s = await tx.sale.findUniqueOrThrow({ where: { id: saleId }, include: saleWithLines });
+      if (itemsReturned) await restock(tx, s, userId, now);
       return toRecord(s);
     }, SALE_TX_OPTIONS);
   }
@@ -463,8 +555,9 @@ export class PrismaSalesDataSource implements SalesDataSource {
       AND s."status" IN ('paid'::"SaleStatus", 'pending_payment'::"SaleStatus") ${locSql}`;
     const threshold = await this.getLowStockThreshold();
 
-    const [sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
+    const [pendingReviewCount, sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
       await Promise.all([
+        this.db.sale.count({ where: { reviewStatus: "pending", ...locFilter } }),
         this.db.sale.aggregate({ where: valid, _sum: { total: true }, _count: true }),
         this.db.sale.aggregate({ where: { ...valid, status: "paid" }, _sum: { total: true } }),
         this.db.sale.groupBy({ by: ["businessDate"], where: valid, _sum: { total: true }, _count: true, orderBy: { businessDate: "asc" } }),
@@ -541,6 +634,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
       soldTotal: pesos(sold._sum.total),
       collectedTotal: pesos(collected._sum.total),
       salesCount: sold._count,
+      pendingReviewCount,
       byDay: byDay.map((r) => ({ date: r.businessDate.toISOString().slice(0, 10), total: pesos(r._sum.total), count: r._count })),
       byLocation: byLocation.map((r) => ({ locationId: r.locationId, total: pesos(r._sum.total) })),
       byChannel: byChannel.map((r) => ({ channel: r.channel, total: pesos(r._sum.total) })),
