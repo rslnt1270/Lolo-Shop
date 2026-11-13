@@ -34,7 +34,9 @@ describe("AltaTour en el alta", () => {
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
     await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent(/elige si va al catálogo/i));
     fireEvent.click(screen.getByRole("button", { name: "Siguiente" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent(/toma las fotos/i));
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent(/toma fotos de frente y atrás/i));
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(/blanc/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/el dueño las revisa antes de publicarlas/i);
     expect(screen.getByRole("button", { name: "Saltar" })).toBeInTheDocument();
   });
 
@@ -82,5 +84,45 @@ describe("AltaTour en el alta", () => {
     const desc = screen.getByLabelText(/descripción/i);
     fireEvent.change(desc, { target: { value: "Algodón" } });
     expect(desc).toHaveValue("Algodón");
+  });
+
+  it("Tab desde el último botón vuelve al primero sin salir del recorrido", async () => {
+    mount();
+    const dialog = await screen.findByRole("dialog");
+    const saltar = screen.getByRole("button", { name: "Saltar" });
+    const next = screen.getByRole("button", { name: "Siguiente" });
+    next.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(saltar).toHaveFocus();
+  });
+
+  it("Shift+Tab desde el primer botón va al último", async () => {
+    mount();
+    const dialog = await screen.findByRole("dialog");
+    const saltar = screen.getByRole("button", { name: "Saltar" });
+    saltar.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(screen.getByRole("button", { name: "Siguiente" })).toHaveFocus();
+  });
+
+  it("al cerrar con Saltar, el foco vuelve a ¿Cómo registrar?", async () => {
+    mount();
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Saltar" }));
+    const how = await screen.findByRole("button", { name: "¿Cómo registrar?" });
+    expect(how).toHaveFocus();
+  });
+
+  it("al cerrar con Escape, el foco vuelve al elemento que tenía el foco", async () => {
+    mount();
+    await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Saltar" }));
+    const how = await screen.findByRole("button", { name: "¿Cómo registrar?" });
+    how.focus();
+    fireEvent.click(how);
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(how).toHaveFocus();
   });
 });

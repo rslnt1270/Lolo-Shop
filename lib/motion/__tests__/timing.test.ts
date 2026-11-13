@@ -8,8 +8,6 @@ describe("motionTiming", () => {
       stepOffsetPx: 16,
       photoMs: 220,
       photoScaleFrom: 0.96,
-      rejectShakeCount: 3,
-      rejectShakeMs: 240,
       checkMs: 420,
       holdMs: 1400,
       spinSlowFactor: 1,
@@ -19,7 +17,6 @@ describe("motionTiming", () => {
   it("C20 (proxy): con reducir movimiento no hay desplazamiento y el estado cambia", () => {
     const t = motionTiming(true);
     expect(t.stepOffsetPx).toBe(0);
-    expect(t.rejectShakeCount).toBe(0);
     expect(t.photoScaleFrom).toBe(1);
     expect(t.stepMs).toBe(1);
     expect(t.photoMs).toBe(1);
@@ -52,15 +49,5 @@ describe("prefersReducedMotion", () => {
     // @ts-expect-error simulando entorno sin matchMedia
     window.matchMedia = undefined;
     expect(prefersReducedMotion()).toBe(false);
-  });
-});
-
-import { shakeKeyframes } from "@/components/products/ProductPhotoCapture";
-
-describe("shakeKeyframes", () => {
-  it("3 sacudidas horizontales y vuelve a 0; reducido no se mueve", () => {
-    const k = shakeKeyframes(3);
-    expect(k).toEqual([0, -6, 6, -6, 6, -6, 6, 0]);
-    expect(shakeKeyframes(0)).toEqual([0]);
   });
 });

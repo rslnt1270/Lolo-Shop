@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import type { Location, LocationType } from "@/lib/domain/types";
 
 interface Props {
@@ -42,24 +43,20 @@ export function AddLocationForm({ onCreate, onCreated }: Props) {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1 rounded-full border border-[#147E7E]/30 bg-white px-2.5 py-1 text-[0.68rem] font-bold text-[#147E7E] transition-colors hover:bg-[#147E7E]/5"
-      >
-        <Plus size={12} strokeWidth={3} /> Tienda
-      </button>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        <Plus size={14} strokeWidth={3} aria-hidden="true" /> Tienda
+      </Button>
     );
   }
 
   return (
     <form
       onSubmit={onSubmit}
-      className="mb-2 space-y-2 rounded-[14px] border border-[#147E7E]/30 bg-white p-3"
+      className="mb-2 space-y-2 rounded-[14px] border border-turquesa-texto bg-white p-3"
     >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-bold text-[#12211F]">Nueva tienda</span>
-        <button type="button" onClick={reset} aria-label="Cancelar" className="text-gray-400 hover:text-gray-700">
+        <span className="text-xs font-bold text-tinta">Nueva tienda</span>
+        <button type="button" onClick={reset} aria-label="Cancelar" className="inline-flex min-h-11 min-w-11 items-center justify-center text-gray-600 hover:text-gray-900">
           <X size={14} />
         </button>
       </div>
@@ -71,27 +68,23 @@ export function AddLocationForm({ onCreate, onCreated }: Props) {
           placeholder="Nombre (ej. Tienda Centro)"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="min-w-0 flex-1 rounded-xl border border-[rgba(226,232,240,0.8)] bg-[#F9FAFB] px-3 py-2 text-sm focus:border-loloteal focus:bg-white focus:outline-none focus:ring-1 focus:ring-loloteal"
+          className="min-w-0 flex-1 rounded-xl border border-[rgba(226,232,240,0.8)] bg-niebla px-3 py-2 min-h-11 text-sm focus:border-turquesa-texto focus:bg-white focus:outline-none focus:ring-1 focus:ring-turquesa-texto"
         />
         <label className="sr-only" htmlFor="loc-type">Tipo</label>
         <select
           id="loc-type"
           value={type}
           onChange={(e) => setType(e.target.value as LocationType)}
-          className="rounded-xl border border-[rgba(226,232,240,0.8)] bg-[#F9FAFB] px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-loloteal"
+          className="rounded-xl border border-[rgba(226,232,240,0.8)] bg-niebla px-2 py-2 min-h-11 text-sm focus:outline-none focus:ring-1 focus:ring-turquesa-texto"
         >
           <option value="store">Tienda</option>
           <option value="warehouse">Bodega</option>
         </select>
       </div>
-      {error && <p className="text-xs font-medium text-red-500">{error}</p>}
-      <button
-        type="submit"
-        disabled={saving}
-        className="w-full rounded-xl bg-loloteal py-2 text-sm font-semibold text-white transition-all hover:bg-loloteal-dark active:scale-[0.98] disabled:opacity-70"
-      >
+      {error && <p className="text-xs font-medium text-agotado">{error}</p>}
+      <Button type="submit" loading={saving} className="w-full">
         {saving ? "Guardando…" : "Guardar tienda"}
-      </button>
+      </Button>
     </form>
   );
 }

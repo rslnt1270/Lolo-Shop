@@ -18,7 +18,6 @@ const config: Config = {
               "agotado": "#9A3B2E",
               "borde-control": "#7F9392",
               "loloteal": "#0C7C7C",
-              "loloteal-dark": "#0A6A6A",
               "surface-container": "#edeeef",
               "inverse-primary": "#5cd9d8",
               "background": "#f8f9fa",

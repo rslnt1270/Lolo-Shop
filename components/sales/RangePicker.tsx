@@ -25,7 +25,7 @@ type Props = {
 };
 
 const field =
-  "min-h-11 rounded-[11px] border border-[rgba(18,33,31,0.25)] bg-white px-3 text-base text-[#12211F]";
+  "min-h-11 rounded-[11px] border border-borde-control bg-white px-3 text-base text-tinta";
 
 export function RangePicker({ preset, from, to, onChange }: Props) {
   const [draftFrom, setDraftFrom] = useState(from);
@@ -54,10 +54,10 @@ export function RangePicker({ preset, from, to, onChange }: Props) {
               type="button"
               aria-pressed={active}
               onClick={() => pick(p.id)}
-              className={`min-h-11 rounded-full border px-4 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal ${
+              className={`min-h-11 rounded-full border-2 px-4 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto ${
                 active
-                  ? "border-loloteal bg-loloteal text-white"
-                  : "border-[rgba(18,33,31,0.25)] bg-white text-[#12211F] hover:bg-[#E6F2F1]"
+                  ? "border-turquesa bg-turquesa text-tinta"
+                  : "border-turquesa-texto bg-white text-turquesa-texto hover:bg-niebla"
               }`}
             >
               {p.label}
@@ -67,11 +67,11 @@ export function RangePicker({ preset, from, to, onChange }: Props) {
       </div>
       {preset === "custom" && (
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 text-sm text-[#3A4D4A]">
+          <label className="flex items-center gap-2 text-sm text-tinta">
             Desde
             <input type="date" value={draftFrom} max={draftTo || undefined} onChange={(e) => setDate("from", e.target.value)} className={field} />
           </label>
-          <label className="flex items-center gap-2 text-sm text-[#3A4D4A]">
+          <label className="flex items-center gap-2 text-sm text-tinta">
             Hasta
             <input type="date" value={draftTo} min={draftFrom || undefined} onChange={(e) => setDate("to", e.target.value)} className={field} />
           </label>

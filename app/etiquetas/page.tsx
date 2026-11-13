@@ -2,6 +2,7 @@
 import Barcode from "react-barcode";
 import { fetchProductsAction } from "@/lib/actions";
 import { StaffLoadState, useStaffData } from "@/components/layout/StaffLoadState";
+import { Button } from "@/components/ui/Button";
 import type { Product } from "@/lib/domain/types";
 
 export default function EtiquetasPage() {
@@ -17,12 +18,9 @@ export default function EtiquetasPage() {
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-bold">Generador de Etiquetas</h1>
-        <button 
-          onClick={() => window.print()}
-          className="rounded bg-loloteal px-4 py-2 font-semibold text-white shadow-sm hover:bg-opacity-90"
-        >
+        <Button onClick={() => window.print()}>
           Imprimir Etiquetas
-        </button>
+        </Button>
       </div>
       
       <p className="text-sm text-gray-600">

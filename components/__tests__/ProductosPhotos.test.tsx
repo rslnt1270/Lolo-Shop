@@ -63,13 +63,13 @@ describe("/productos: fotos de frente y atrás", () => {
     expect(await screen.findByRole("button", { name: "Agregar foto de atrás de Gorra" })).toBeInTheDocument();
   });
 
-  it("colaborador: no ve Cambiar en una foto ya puesta", async () => {
+  it("colaborador: no ve Reemplazar en una foto ya puesta", async () => {
     collaborator();
     fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg", catalogPhotosCheckedAt: checked }]);
     render(<ProductosPage />);
     await openSheet();
     await screen.findByRole("dialog", { name: "Ficha del producto" });
-    expect(screen.queryByRole("button", { name: /cambiar foto/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /reemplazar foto/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /agregar foto/i })).toBeNull();
   });
 
@@ -83,13 +83,41 @@ describe("/productos: fotos de frente y atrás", () => {
     expect(screen.queryByRole("button", { name: /desactivar/i })).toBeNull();
   });
 
-  it("un producto con fotos revisadas ofrece cambiar frente y atrás desde la ficha", async () => {
+  it("owner con un producto sin fotos ve Tomar fotos de catálogo (frente y atrás)", async () => {
     owner();
-    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg", catalogPhotosCheckedAt: checked }]);
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: null, backImageUrl: null, catalogPhotosCheckedAt: null }]);
     render(<ProductosPage />);
     await openSheet();
-    expect(await screen.findByRole("button", { name: "Cambiar foto de frente de Gorra" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cambiar foto de atrás de Gorra" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Tomar fotos de catálogo (frente y atrás) de Gorra" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reemplazar foto/i })).toBeNull();
+  });
+
+  it("owner con fotos ve Reemplazar foto de frente y de atrás aunque catalogPhotosCheckedAt sea nulo", async () => {
+    owner();
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: "https://a/b.jpg", catalogPhotosCheckedAt: null }]);
+    render(<ProductosPage />);
+    await openSheet();
+    expect(await screen.findByRole("button", { name: "Reemplazar foto de frente de Gorra" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reemplazar foto de atrás de Gorra" })).toBeInTheDocument();
+  });
+
+  it("owner con solo el frente: Reemplazar frente y Agregar atrás", async () => {
+    owner();
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: null, catalogPhotosCheckedAt: null }]);
+    render(<ProductosPage />);
+    await openSheet();
+    expect(await screen.findByRole("button", { name: "Reemplazar foto de frente de Gorra" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Agregar foto de atrás de Gorra" })).toBeInTheDocument();
+  });
+
+  it("colaborador solo ve Agregar en el lado vacío", async () => {
+    collaborator();
+    fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: "https://a/f.jpg", backImageUrl: null, catalogPhotosCheckedAt: null }]);
+    render(<ProductosPage />);
+    await openSheet();
+    expect(await screen.findByRole("button", { name: "Agregar foto de atrás de Gorra" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reemplazar foto/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Agregar foto de frente de Gorra" })).toBeNull();
   });
 
   it.each([
@@ -110,12 +138,12 @@ describe("/productos: fotos de frente y atrás", () => {
   });
 
   it("Cancelar mide al menos 44 px y el aviso de éxito sigue visible en una región en vivo", async () => {
-    owner();
+    collaborator();
     fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: null, backImageUrl: null, catalogPhotosCheckedAt: checked }]);
     render(<ProductosPage />);
     await openSheet();
     fireEvent.click(await screen.findByRole("button", { name: "Agregar foto de frente de Gorra" }));
-    expect(screen.getByRole("button", { name: "Cancelar" }).className).toMatch(/min-h-\[44px\]/);
+    expect(screen.getByRole("button", { name: "Cancelar" }).className).toMatch(/min-h-(\[44px\]|11)/);
     fireEvent.click(screen.getByText("capturar"));
     await waitFor(() => expect(screen.getAllByRole("status")[0]).toHaveTextContent("Foto de frente actualizada."));
     expect(screen.queryByRole("button", { name: "Cancelar" })).toBeNull();
@@ -126,7 +154,7 @@ describe("/productos: fotos de frente y atrás", () => {
     let finish!: () => void;
     const actions = await import("@/lib/actions");
     vi.mocked(actions.updateProductImageAction).mockReturnValueOnce(new Promise<{ ok: true }>((r) => (finish = () => r({ ok: true }))) as never);
-    owner();
+    collaborator();
     fetchProductsAction.mockResolvedValue([{ ...base, imageUrl: null, backImageUrl: null, catalogPhotosCheckedAt: checked }]);
     render(<ProductosPage />);
     await openSheet();

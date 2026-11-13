@@ -23,7 +23,7 @@ interface Props {
 }
 
 const selectCls =
-  "mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal disabled:opacity-60";
+  "mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto disabled:opacity-60";
 const labelCls = "block text-sm font-medium text-gray-700";
 
 /** Tipo / Estilo / Para: el estilo depende del tipo y «Para» solo existe en Calzado. */
@@ -80,8 +80,8 @@ export function ClassificationFields({ idPrefix, departmentSlug, types, value, o
             {AUDIENCES.map((a) => (
               <label
                 key={a}
-                className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-2 text-sm font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-loloteal ${
-                  value.audience === a ? "bg-loloteal text-white shadow-sm" : "text-gray-700"
+                className={`flex min-h-[44px] cursor-pointer items-center justify-center rounded-md px-2 text-sm font-medium has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-turquesa-texto ${
+                  value.audience === a ? "bg-turquesa text-tinta shadow-sm" : "text-gray-700"
                 }`}
               >
                 <input

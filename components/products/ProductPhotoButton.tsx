@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { ProductPhotoCapture } from "./ProductPhotoCapture";
 import { Button } from "@/components/ui/Button";
-import type { ProcessFile } from "@/lib/image/process-file";
+import { defaultProcessFile, type ProcessFile } from "@/lib/image/process-file";
 import {
   setCatalogPhotosAction,
   setProductBackImageAction,
@@ -18,26 +18,23 @@ interface ProductPhotoButtonProps {
   /** Lado de la foto: "front" (por defecto) o "back". */
   side?: "front" | "back";
   /**
-   * El producto ya tiene las fotos de catálogo revisadas (`catalogPhotosCheckedAt`).
-   * Si es false, se ofrece tomar frente y atrás juntas y guardarlas con `setCatalogPhotosAction`.
+   * Ofrece tomar frente y atrás juntas y guardarlas con `setCatalogPhotosAction`
+   * (producto sin ninguna foto). Por defecto false: un botón por lado.
    */
-  catalogChecked?: boolean;
-  /** Solo para pruebas: reemplaza la edición y el análisis con canvas. */
+  captureBoth?: boolean;
+  /** Solo para pruebas: reemplaza la edición con canvas. */
   processFile?: ProcessFile;
   onUpdated?: () => void;
 }
-
-// ProductPhotoCapture solo entrega fotos cuyo fondo pasó el análisis, así que todo
-// lo que llega a `save` se envía con photosAnalyzed: true. El servidor lo exige igual.
-const ANALYZED = { photosAnalyzed: true } as const;
 
 export function ProductPhotoButton({
   productId,
   productTitle,
   hasImage,
   side = "front",
-  catalogChecked = true,
-  processFile,
+  captureBoth = false,
+
+  processFile = defaultProcessFile,
   onUpdated,
 }: ProductPhotoButtonProps) {
   const [open, setOpen] = useState(false);
@@ -46,6 +43,9 @@ export function ProductPhotoButton({
   const [front, setFront] = useState<File | null>(null);
   const [back, setBack] = useState<File | null>(null);
   const sideWord = side === "back" ? "atrás" : "frente";
+  // Reemplazar una foto ya puesta: galería (el dueño la editó fuera) y sin autoniveles.
+  const replacing = hasImage && !captureBoth;
+  const process: ProcessFile = (file) => processFile(file, { levels: !replacing });
 
   const close = () => {
     setOpen(false);
@@ -68,13 +68,13 @@ export function ProductPhotoButton({
       if (side === "back") {
         const up = await uploadProductImageAction(fd);
         if (!up.ok) throw new Error(up.message);
-        const r = await setProductBackImageAction(productId, up.url, ANALYZED);
+        const r = await setProductBackImageAction(productId, up.url);
         if (!r.ok) {
           setMsg(r.message);
           return;
         }
       } else {
-        const r = await updateProductImageAction(productId, fd, ANALYZED);
+        const r = await updateProductImageAction(productId, fd);
         if (!r.ok) {
           setMsg(r.message);
           return;
@@ -102,7 +102,7 @@ export function ProductPhotoButton({
       };
       const imageUrl = await upload(front);
       const backImageUrl = await upload(back);
-      const r = await setCatalogPhotosAction(productId, { imageUrl, backImageUrl, ...ANALYZED });
+      const r = await setCatalogPhotosAction(productId, { imageUrl, backImageUrl });
       if (!r.ok) {
         setMsg(r.message);
         return;
@@ -116,26 +116,24 @@ export function ProductPhotoButton({
   };
 
   const cancel = (
-    <button
-      type="button"
+    <Button variant="outline"
       onClick={close}
-      className="min-h-[44px] px-2 text-sm text-gray-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
     >
       Cancelar
-    </button>
+    </Button>
   );
 
-  const label = `${hasImage ? "Cambiar" : "Agregar"} foto de ${sideWord}`;
+  const label = `${hasImage ? "Reemplazar" : "Agregar"} foto de ${sideWord}`;
   const catalogLabel = "Tomar fotos de catálogo (frente y atrás)";
 
   return (
     <div>
-      {open && !catalogChecked ? (
+      {open && captureBoth ? (
         <div className="mt-2 space-y-3">
           <p className="text-sm font-semibold text-gray-900">Foto de frente</p>
-          <ProductPhotoCapture side="front" processFile={processFile} onCapture={setFront} onClear={() => setFront(null)} />
+          <ProductPhotoCapture side="front" processFile={process} onCapture={setFront} onClear={() => setFront(null)} />
           <p className="text-sm font-semibold text-gray-900">Foto de atrás</p>
-          <ProductPhotoCapture side="back" processFile={processFile} onCapture={setBack} onClear={() => setBack(null)} />
+          <ProductPhotoCapture side="back" processFile={process} onCapture={setBack} onClear={() => setBack(null)} />
           <div className="flex flex-wrap items-center gap-2">
             <Button onClick={() => void saveCatalog()} disabled={!front || !back} loading={saving}>
               Guardar fotos
@@ -145,18 +143,16 @@ export function ProductPhotoButton({
         </div>
       ) : open ? (
         <div className="mt-2 space-y-2">
-          <ProductPhotoCapture side={side} processFile={processFile} onCapture={save} onClear={() => {}} />
+          <ProductPhotoCapture side={side} source={replacing ? "gallery" : "camera"} processFile={process} onCapture={save} onClear={() => {}} />
           {cancel}
         </div>
       ) : (
-        <button
-          type="button"
+        <Button variant="outline"
           onClick={() => setOpen(true)}
-          aria-label={productTitle ? `${catalogChecked ? label : catalogLabel} de ${productTitle}` : undefined}
-          className="min-h-[44px] px-2 text-sm font-semibold text-turquesa-texto hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-loloteal"
+          aria-label={productTitle ? `${captureBoth ? catalogLabel : label} de ${productTitle}` : undefined}
         >
-          {catalogChecked ? label : catalogLabel}
-        </button>
+          {captureBoth ? catalogLabel : label}
+        </Button>
       )}
       {/* Región en vivo siempre montada: el aviso se anuncia y sigue visible tras cerrar la captura. */}
       <p role="status" className="text-sm text-gray-600">

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>LoloShop - Catálogo</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-container": "#fa8472",
+            "surface-tint": "#006a6a",
+            "on-background": "#181c1d",
+            "surface": "#f6fafa",
+            "primary-fixed-dim": "#54d9d9",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-container": "#711d13",
+            "inverse-surface": "#2c3132",
+            "on-tertiary-fixed": "#410000",
+            "on-tertiary-fixed-variant": "#80281d",
+            "tertiary-fixed-dim": "#ffb4a8",
+            "error-container": "#ffdad6",
+            "secondary-fixed": "#98f2f1",
+            "on-error": "#ffffff",
+            "inverse-on-surface": "#edf1f1",
+            "surface-container-highest": "#dfe3e3",
+            "surface-variant": "#dfe3e3",
+            "error": "#ba1a1a",
+            "on-tertiary": "#ffffff",
+            "on-primary-fixed-variant": "#004f50",
+            "on-primary-container": "#004343",
+            "surface-bright": "#f6fafa",
+            "surface-dim": "#d7dbdb",
+            "on-surface": "#181c1d",
+            "tertiary-fixed": "#ffdad4",
+            "on-surface-variant": "#3c4949",
+            "surface-container-high": "#e5e9e9",
+            "on-secondary-fixed-variant": "#004f50",
+            "inverse-primary": "#54d9d9",
+            "surface-container-low": "#f0f4f4",
+            "secondary-fixed-dim": "#7bd5d5",
+            "outline": "#6c7a79",
+            "outline-variant": "#bbc9c8",
+            "primary-fixed": "#75f6f6",
+            "background": "#f6fafa",
+            "tertiary": "#a03f32",
+            "on-primary": "#ffffff",
+            "on-secondary": "#ffffff",
+            "on-error-container": "#93000a",
+            "on-secondary-fixed": "#002020",
+            "primary-container": "#22b8b8",
+            "on-primary-fixed": "#002020",
+            "secondary": "#006a6a",
+            "primary": "#006a6a",
+            "surface-container": "#ebefef",
+            "on-secondary-container": "#007070",
+            "secondary-container": "#98f2f1"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "space-lg": "1rem",
+            "margin": "1rem",
+            "space-xs": "0.25rem",
+            "space-md": "0.75rem",
+            "space-xl": "1.5rem",
+            "gutter": "0.75rem",
+            "space-sm": "0.5rem"
+          },
+          "fontFamily": {
+            "body-default": ["Plus Jakarta Sans"],
+            "button-text": ["Plus Jakarta Sans"],
+            "nav-label": ["Plus Jakarta Sans"],
+            "headline-title": ["Plus Jakarta Sans"],
+            "input-text": ["Plus Jakarta Sans"],
+            "code-data": ["JetBrains Mono"],
+            "headline-hero": ["Plus Jakarta Sans"]
+          },
+          "fontSize": {
+            "body-default": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "button-text": ["15px", { "lineHeight": "20px", "fontWeight": "700" }],
+            "nav-label": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+            "headline-title": ["20px", { "lineHeight": "26px", "fontWeight": "700" }],
+            "input-text": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+            "code-data": ["14px", { "lineHeight": "18px", "fontWeight": "500" }],
+            "headline-hero": ["32px", { "lineHeight": "38px", "fontWeight": "800" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    /* Strictly flat styling, no glass/blurs */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-[#ffffff] text-[#16302F] font-body-default text-body-default antialiased flex justify-center selection:bg-primary-container selection:text-[#16302F]">
+<!-- Mobile Viewport Wrapper (390px fixed container layout) -->
+<div class="w-full max-w-[390px] min-h-screen bg-[#ffffff] relative flex flex-col pb-12">
+<!-- TopAppBar (From Shared Components & Style Specs) -->
+<header class="sticky top-0 z-40 bg-[#ffffff] w-full border-b border-[#E1E9E9] h-14 flex items-center justify-between px-space-lg">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#16302F]" style="font-size: 24px;">storefront</span>
+<span class="font-headline-title text-[#16302F] tracking-tight font-extrabold text-[18px]">LoloShop</span>
+</div>
+<!-- Right Favorite Indicator with Turquesa Count Badge -->
+<a aria-label="Ver favoritos" class="flex items-center gap-1.5 py-1 px-2.5 rounded-full border border-[#E1E9E9] hover:bg-[#F3F7F7] active:scale-95 transition-transform" href="/favoritos">
+<span class="material-symbols-outlined text-[#0C7C7C]" style="font-size: 20px;">favorite</span>
+<span class="text-[13px] font-semibold text-[#16302F]">Favoritos</span>
+<span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary-container text-[#16302F] text-[11px] font-extrabold ml-0.5">2</span>
+</a>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col">
+<!-- Hero / Section Header -->
+<section class="px-space-lg pt-5 pb-3">
+<h1 class="text-[32px] leading-[38px] font-extrabold text-[#0E9494] tracking-tight font-headline-hero">
+          Catálogo
+        </h1>
+<p class="text-[14px] leading-5 text-[#5C6E6D] mt-1 font-medium">
+          Solo prendas con existencias en tienda.
+        </p>
+</section>
+<!-- Department Filter Chips (Horizontal Scrollable) -->
+<section class="py-2">
+<div class="flex items-center gap-2 overflow-x-auto no-scrollbar px-space-lg">
+<!-- Active Chip: Todo -->
+<button class="shrink-0 h-9 px-4 rounded-full bg-primary-container text-[#16302F] font-semibold text-[13px] transition-transform active:scale-95 flex items-center justify-center" type="button">
+            Todo
+          </button>
+<!-- Inactive Chips -->
+<button class="shrink-0 h-9 px-4 rounded-full bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-medium text-[13px] transition-transform active:scale-95 flex items-center justify-center hover:bg-[#F3F7F7]" type="button">
+            Mujer
+          </button>
+<button class="shrink-0 h-9 px-4 rounded-full bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-medium text-[13px] transition-transform active:scale-95 flex items-center justify-center hover:bg-[#F3F7F7]" type="button">
+            Hombre
+          </button>
+<button class="shrink-0 h-9 px-4 rounded-full bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-medium text-[13px] transition-transform active:scale-95 flex items-center justify-center hover:bg-[#F3F7F7]" type="button">
+            Niños
+          </button>
+<button class="shrink-0 h-9 px-4 rounded-full bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-medium text-[13px] transition-transform active:scale-95 flex items-center justify-center hover:bg-[#F3F7F7]" type="button">
+            Calzado
+          </button>
+</div>
+</section>
+<!-- 2-Column Product Grid -->
+<section class="px-4 py-4">
+<div class="grid grid-cols-2 gap-space-md">
+<!-- Card 1: Playera ejemplo -->
+<article class="flex flex-col bg-[#ffffff] rounded-2xl border border-[#E1E9E9] overflow-hidden p-2.5">
+<!-- 3:4 Aspect Ratio Visual Frame -->
+<div class="w-full aspect-[3/4] bg-[#F3F7F7] rounded-xl flex flex-col items-center justify-center relative overflow-hidden border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[#7F9392]" style="font-size: 42px;">checkroom</span>
+<span class="text-[11px] font-code-data text-[#5C6E6D] mt-1 tracking-wider uppercase">EJ-001</span>
+</div>
+<!-- Meta details -->
+<div class="pt-3 flex flex-col flex-1">
+<span class="text-[13px] text-[#5C6E6D] font-medium leading-none">Marca ejemplo</span>
+<h2 class="text-[15px] font-semibold text-[#16302F] mt-1 leading-snug line-clamp-1">Playera ejemplo</h2>
+<span class="text-[16px] font-bold text-[#0C7C7C] mt-1">$000</span>
+<!-- Sizes Mono Chips Row -->
+<div class="flex items-center gap-1.5 mt-2 font-code-data text-[12px]">
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">CH</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">M</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#7F9392] line-through font-normal">G</span>
+</div>
+<!-- Stacked Action Buttons -->
+<div class="mt-3 flex flex-col gap-2">
+<button class="w-full min-h-[44px] bg-primary-container text-[#16302F] font-bold text-[13px] rounded-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95" type="button">
+<span class="material-symbols-outlined" style="font-size: 18px;">favorite</span>
+<span>Guardar en favoritos</span>
+</button>
+<button class="w-full min-h-[44px] bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-semibold text-[13px] rounded-lg flex items-center justify-center transition-transform active:scale-95 hover:bg-[#F3F7F7]" type="button">
+                  Ver prenda
+                </button>
+</div>
+</div>
+</article>
+<!-- Card 2: Vestido ejemplo (Saved State) -->
+<article class="flex flex-col bg-[#ffffff] rounded-2xl border border-[#E1E9E9] overflow-hidden p-2.5">
+<!-- 3:4 Aspect Ratio Visual Frame -->
+<div class="w-full aspect-[3/4] bg-[#F3F7F7] rounded-xl flex flex-col items-center justify-center relative overflow-hidden border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[#7F9392]" style="font-size: 42px;">apparel</span>
+<span class="text-[11px] font-code-data text-[#5C6E6D] mt-1 tracking-wider uppercase">EJ-002</span>
+</div>
+<!-- Meta details -->
+<div class="pt-3 flex flex-col flex-1">
+<span class="text-[13px] text-[#5C6E6D] font-medium leading-none">Marca ejemplo</span>
+<h2 class="text-[15px] font-semibold text-[#16302F] mt-1 leading-snug line-clamp-1">Vestido ejemplo</h2>
+<span class="text-[16px] font-bold text-[#0C7C7C] mt-1">$000</span>
+<!-- Sizes Mono Chips Row -->
+<div class="flex items-center gap-1.5 mt-2 font-code-data text-[12px]">
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#7F9392] line-through font-normal">CH</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">M</span>
+</div>
+<!-- Stacked Action Buttons (Saved State) -->
+<div class="mt-3 flex flex-col gap-2">
+<button class="w-full min-h-[44px] bg-primary-container text-[#16302F] font-bold text-[13px] rounded-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95" type="button">
+<span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: 'FILL' 1;">favorite</span>
+<span>En favoritos</span>
+</button>
+<button class="w-full min-h-[44px] bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-semibold text-[13px] rounded-lg flex items-center justify-center transition-transform active:scale-95 hover:bg-[#F3F7F7]" type="button">
+                  Ver prenda
+                </button>
+</div>
+</div>
+</article>
+<!-- Card 3: Sudadera ejemplo -->
+<article class="flex flex-col bg-[#ffffff] rounded-2xl border border-[#E1E9E9] overflow-hidden p-2.5">
+<!-- 3:4 Aspect Ratio Visual Frame -->
+<div class="w-full aspect-[3/4] bg-[#F3F7F7] rounded-xl flex flex-col items-center justify-center relative overflow-hidden border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[#7F9392]" style="font-size: 42px;">styler</span>
+<span class="text-[11px] font-code-data text-[#5C6E6D] mt-1 tracking-wider uppercase">EJ-003</span>
+</div>
+<!-- Meta details -->
+<div class="pt-3 flex flex-col flex-1">
+<span class="text-[13px] text-[#5C6E6D] font-medium leading-none">Marca ejemplo</span>
+<h2 class="text-[15px] font-semibold text-[#16302F] mt-1 leading-snug line-clamp-1">Sudadera ejemplo</h2>
+<span class="text-[16px] font-bold text-[#0C7C7C] mt-1">$000</span>
+<!-- Sizes Mono Chips Row -->
+<div class="flex items-center gap-1.5 mt-2 font-code-data text-[12px]">
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">CH</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#7F9392] line-through font-normal">M</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">G</span>
+</div>
+<!-- Stacked Action Buttons -->
+<div class="mt-3 flex flex-col gap-2">
+<button class="w-full min-h-[44px] bg-primary-container text-[#16302F] font-bold text-[13px] rounded-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95" type="button">
+<span class="material-symbols-outlined" style="font-size: 18px;">favorite</span>
+<span>Guardar en favoritos</span>
+</button>
+<button class="w-full min-h-[44px] bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-semibold text-[13px] rounded-lg flex items-center justify-center transition-transform active:scale-95 hover:bg-[#F3F7F7]" type="button">
+                  Ver prenda
+                </button>
+</div>
+</div>
+</article>
+<!-- Card 4: Tenis ejemplo -->
+<article class="flex flex-col bg-[#ffffff] rounded-2xl border border-[#E1E9E9] overflow-hidden p-2.5">
+<!-- 3:4 Aspect Ratio Visual Frame -->
+<div class="w-full aspect-[3/4] bg-[#F3F7F7] rounded-xl flex flex-col items-center justify-center relative overflow-hidden border border-[#E1E9E9]">
+<span class="material-symbols-outlined text-[#7F9392]" style="font-size: 42px;">steps</span>
+<span class="text-[11px] font-code-data text-[#5C6E6D] mt-1 tracking-wider uppercase">EJ-004</span>
+</div>
+<!-- Meta details -->
+<div class="pt-3 flex flex-col flex-1">
+<span class="text-[13px] text-[#5C6E6D] font-medium leading-none">Marca ejemplo</span>
+<h2 class="text-[15px] font-semibold text-[#16302F] mt-1 leading-snug line-clamp-1">Tenis ejemplo</h2>
+<span class="text-[16px] font-bold text-[#0C7C7C] mt-1">$000</span>
+<!-- Sizes Mono Chips Row -->
+<div class="flex items-center gap-1.5 mt-2 font-code-data text-[12px]">
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">24</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#7F9392] line-through font-normal">25</span>
+<span class="px-1.5 py-0.5 rounded bg-[#F3F7F7] text-[#16302F] font-semibold">26</span>
+</div>
+<!-- Stacked Action Buttons -->
+<div class="mt-3 flex flex-col gap-2">
+<button class="w-full min-h-[44px] bg-primary-container text-[#16302F] font-bold text-[13px] rounded-lg flex items-center justify-center gap-1.5 transition-transform active:scale-95" type="button">
+<span class="material-symbols-outlined" style="font-size: 18px;">favorite</span>
+<span>Guardar en favoritos</span>
+</button>
+<button class="w-full min-h-[44px] bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] font-semibold text-[13px] rounded-lg flex items-center justify-center transition-transform active:scale-95 hover:bg-[#F3F7F7]" type="button">
+                  Ver prenda
+                </button>
+</div>
+</div>
+</article>
+</div>
+</section>
+<!-- Store Availability Banner / Notice -->
+<section class="px-4 mt-2">
+<div class="bg-[#F3F7F7] rounded-xl p-3 border border-[#E1E9E9] flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-white border border-[#E1E9E9] flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[#1F7A4A]" style="font-size: 20px;">verified</span>
+</div>
+<div>
+<p class="text-[13px] font-bold text-[#16302F]">Inventario sincronizado</p>
+<p class="text-[12px] text-[#5C6E6D]">Actualizado hoy directo en piso de venta.</p>
+</div>
+</div>
+</section>
+<!-- Footer Section -->
+<footer class="mt-8 px-4 text-center">
+<p class="text-[12px] text-[#5C6E6D] font-medium leading-relaxed">
+          Precios y existencias pueden cambiar.
+        </p>
+<p class="text-[11px] text-[#7F9392] mt-1 font-code-data">
+          LoloShop México · Boutique PWA
+        </p>
+</footer>
+</main>
+</div>
+<script>
+    // Lightweight tactile micro-interactions for favorite buttons
+    document.querySelectorAll('article button:first-child').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const textSpan = btn.querySelector('span:last-child');
+        const iconSpan = btn.querySelector('.material-symbols-outlined');
+        if (textSpan.innerText.includes('Guardar')) {
+          textSpan.innerText = 'En favoritos';
+          iconSpan.style.fontVariationSettings = "'FILL' 1";
+        } else {
+          textSpan.innerText = 'Guardar en favoritos';
+          iconSpan.style.fontVariationSettings = "'FILL' 0";
+        }
+      });
+    });
+  </script>
+</body></html>

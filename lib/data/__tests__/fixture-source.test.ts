@@ -131,6 +131,24 @@ describe("FixtureDataSource.createProduct", () => {
     expect(product.category).toBe("Accesorios");
     expect(variants[0].inventory).toEqual([{ locationId: "loc-2", available: 0 }]);
   });
+
+  it("photosChecked sin las dos URL no escribe catalogPhotosCheckedAt", async () => {
+    const ds = new FixtureDataSource();
+    const base = {
+      userId: "u1", title: "Gorra", brand: "L", brandId: "b1", departmentId: "d1", category: "Accesorios",
+      locationId: "loc-2", photosChecked: true,
+    };
+    const one = await ds.createProduct({
+      ...base, publicCode: "AAAA2", imageUrl: "https://example.invalid/f.jpg", backImageUrl: null,
+      variants: [{ barcode: "T-1", sku: "S-1", size: "U", price: 1, initialStock: 0 }],
+    });
+    expect(one.product.catalogPhotosCheckedAt).toBeNull();
+    const both = await ds.createProduct({
+      ...base, publicCode: "AAAA3", imageUrl: "https://example.invalid/f.jpg", backImageUrl: "https://example.invalid/b.jpg",
+      variants: [{ barcode: "T-2", sku: "S-2", size: "U", price: 1, initialStock: 0 }],
+    });
+    expect(both.product.catalogPhotosCheckedAt).not.toBeNull();
+  });
 });
 
 describe("FixtureDataSource: catálogo público y departamentos", () => {
@@ -159,5 +177,14 @@ describe("FixtureDataSource: catálogo público y departamentos", () => {
     const cat = await getPublicCatalog(ds);
     expect(cat.find((p) => p.publicCode === "BBBB1")?.department).toEqual({ slug: "calzado", name: "Calzado", sortOrder: 4 });
     expect(cat.find((p) => p.publicCode === "CCCC1")?.department).toBeNull();
+  });
+  describe("searchProducts (paridad con Prisma, «Sin código»)", () => {
+    it("encuentra por tipo, marca, título o SKU interno; texto que no es producto no devuelve nada", async () => {
+      const f = new FixtureDataSource();
+      expect((await f.searchProducts("hoodies")).map((h) => h.title)).toEqual(["Hoodie NY Yankees"]);
+      expect((await f.searchProducts("guess")).map((h) => h.title)).toEqual(["Playera Guess"]);
+      expect((await f.searchProducts("ls-pla-gue-m-bla")).map((h) => h.title)).toEqual(["Playera Guess"]);
+      expect(await f.searchProducts("zzzz-no-existe")).toEqual([]);
+    });
   });
 });

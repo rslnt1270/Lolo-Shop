@@ -96,8 +96,8 @@ describe("Virtual Store Components", () => {
     fireEvent.click(screen.getByRole("button", { name: "L, agotada" }));
     expect(screen.getByText("Agotado en tienda")).toBeInTheDocument();
 
-    const wa = screen.getByRole("link", { name: /Consultar por WhatsApp/i });
-    expect(decodeURIComponent(wa.getAttribute("href") ?? "")).toContain("en talla L. ¿Sigue disponible? Código K7Q2M");
+    // CTA de WhatsApp oculto (SHOW_WHATSAPP_CTA = false).
+    expect(screen.queryByRole("link", { name: /WhatsApp/i })).not.toBeInTheDocument();
   });
 
   it("con error de carga muestra 'No pudimos cargar el catálogo…' y no el texto de vacío", () => {

@@ -156,7 +156,7 @@ describe("NewProductForm: errores del servidor", () => {
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
     const onSuccess = vi.fn();
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     screen.getAllByText("tomar-foto").forEach((b) => fireEvent.click(b));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
     fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
@@ -173,7 +173,7 @@ describe("NewProductForm: errores del servidor", () => {
 
   it("deshabilita el alta mientras la foto se procesa", async () => {
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={vi.fn()} onCancel={vi.fn()} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     fireEvent.click(screen.getAllByText("tomar-foto")[0]);
     fireEvent.click(screen.getAllByText("tomar-foto")[1]);
     fireEvent.click(screen.getAllByText("foto-ocupada")[0]);
@@ -188,7 +188,7 @@ describe("NewProductForm: errores del servidor", () => {
     createProductAction.mockResolvedValue({ ok: true, product: { imageUrl: null }, variantId: "v", sku: "750123" });
     const onSuccess = vi.fn();
     render(<NewProductForm scannedCode="750123" locationId="loc-1" onSuccess={onSuccess} onCancel={vi.fn()} />);
-    fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
     screen.getAllByText("tomar-foto").forEach((b) => fireEvent.click(b));
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
     fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });

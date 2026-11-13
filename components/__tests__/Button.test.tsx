@@ -18,6 +18,11 @@ describe("Button", () => {
     render(<Button success>Listo</Button>);
     expect(screen.getByRole("button", { name: /Listo/ }).querySelector(".lolo-btn-check path")).not.toBeNull();
   });
+  it("loading wins over success: spinner rendered, no check", () => {
+    const { container } = render(<Button loading success>Guardar</Button>);
+    expect(container.querySelector(".lolo-btn-spinner")).not.toBeNull();
+    expect(container.querySelector(".lolo-btn-check")).toBeNull();
+  });
   it("danger variant renders agotado outline", () => {
     render(<Button variant="danger">Quitar</Button>);
     expect(screen.getByRole("button", { name: "Quitar" }).className).toContain("border-agotado");

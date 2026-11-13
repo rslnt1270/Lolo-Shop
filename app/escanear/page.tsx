@@ -3,6 +3,7 @@ import { formatPrice } from "@/lib/public/format";
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import { Button } from "@/components/ui/Button";
 import { Scanner } from "@/components/inventory/Scanner";
 import { ManualCodeEntry } from "@/components/inventory/ManualCodeEntry";
 import type { EntryMode } from "@/lib/domain/new-product";
@@ -137,7 +138,7 @@ export default function EscanearPage() {
     setAddSize(null);
     setSearching(true);
     try {
-      const result = await lookupCodeAction(code);
+      const result = await (locationId ? lookupCodeAction(code, locationId) : lookupCodeAction(code));
       if (result.found) {
         setFound(result);
       } else if (result.error) {
@@ -151,7 +152,7 @@ export default function EscanearPage() {
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [locationId]);
 
   if (status === "loading") {
     return <main className="p-4 text-center">Cargando...</main>;
@@ -171,12 +172,14 @@ export default function EscanearPage() {
   const sizesHere = found && locationId ? stockBySize(found.product, locationId) : [];
   // El servidor solo manda las filas de tu tienda: sin fila aquí, la prenda no está en tu tienda.
   const notInMyStore = !!variant && !!locationId && !variant.inventory.some((l) => l.locationId === locationId);
+  // (notInMyStore tiene precedencia: "sold" cuenta todas las tiendas y no se revela.) Prenda ya vendida y sin piezas en esta tienda: se ofrece "Agregar nuevamente" (mismo producto).
+  const soldOut = !notInMyStore && !!found?.stock?.sold && found.stock.available === 0;
   return (
     <main className="mx-auto max-w-2xl space-y-6 p-4">
       <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-bold">Escanear Producto</h1>
         {createdCount > 0 && (
-          <span className="rounded-full bg-loloteal/10 px-3 py-1 text-sm font-semibold text-loloteal">
+          <span className="rounded-full bg-niebla px-3 py-1 text-sm font-semibold text-turquesa-texto">
             {createdCount} {createdCount === 1 ? "alta" : "altas"} en esta sesión
           </span>
         )}
@@ -222,25 +225,17 @@ export default function EscanearPage() {
       )}
 
       {lookupError && !searching && (
-        <div role="alert" className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div role="alert" className="space-y-2 rounded-xl border border-agotado bg-white p-4 text-sm text-agotado">
           <p>{lookupError}</p>
           <div className="flex gap-2">
             {scannedCode && (
-              <button
-                type="button"
-                onClick={() => void handleScan(scannedCode)}
-                className="min-h-[44px] flex-1 rounded-lg bg-red-600 px-4 font-medium text-white"
-              >
+              <Button variant="danger" onClick={() => void handleScan(scannedCode)} className="flex-1">
                 Reintentar
-              </button>
+              </Button>
             )}
-            <button
-              type="button"
-              onClick={reset}
-              className="min-h-[44px] flex-1 rounded-lg border border-red-300 bg-white px-4 font-medium"
-            >
+            <Button variant="outline" onClick={reset} className="flex-1">
               Escanear otro
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -288,7 +283,7 @@ export default function EscanearPage() {
                       <li
                         key={s.size}
                         className={`rounded-full border px-3 py-1 text-sm ${
-                          s.size === (variant?.size || variant?.title) ? "border-loloteal font-semibold text-loloteal" : "border-gray-300 text-gray-700"
+                          s.size === (variant?.size || variant?.title) ? "border-turquesa-texto font-semibold text-turquesa-texto" : "border-gray-300 text-gray-700"
                         }`}
                       >
                         {`${s.size}: ${s.available} pzas`}
@@ -301,7 +296,21 @@ export default function EscanearPage() {
                     En esta tienda: <span className="font-semibold">{stockHere} pzas</span>
                   </p>
                 )}
-                {notInMyStore ? (
+                {soldOut ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-700">Esta prenda ya se vendió. Puedes agregar piezas al mismo producto.</p>
+                    <SumToMyStore
+                      variantId={found.variantId}
+                      locationId={locationId}
+                      label="Agregar nuevamente"
+                      onDone={(available) => {
+                        setIsError(false);
+                        setMessage(`Piezas sumadas: ${found.product.title}. Ahora hay ${available} en esta tienda.`);
+                        reset();
+                      }}
+                    />
+                  </div>
+                ) : notInMyStore ? (
                   <div className="space-y-2">
                     <p className="text-sm text-gray-700">Esta prenda no está en tu tienda</p>
                     <SumToMyStore
@@ -325,13 +334,9 @@ export default function EscanearPage() {
                     }}
                   />
                 )}
-                <button
-                  type="button"
-                  onClick={() => setAddSize({ product: toSearchHit(found.product), code: null })}
-                  className="min-h-[44px] w-full rounded-lg border border-loloteal bg-white px-4 font-semibold text-loloteal active:bg-gray-100"
-                >
+                <Button variant="outline" onClick={() => setAddSize({ product: toSearchHit(found.product), code: null })} className="w-full">
                   Agregar talla
-                </button>
+                </Button>
               </>
             ) : (
               <p className="text-sm text-gray-600">Elige una tienda arriba para registrar el movimiento.</p>
@@ -394,7 +399,7 @@ export default function EscanearPage() {
       {message && (
         <div
           role={isError ? "alert" : "status"}
-          className={`rounded p-3 ${isError ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"}`}
+          className={`rounded p-3 ${isError ? "border border-agotado bg-white text-agotado" : "border border-ok bg-white text-ok"}`}
         >
           {message}
         </div>
@@ -418,7 +423,7 @@ export default function EscanearPage() {
               {lastCreated.catalogStatus}
             </p>
             {lastCreated.noBarcode && (
-              <Link href="/etiquetas" className="inline-flex min-h-[44px] items-center font-medium text-loloteal underline">
+              <Link href="/etiquetas" className="inline-flex min-h-[44px] items-center font-medium text-turquesa-texto underline">
                 Imprimir etiqueta
               </Link>
             )}

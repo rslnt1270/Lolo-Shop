@@ -4,16 +4,17 @@ const getCurrentUser = vi.fn();
 const getProducts = vi.fn();
 const getProductByBarcode = vi.fn();
 const getProductByVariantId = vi.fn();
+const getLocations = vi.fn();
 
 vi.mock("@/lib/auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ default: {} }));
 vi.mock("@/lib/data/get-source", () => ({
-  getDataSource: () => ({ getProducts, getProductByBarcode, getProductByVariantId }),
+  getDataSource: () => ({ getProducts, getProductByBarcode, getProductByVariantId, getLocations }),
 }));
 vi.mock("@/lib/auth/password", () => ({ changePassword: vi.fn() }));
 
-import { fetchProductsAction, lookupCodeAction, getProductByBarcodeAction, getProductByVariantIdAction } from "../actions";
+import { fetchLocationsAction, fetchProductsAction, lookupCodeAction, getProductByBarcodeAction, getProductByVariantIdAction } from "../actions";
 
 const inv = () => [{ locationId: "loc-1", available: 3 }, { locationId: "loc-2", available: 5 }];
 const variant = () => ({ id: "v1", sku: "S", title: "M", size: "M", color: "", price: 1, barcode: "123", inventory: inv() });
@@ -24,6 +25,10 @@ beforeEach(() => {
   getCurrentUser.mockReset();
   getProducts.mockReset().mockResolvedValue([product()]);
   getProductByBarcode.mockReset().mockResolvedValue({ product: product(), variant: variant() });
+  getLocations.mockReset().mockResolvedValue([
+    { id: "loc-1", name: "Centro", type: "store" },
+    { id: "loc-2", name: "Norte", type: "store" },
+  ]);
   getProductByVariantId.mockReset().mockResolvedValue({ product: product(), variant: variant() });
 });
 
@@ -56,5 +61,29 @@ describe("recorte de stock por tienda", () => {
     expect((await fetchProductsAction())?.[0].variants[0].inventory).toHaveLength(2);
     getCurrentUser.mockResolvedValue(user("manager", "loc-1"));
     expect((await fetchProductsAction())?.[0].variants[0].inventory).toHaveLength(2);
+  });
+
+  it("fetchLocationsAction: el colaborador recibe solo su tienda", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", "loc-1"));
+    const r = await fetchLocationsAction();
+    expect(r?.map((l) => l.id)).toEqual(["loc-1"]);
+    expect(JSON.stringify(r)).not.toContain("Norte");
+  });
+
+  it("colaborador sin tienda recibe []", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", null));
+    expect(await fetchLocationsAction()).toEqual([]);
+  });
+
+  it("owner y manager reciben todas", async () => {
+    getCurrentUser.mockResolvedValue(user("owner", null));
+    expect(await fetchLocationsAction()).toHaveLength(2);
+    getCurrentUser.mockResolvedValue(user("manager", "loc-1"));
+    expect(await fetchLocationsAction()).toHaveLength(2);
+  });
+
+  it("fetchLocationsAction: sesión vieja de owner con rol colaborador en la base → solo su tienda", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", "loc-2"));
+    expect((await fetchLocationsAction())?.map((l) => l.id)).toEqual(["loc-2"]);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Button } from "@/components/ui/Button";
 import { SCAN_FORMAT_NAMES } from "@/lib/domain/scan-formats";
 
 type Props = {
@@ -244,9 +245,6 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted, contin
     void start(next);
   };
 
-  const btn =
-    "min-h-[44px] min-w-[44px] rounded-lg px-4 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal";
-
   return (
     <div className="mx-auto w-full max-w-sm space-y-3">
       <div
@@ -255,9 +253,9 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted, contin
       />
 
       {status === "idle" && (
-        <button type="button" onClick={() => void start(facing)} className={`${btn} w-full bg-loloteal text-white`}>
+        <Button onClick={() => void start(facing)} className="w-full">
           Activar cámara
-        </button>
+        </Button>
       )}
       {status === "starting" && (
         <p role="status" className="text-center text-sm text-gray-600">
@@ -267,26 +265,21 @@ export function Scanner({ onScan, validate, autoStart = false, onStarted, contin
       {status === "running" && (
         <div className="flex flex-wrap items-center justify-center gap-2">
           {torchAvailable && (
-            <button
-              type="button"
-              onClick={() => void toggleTorch()}
-              aria-pressed={torchOn}
-              className={`${btn} border border-gray-300 bg-white`}
-            >
+            <Button variant="outline" onClick={() => void toggleTorch()} aria-pressed={torchOn}>
               {torchOn ? "Apagar linterna" : "Linterna"}
-            </button>
+            </Button>
           )}
-          <button type="button" onClick={switchCamera} className={`${btn} border border-gray-300 bg-white`}>
+          <Button variant="outline" onClick={switchCamera}>
             Cambiar cámara
-          </button>
+          </Button>
         </div>
       )}
       {status === "error" && error && (
-        <div role="alert" className="space-y-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div role="alert" className="space-y-2 rounded-lg border border-agotado bg-white p-3 text-sm text-agotado">
           <p>{error}</p>
-          <button type="button" onClick={() => void start(facing)} className={`${btn} bg-red-600 text-white`}>
+          <Button variant="danger" onClick={() => void start(facing)}>
             Reintentar
-          </button>
+          </Button>
         </div>
       )}
     </div>

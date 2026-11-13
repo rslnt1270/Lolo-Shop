@@ -7,7 +7,8 @@ import { timeAgo } from "@/lib/sales/format";
 import { formatPrice } from "@/lib/public/format";
 import { CancelSalePanel } from "./CancelSalePanel";
 import { LoginLink, SESSION_EXPIRED_TEXT, isSessionExpired } from "./session-expired";
-import { saleButton as btn, saleInput as input } from "./styles";
+import { Button } from "@/components/ui/Button";
+import { saleInput as input } from "./styles";
 
 type Pending = DashboardData["pendingPayments"][number];
 type Panel = "confirm" | "cancel" | null;
@@ -52,49 +53,46 @@ function PendingRow({ sale, locationNames, namesReady = true, canConfirm, canCan
   }
 
   return (
-    <li className="rounded-[14px] border border-[rgba(18,33,31,0.12)] border-l-[3px] border-l-[#B7791F] bg-white p-3">
+    <li className="rounded-[14px] border border-borde-control border-l-[3px] border-l-tinta bg-white p-3">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-bold text-[#12211F]">
+        <p className="text-sm font-bold text-tinta">
           Venta #{sale.number}
-          <span className="ml-2 font-normal text-[#3A4D4A]">{locationNames[sale.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</span>
+          <span className="ml-2 font-normal text-tinta">{locationNames[sale.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</span>
         </p>
-        <p className="flex-none font-data-mono tabular-nums text-sm font-bold text-[#12211F]">{formatPrice(sale.total)}</p>
+        <p className="flex-none font-data-mono tabular-nums text-sm font-bold text-tinta">{formatPrice(sale.total)}</p>
       </div>
       {sale.customerAlias && (
-        <p className="mt-0.5 break-words text-sm text-[#12211F]">
+        <p className="mt-0.5 break-words text-sm text-tinta">
           <span className="sr-only">Alias del pedido: </span>“{sale.customerAlias}”
         </p>
       )}
-      <p className="mt-0.5 text-xs text-[#3A4D4A]">{timeAgo(sale.createdAt)}</p>
+      <p className="mt-0.5 text-xs text-tinta">{timeAgo(sale.createdAt)}</p>
 
       {(canConfirm || canCancel) && (
         <div className="mt-2 flex flex-wrap gap-2">
           {canConfirm && (
-            <button
-              type="button"
+            <Button
               aria-expanded={panel === "confirm"}
               onClick={() => open("confirm")}
-              className={`${btn} bg-loloteal text-white hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:active:scale-100`}
             >
               Confirmar pago
-            </button>
+            </Button>
           )}
           {canCancel && (
-            <button
-              type="button"
+            <Button
+              variant="danger"
               aria-expanded={panel === "cancel"}
               onClick={() => open("cancel")}
-              className={`${btn} border border-[#C23A2B] bg-white text-[#9B2C20] hover:bg-[#FFE7E2]`}
             >
               Anular
-            </button>
+            </Button>
           )}
         </div>
       )}
 
       {panel === "confirm" && (
         <div className="mt-3 space-y-2">
-          <label htmlFor={`${uid}-ref`} className="block text-sm text-[#12211F]">
+          <label htmlFor={`${uid}-ref`} className="block text-sm text-tinta">
             Referencia SPAY (opcional)
           </label>
           <input
@@ -104,21 +102,21 @@ function PendingRow({ sale, locationNames, namesReady = true, canConfirm, canCan
             onChange={(e) => setReference(e.target.value)}
             className={input}
           />
-          <button type="button" disabled={busy} onClick={confirm} className={`${btn} bg-loloteal text-white hover:bg-loloteal-dark active:bg-loloteal-dark active:scale-[.98] motion-reduce:active:scale-100`}>
+          <Button disabled={busy} onClick={confirm}>
             {busy ? "Confirmando…" : "Confirmar"}
-          </button>
+          </Button>
         </div>
       )}
 
       {panel === "cancel" && <CancelSalePanel saleId={sale.saleId} onCancelled={onChanged} />}
 
       {error && (
-        <p role="alert" className="mt-2 text-sm font-bold text-[#9B2C20]">
+        <p role="alert" className="mt-2 text-sm font-bold text-agotado">
           {error}
         </p>
       )}
       {expired && (
-        <p role="alert" className="mt-2 text-sm font-bold text-[#9B2C20]">
+        <p role="alert" className="mt-2 text-sm font-bold text-agotado">
           {SESSION_EXPIRED_TEXT} <LoginLink />
         </p>
       )}
@@ -127,7 +125,7 @@ function PendingRow({ sale, locationNames, namesReady = true, canConfirm, canCan
 }
 
 export function PendingPayments({ sales, ...rest }: Props) {
-  if (sales.length === 0) return <p className="text-sm text-[#3A4D4A]">No hay cobros pendientes.</p>;
+  if (sales.length === 0) return <p className="text-sm text-tinta">No hay cobros pendientes.</p>;
   return (
     <ul className="space-y-2">
       {sales.map((s) => (

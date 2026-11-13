@@ -46,3 +46,17 @@ describe("FixtureDataSource.mergeProducts: tallas viejas", () => {
     expect((await ds.getProducts()).find((p) => p.id === c.product.id)!.title).toBe("Nike Air Max 90");
   });
 });
+
+describe("FixtureDataSource: publicación al desactivar y unir", () => {
+  it("unir deja los orígenes sin publicar; el destino conserva su estado", async () => {
+    const ds = new FixtureDataSource();
+    const a = await ds.createProduct(mk("Polo - M", "GGGGG", "M", "LS-G"));
+    const b = await ds.createProduct(mk("Polo - L", "HHHHH", "L", "LS-H"));
+    await ds.setProductPublished(a.product.id, true);
+    await ds.setProductPublished(b.product.id, true);
+    await ds.mergeProducts(a.product.id, [b.product.id], "u1");
+    const all = await ds.getProducts();
+    expect(all.find((p) => p.id === b.product.id)!.isPublished).toBe(false);
+    expect(all.find((p) => p.id === a.product.id)!.isPublished).toBe(true);
+  });
+});

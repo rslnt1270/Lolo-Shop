@@ -3,6 +3,9 @@
 import type { PublicProduct } from "@/lib/data/public-projection";
 
 import { formatPrice } from "@/lib/public/format";
+import { FavoriteButton, SaveFailedStatus } from "@/components/favorites/FavoriteButton";
+import { useFavorites } from "@/components/favorites/useFavorites";
+import { Button } from "@/components/ui/Button";
 
 const MAX_CHIPS = 6;
 
@@ -18,12 +21,15 @@ interface Props {
   onSelect: (p: PublicProduct) => void;
 }
 
-/** Cuadrícula de 2 columnas (375 px): foto de frente, marca, nombre y precio. Toda la tarjeta es el botón. */
+/** Cuadrícula de 2 columnas (375 px): foto de frente, marca, nombre y precio. Foto y textos abren la prenda; abajo, favorito (principal) y "Ver prenda" (contorno). */
 export function CatalogGrid({ products, onSelect }: Props) {
+  const favorites = useFavorites();
   return (
+    <>
+    <SaveFailedStatus failed={favorites.saveFailed} />
     <ul aria-label="Prendas" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
       {products.map((p) => (
-        <li key={p.id}>
+        <li key={p.id} id={`p-${p.id}`}>
           <button
             type="button"
             onClick={() => onSelect(p)}
@@ -45,37 +51,52 @@ export function CatalogGrid({ products, onSelect }: Props) {
               {priceLabel(p) && (
                 <span className="mt-1.5 block text-sm font-bold text-gray-900">{priceLabel(p)}</span>
               )}
-              {p.sizes.length > 0 && p.sizes.every((s) => !s.available) ? (
-                <span className="mt-1.5 block text-xs font-semibold text-[#9A3B2E]">Agotado</span>
-              ) : (
-                <span className="mt-1.5 flex flex-wrap gap-1">
-                  {p.sizes.slice(0, MAX_CHIPS).map((s) => (
-                    // Informativos: el objetivo táctil es toda la tarjeta.
-                    <span
-                      key={s.size}
-                      data-testid="size-chip"
-                      role="img"
-                      aria-label={s.available ? s.size : `${s.size}, agotada`}
-                      className={`rounded-md border px-1.5 py-0.5 font-mono text-[11px] leading-none ${
-                        s.available
-                          ? "border-gray-300 text-gray-700"
-                          : "border-gray-200 text-gray-400 line-through decoration-2"
-                      }`}
-                    >
-                      {s.size}
-                    </span>
-                  ))}
-                  {p.sizes.length > MAX_CHIPS && (
-                    <span className="px-1 py-0.5 font-mono text-[11px] leading-none text-gray-500">
-                      +{p.sizes.length - MAX_CHIPS}
-                    </span>
-                  )}
-                </span>
-              )}
+              <span className="mt-1.5 flex flex-wrap gap-1">
+                {p.sizes.slice(0, MAX_CHIPS).map((s) => (
+                  // Informativos: el objetivo táctil es toda la tarjeta.
+                  <span
+                    key={s.size}
+                    data-testid="size-chip"
+                    role="img"
+                    aria-label={s.available ? s.size : `${s.size}, agotada`}
+                    className={`rounded-md border px-1.5 py-0.5 font-mono text-[11px] leading-none ${
+                      s.available
+                        ? "border-gray-300 text-gray-700"
+                        : "border-gray-200 text-gray-400 line-through decoration-2"
+                    }`}
+                  >
+                    {s.size}
+                  </span>
+                ))}
+                {p.sizes.length > MAX_CHIPS && (
+                  <span className="px-1 py-0.5 font-mono text-[11px] leading-none text-gray-500">
+                    +{p.sizes.length - MAX_CHIPS}
+                  </span>
+                )}
+              </span>
             </span>
           </button>
+          <div data-testid="card-actions" className="flex flex-col gap-2 pt-2 sm:flex-row">
+            <FavoriteButton
+              className="sm:flex-1"
+              productId={p.id}
+              title={p.title}
+              saved={favorites.isSaved(p.id)}
+              disabled={!favorites.storageOk}
+              onToggle={() => favorites.toggle(p.id)}
+            />
+            <Button
+              variant="outline"
+              className="w-full sm:flex-1"
+              aria-label={`Ver prenda ${p.title}`}
+              onClick={() => onSelect(p)}
+            >
+              Ver prenda
+            </Button>
+          </div>
         </li>
       ))}
     </ul>
+    </>
   );
 }

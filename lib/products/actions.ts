@@ -9,6 +9,8 @@ import { loadTypeRule } from "@/lib/catalog/type-rule";
 import { MAX_PRICE, MAX_TITLE_LENGTH, roundToCents } from "@/lib/domain/new-product";
 import { STYLE_OPTIONS } from "@/lib/domain/product-types-catalog";
 import { MSG_PICK_TYPE, MSG_TYPE_INACTIVE, validateClassification } from "@/lib/domain/product-taxonomy";
+import { ELIGIBILITY_GAP_TEXT, catalogEligibility, hasStockInPublicStore } from "@/lib/domain/catalog-eligibility";
+import { publicStoreIds } from "@/lib/data/public-projection";
 import { validateReason } from "@/lib/domain/stock-movement";
 import type { Role } from "@/lib/domain/types";
 import prisma from "@/lib/prisma";
@@ -202,6 +204,39 @@ export async function setProductActiveAction(productId: string, active: boolean)
   } catch (err) {
     if (err instanceof ProductNotFoundError) return notFound(err.message);
     if (err instanceof InventoryRuleError) return invalid(err.message);
+    throw err;
+  }
+}
+
+/**
+ * Publica o quita un producto del sitio (owner y manager, rol releído de la base).
+ * Publicar exige que sea elegible (fotos, descripción, existencias en tienda pública); quitar siempre se permite.
+ */
+export async function setProductPublishedAction(productId: string, published: boolean): Promise<ProductAdminResult> {
+  const g = await gate();
+  if (!g.ok) return g;
+  if (typeof productId !== "string" || !productId) return invalid("Falta el producto.");
+  if (typeof published !== "boolean") return invalid("Indica si el producto se publica o se quita del sitio.");
+  const ds = getDataSource();
+  try {
+    // Quitar del sitio siempre se permite (también inactivo o unido); solo publicar pasa por la elegibilidad.
+    if (published) {
+      const product = await ds.getProductForPublish(productId);
+      if (!product) return notFound("Ese producto ya no existe.");
+      const storeIds = publicStoreIds(await ds.getLocations());
+      const { eligible, gaps } = catalogEligibility({
+        imageUrl: product.imageUrl,
+        backImageUrl: product.backImageUrl,
+        description: product.description,
+        hasStockInPublicStore: hasStockInPublicStore(product, storeIds),
+      });
+      if (!eligible) return invalid(ELIGIBILITY_GAP_TEXT[gaps[0]]);
+    }
+    await ds.setProductPublished(productId, published);
+    refresh();
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ProductNotFoundError) return notFound(err.message);
     throw err;
   }
 }

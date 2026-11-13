@@ -46,6 +46,11 @@ const existingProduct = {
   variants: [{ id: "v1", title: "M", sku: "S", barcode: "750999", price: 100, inventory: [] }],
 };
 
+const productWithRow = (available: number) => ({
+  ...existingProduct,
+  variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-1", available }] }],
+});
+
 async function fillForm() {
   fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Gorra" } });
   fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
@@ -102,6 +107,66 @@ describe("/escanear: flujo de alta por lote", () => {
     );
   });
 
+  it("escanear manda la tienda del usuario a lookupCodeAction", async () => {
+    render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    await waitFor(() => expect(lookup).toHaveBeenCalledWith("750999", "loc-1"));
+  });
+
+  it("prenda vendida sin piezas en la tienda muestra 'Agregar nuevamente'", async () => {
+    lookup.mockResolvedValue({ found: true, product: productWithRow(0), variantId: "v1", stock: { available: 0, sold: true } });
+    render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    expect(await screen.findByText("Esta prenda ya se vendió. Puedes agregar piezas al mismo producto.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Agregar nuevamente" })).toBeTruthy();
+  });
+
+  it("Agregar nuevamente llama recordStockMovementAction con kind restock, la tienda del usuario y el mismo requestId en el reintento", async () => {
+    lookup.mockResolvedValue({ found: true, product: productWithRow(0), variantId: "v1", stock: { available: 0, sold: true } });
+    record.mockResolvedValueOnce({ ok: false, code: "ERROR", message: "Falló" });
+    render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    fireEvent.click(await screen.findByRole("button", { name: "Agregar nuevamente" }));
+    await screen.findByText("Falló");
+    fireEvent.click(screen.getByRole("button", { name: "Agregar nuevamente" }));
+    await waitFor(() => expect(record).toHaveBeenCalledTimes(2));
+    expect(record.mock.calls[0][0]).toMatchObject({ variantId: "v1", locationId: "loc-1", kind: "restock", quantity: 1 });
+    expect(record.mock.calls[1][0].requestId).toBe(record.mock.calls[0][0].requestId);
+  });
+
+  it("prenda con piezas o nunca vendida no muestra 'Agregar nuevamente'", async () => {
+    lookup.mockResolvedValue({ found: true, product: productWithRow(3), variantId: "v1", stock: { available: 3, sold: true } });
+    const { unmount } = render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    await screen.findByText("Playera X");
+    expect(screen.queryByRole("button", { name: "Agregar nuevamente" })).toBeNull();
+    unmount();
+    lookup.mockResolvedValue({ found: true, product: productWithRow(0), variantId: "v1", stock: { available: 0, sold: false } });
+    render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    await screen.findByText("Playera X");
+    expect(screen.queryByRole("button", { name: "Agregar nuevamente" })).toBeNull();
+    expect(screen.queryByText(/ya se vendió/)).toBeNull();
+  });
+
+  it("prenda solo en otra tienda y vendida allá muestra 'no está en tu tienda' sin 'ya se vendió'", async () => {
+    lookup.mockResolvedValue({ found: true, product: existingProduct, variantId: "v1", stock: { available: 0, sold: true } });
+    render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    expect(await screen.findByText("Esta prenda no está en tu tienda")).toBeTruthy();
+    expect(screen.queryByText(/ya se vendió/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Agregar nuevamente" })).toBeNull();
+    expect(screen.getByRole("button", { name: /sumar .* en tu tienda/i })).toBeTruthy();
+  });
+
+  it("el error de tienda se muestra como aviso sin resultado", async () => {
+    lookup.mockResolvedValue({ found: false, code: "750999", error: "Solo puedes operar en tu tienda asignada." });
+    render(<EscanearPage />);
+    fireEvent.click(screen.getByText("simular-escaneo"));
+    expect(await screen.findByText("Solo puedes operar en tu tienda asignada.")).toBeTruthy();
+    expect(screen.queryByText("Playera X")).toBeNull();
+  });
+
   it("si la búsqueda del código falla, no deja la pantalla colgada sin aviso", async () => {
     lookup.mockResolvedValue({ found: false, code: "750999", error: "No se pudo buscar el código." });
     render(<EscanearPage />);
@@ -122,7 +187,7 @@ describe("/escanear: flujo de alta por lote", () => {
     render(<EscanearPage />);
     fireEvent.change(screen.getByLabelText(/código del producto/i), { target: { value: "ABC-1" } });
     fireEvent.click(screen.getByRole("button", { name: /usar este código/i }));
-    await waitFor(() => expect(lookup).toHaveBeenCalledWith("ABC-1"));
+    await waitFor(() => expect(lookup).toHaveBeenCalledWith("ABC-1", "loc-1"));
   });
 
   it("'Prenda sin código' abre el alta sin código y ofrece imprimir etiqueta", async () => {

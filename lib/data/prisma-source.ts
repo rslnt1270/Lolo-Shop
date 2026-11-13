@@ -395,7 +395,8 @@ export class PrismaDataSource implements InventoryDataSource {
           backImageUrl: data.backImageUrl ?? null,
           description: data.description ?? null,
           color: data.color ?? null,
-          catalogPhotosCheckedAt: data.photosChecked ? new Date() : null,
+          // Informativa: solo si llegan las dos URL (decisión 2026-11-12).
+          catalogPhotosCheckedAt: data.photosChecked && data.imageUrl && data.backImageUrl ? new Date() : null,
           variants: {
             create: rows.map((r) => ({
               title: r.size,
@@ -501,6 +502,8 @@ export class PrismaDataSource implements InventoryDataSource {
       variants: { where: { isActive: true }, select: { size: true } },
     } as const;
     const live = { isActive: true, mergedIntoId: null };
+    // `%` y `_` del texto buscado son literales: sin esto «%» devolvería todo el catálogo.
+    const like = q.replace(/[\\%_]/g, "\\$&");
     // El código público exacto va en una consulta aparte para que el corte a 8 no lo deje fuera.
     const code = normalizePublicCode(q);
     const exact = code ? await this.db.product.findFirst({ where: { ...live, publicCode: code }, select }) : null;
@@ -509,8 +512,11 @@ export class PrismaDataSource implements InventoryDataSource {
         ...live,
         ...(exact ? { id: { not: exact.id } } : {}),
         OR: [
-          { title: { contains: q, mode: "insensitive" } },
-          { brand: { contains: q, mode: "insensitive" } },
+          { title: { contains: like, mode: "insensitive" } },
+          { brand: { contains: like, mode: "insensitive" } },
+          { category: { contains: like, mode: "insensitive" } },
+          { color: { contains: like, mode: "insensitive" } },
+          { variants: { some: { isActive: true, sku: { in: codeCandidates(q) } } } },
         ],
       },
       orderBy: { createdAt: "desc" },
@@ -599,7 +605,21 @@ export class PrismaDataSource implements InventoryDataSource {
     if (active && p.mergedIntoId) {
       throw new InventoryRuleError("Este producto se unió con otro y no se puede reactivar.");
     }
-    await this.db.product.update({ where: { id: productId }, data: { isActive: active } });
+    // Desactivar también quita del sitio: reactivar no lo vuelve a exponer sin un nuevo "Publicar".
+    await this.db.product.update({ where: { id: productId }, data: active ? { isActive: true } : { isActive: false, isPublished: false } });
+  }
+
+  async setProductPublished(productId: string, published: boolean): Promise<void> {
+    const res = await this.db.product.updateMany({ where: { id: productId }, data: { isPublished: published } });
+    if (res.count === 0) throw new ProductNotFoundError();
+  }
+
+  async getProductForPublish(productId: string): Promise<Product | null> {
+    const p = await this.db.product.findFirst({
+      where: { id: productId, isActive: true, mergedIntoId: null },
+      include: { variants: { include: { inventory: true }, orderBy: { createdAt: "asc" } }, department: true },
+    });
+    return p ? toProduct(p, p.variants.map(toVariant)) : null;
   }
 
   async setVariantActive(variantId: string, active: boolean): Promise<void> {
@@ -751,7 +771,7 @@ export class PrismaDataSource implements InventoryDataSource {
       await tx.product.updateMany({ where: { mergedIntoId: { in: toMove } }, data: { mergedIntoId: targetId } });
       await tx.product.updateMany({
         where: { id: { in: toMove } },
-        data: { isActive: false, mergedIntoId: targetId, mergedAt: new Date(), mergedById: userId },
+        data: { isActive: false, isPublished: false, mergedIntoId: targetId, mergedAt: new Date(), mergedById: userId },
       });
       // La talla ya vive en las variantes: el título del destino queda sin ella ("Polo - M" → "Polo").
       const cleanTitle = stripTrailingSize(target.title);

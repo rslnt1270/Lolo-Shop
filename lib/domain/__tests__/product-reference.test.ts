@@ -3,6 +3,7 @@ import {
   colorApplies,
   normalizeColorKey,
   displayColor,
+  resolveColorLabel,
   buildSuggestedTitle,
   validateReference,
   productPhotoStatus,
@@ -130,5 +131,19 @@ describe("product-reference", () => {
     expect(productPhotoStatus({ hasFront: true, hasBack: true, hasStock: false })).toBe(
       "Fotos completas, sin existencias"
     );
+  });
+
+  it("resolveColorLabel: 'rosas' con la lista ['Rosa'] → 'Rosa'", () => {
+    expect(resolveColorLabel("rosas", ["Rosa"])).toBe("Rosa");
+  });
+
+  it("resolveColorLabel: sin coincidencia devuelve displayColor", () => {
+    expect(resolveColorLabel("verde  LIMA", ["Rosa"])).toBe(displayColor("verde  LIMA"));
+  });
+
+  it("resolveColorLabel: texto vacío o solo símbolos → null", () => {
+    expect(resolveColorLabel("", ["Rosa"])).toBeNull();
+    expect(resolveColorLabel("  ", ["Rosa"])).toBeNull();
+    expect(resolveColorLabel("!!!", ["Rosa"])).toBeNull();
   });
 });

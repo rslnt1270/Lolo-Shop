@@ -3,6 +3,7 @@ import { useId, useRef, useState } from "react";
 import { recordStockMovementAction, type StockMovementResult } from "@/lib/actions";
 import { MAX_STOCK_QUANTITY } from "@/lib/domain/stock-movement";
 import { withSession } from "@/lib/client/with-session";
+import { Button } from "@/components/ui/Button";
 import { ActionErrorText } from "@/components/sales/session-expired";
 
 export interface SumToMyStoreProps {
@@ -13,6 +14,8 @@ export interface SumToMyStoreProps {
   quantity?: number;
   /** Valor inicial del campo editable ("" obliga a escribirlo). Por defecto "1". */
   defaultQuantity?: string;
+  /** Texto del botón; si llega, sustituye a `sumLabel`. "Sumando…" no cambia. */
+  label?: string;
   onDone(available: number): void;
 }
 
@@ -27,7 +30,7 @@ export function sumLabel(n: number | null): string {
   return `Sumar ${n} ${n === 1 ? "pieza" : "piezas"} en tu tienda`;
 }
 
-export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity = "1", onDone }: SumToMyStoreProps) {
+export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity = "1", label, onDone }: SumToMyStoreProps) {
   const [qty, setQty] = useState(defaultQuantity);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
@@ -87,20 +90,15 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
               setQty(e.target.value);
               if (!busyRef.current) requestIdRef.current = null;
             }}
-            className="mt-1 block min-h-[44px] w-28 rounded-md border border-gray-300 bg-white px-3 font-mono text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal"
+            className="mt-1 block min-h-[44px] w-28 rounded-md border border-gray-300 bg-white px-3 font-mono text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto"
           />
         </div>
       )}
-      <button
-        type="button"
-        onClick={() => void submit()}
-        disabled={pending}
-        className="min-h-[44px] w-full rounded-lg bg-loloteal px-4 font-semibold text-white transition active:bg-loloteal-dark disabled:opacity-60 motion-reduce:transition-none"
-      >
-        {pending ? "Sumando…" : sumLabel(shown)}
-      </button>
+      <Button onClick={() => void submit()} loading={pending} className="w-full">
+        {pending ? "Sumando…" : (label ?? sumLabel(shown))}
+      </Button>
       {error && (
-        <p role="alert" className="text-sm font-medium text-[#9A3B2E]"><ActionErrorText message={error} session={sessionExpired} /></p>
+        <p role="alert" className="text-sm font-medium text-agotado"><ActionErrorText message={error} session={sessionExpired} /></p>
       )}
     </div>
   );

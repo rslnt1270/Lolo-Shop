@@ -50,7 +50,9 @@ const A = make("a", "Playera A", ["S", "M", "L"]);
 const B = make("b", "Playera B", ["XS", "XL"]);
 
 const open = (title: string) => {
-  const card = screen.getByRole("button", { name: new RegExp(title) });
+  const card = screen
+    .getAllByRole("button", { name: new RegExp(title) })
+    .find((b) => !/^(Ver prenda|Guardar)/.test(b.getAttribute("aria-label") ?? ""))!;
   card.focus();
   fireEvent.click(card);
   return card;

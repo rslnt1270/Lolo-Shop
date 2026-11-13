@@ -7,6 +7,7 @@ import { sortSizes } from "@/lib/domain/sizes";
 import { mergeProductsAction } from "@/lib/products/actions";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
+import { Button } from "@/components/ui/Button";
 
 interface Props {
   groups: DuplicateGroup[];
@@ -69,7 +70,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
 
   if (done) {
     return (
-      <p role="status" className="rounded-lg bg-loloteal/10 p-3 text-sm font-semibold text-loloteal">
+      <p role="status" className="rounded-lg bg-niebla p-3 text-sm font-semibold text-turquesa-texto">
         {done}
       </p>
     );
@@ -87,7 +88,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
             <label
               key={p.id}
               data-testid={`merge-item-${p.id}`}
-              className={`flex min-h-[44px] cursor-pointer gap-3 rounded-lg border p-2 motion-reduce:transition-none ${chosen ? "border-loloteal bg-loloteal/5" : "border-gray-200"}`}
+              className={`flex min-h-[44px] cursor-pointer gap-3 rounded-lg border p-2 motion-reduce:transition-none ${chosen ? "border-turquesa-texto bg-niebla" : "border-gray-200"}`}
             >
               <input
                 type="radio"
@@ -98,7 +99,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
                   setConfirming(false);
                 }}
                 aria-label={`Se queda: ${p.title}`}
-                className="mt-1 h-5 w-5 shrink-0 accent-loloteal"
+                className="mt-1 h-5 w-5 shrink-0 accent-turquesa-texto"
               />
               {p.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -119,7 +120,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
                   {p.imageUrl && p.backImageUrl ? <span>Con las dos fotos</span> : <span>Faltan fotos</span>}
                 </p>
                 <p className="flex gap-2 text-xs font-semibold">
-                  {chosen && <span className="rounded bg-loloteal px-2 py-0.5 text-white">Se queda</span>}
+                  {chosen && <span className="rounded bg-turquesa px-2 py-0.5 font-semibold text-tinta">Se queda</span>}
                   {p.id === group.suggestedTargetId && <span className="text-gray-700">Sugerido</span>}
                 </p>
               </div>
@@ -129,7 +130,7 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
       </fieldset>
 
       {error && (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-[#9A3B2E]">
+        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm font-semibold text-agotado">
           <ActionErrorText message={error.text} session={error.session} />
         </p>
       )}
@@ -145,35 +146,28 @@ function Group({ group, locations, saleCounts }: { group: DuplicateGroup; locati
             </p>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
+            <Button variant="outline"
               onClick={() => setConfirming(false)}
               disabled={busy}
-              className="min-h-[44px] rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800"
             >
               Cancelar
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               onClick={() => void confirm()}
               disabled={busy}
-              className="min-h-[44px] rounded-lg bg-loloteal px-3 text-sm font-semibold text-white active:bg-loloteal-dark disabled:opacity-60"
             >
               {busy ? "Uniendo…" : "Confirmar unión"}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
-        <button
-          type="button"
+        <Button
           onClick={() => {
             setError(null);
             setConfirming(true);
-          }}
-          className="min-h-[44px] w-full rounded-lg bg-loloteal px-4 text-sm font-semibold text-white active:bg-loloteal-dark"
-        >
+          }} className="w-full">
           Unir {group.products.length} productos
-        </button>
+        </Button>
       )}
     </section>
   );

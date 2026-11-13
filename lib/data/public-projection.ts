@@ -57,7 +57,7 @@ export function toPublicProduct(
 }
 
 /** Tiendas que cuentan para el sitio: type store e isPublic distinto de false (ausente = pública). */
-export function publicStoreIds(locations: Location[]): Set<string> {
+export function publicStoreIds(locations: Pick<Location, "id" | "type" | "isPublic">[]): Set<string> {
   return new Set(locations.filter((l) => l.type === "store" && l.isPublic !== false).map((l) => l.id));
 }
 

@@ -54,7 +54,7 @@ export interface Product {
   color?: string | null;
   /** Publicado en el catálogo público; ausente se trata como no publicado. */
   isPublished?: boolean;
-  /** Fecha ISO en que el servidor aceptó las fotos blancas de catálogo; nulo si no. */
+  /** Fecha en que frente y atrás se guardaron juntas desde la app. Informativa: no decide elegibilidad (decisión 2026-11-12). */
   catalogPhotosCheckedAt?: string | null;
   /** Código público corto (ER §2.7); solo los productos dados de alta lo tienen. */
   publicCode?: string | null;

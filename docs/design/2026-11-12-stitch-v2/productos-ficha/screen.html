@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>LoloShop - Playera ejemplo</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface-container-highest": "#dfe3e3",
+            "on-secondary": "#ffffff",
+            "surface-container-high": "#e5e9e9",
+            "secondary-fixed-dim": "#7bd5d5",
+            "surface-container-low": "#f0f4f4",
+            "surface-bright": "#f6fafa",
+            "primary-container": "#22b8b8",
+            "on-surface-variant": "#3c4949",
+            "surface-container": "#ebefef",
+            "inverse-primary": "#54d9d9",
+            "outline-variant": "#bbc9c8",
+            "outline": "#6c7a79",
+            "on-secondary-container": "#007070",
+            "on-error-container": "#93000a",
+            "on-secondary-fixed": "#002020",
+            "primary-fixed": "#75f6f6",
+            "on-secondary-fixed-variant": "#004f50",
+            "on-primary-container": "#004343",
+            "secondary-container": "#98f2f1",
+            "on-tertiary-fixed-variant": "#80281d",
+            "tertiary": "#a03f32",
+            "primary": "#006a6a",
+            "on-tertiary-container": "#711d13",
+            "error": "#ba1a1a",
+            "tertiary-container": "#fa8472",
+            "surface-dim": "#d7dbdb",
+            "on-tertiary": "#ffffff",
+            "background": "#ffffff",
+            "surface": "#ffffff",
+            "secondary": "#006a6a",
+            "on-primary-fixed-variant": "#004f50",
+            "on-surface": "#181c1d",
+            "on-primary-fixed": "#002020",
+            "inverse-surface": "#2c3132",
+            "tertiary-fixed-dim": "#ffb4a8",
+            "error-container": "#ffdad6",
+            "secondary-fixed": "#98f2f1",
+            "surface-tint": "#006a6a",
+            "inverse-on-surface": "#edf1f1",
+            "surface-variant": "#dfe3e3",
+            "surface-container-lowest": "#ffffff",
+            "primary-fixed-dim": "#54d9d9",
+            "on-tertiary-fixed": "#410000",
+            "on-primary": "#ffffff",
+            "on-error": "#ffffff",
+            "tertiary-fixed": "#ffdad4",
+            "on-background": "#181c1d"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          spacing: {
+            "space-sm": "0.5rem",
+            "space-xl": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-md": "0.75rem",
+            "margin": "1rem",
+            "gutter": "0.75rem",
+            "space-lg": "1rem"
+          },
+          fontFamily: {
+            "input-text": ["Plus Jakarta Sans"],
+            "body-default": ["Plus Jakarta Sans"],
+            "code-data": ["JetBrains Mono"],
+            "button-text": ["Plus Jakarta Sans"],
+            "headline-title": ["Plus Jakarta Sans"],
+            "nav-label": ["Plus Jakarta Sans"],
+            "headline-hero": ["Plus Jakarta Sans"]
+          },
+          fontSize: {
+            "input-text": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "body-default": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "code-data": ["14px", { lineHeight: "18px", fontWeight: "500" }],
+            "button-text": ["15px", { lineHeight: "20px", fontWeight: "700" }],
+            "headline-title": ["20px", { lineHeight: "26px", fontWeight: "700" }],
+            "nav-label": ["11px", { lineHeight: "14px", fontWeight: "600" }],
+            "headline-hero": ["32px", { lineHeight: "38px", fontWeight: "800" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #ffffff;
+      color: #181c1d;
+    }
+    .font-mono-data {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="h-full flex flex-col bg-surface text-on-surface antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="bg-surface text-primary flex justify-between items-center w-full px-4 h-14 sticky top-0 z-40">
+<div class="flex items-center gap-3">
+<a aria-label="Productos" class="flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-container active:scale-98 transition-all duration-200 text-on-surface" href="/productos">
+<span class="material-symbols-outlined">arrow_back</span>
+</a>
+<h1 class="text-headline-title font-headline-title font-bold text-on-surface">Playera ejemplo</h1>
+</div>
+<button class="text-nav-label font-nav-label text-[#0C7C7C] font-bold px-3 py-1.5 rounded-lg hover:bg-surface-container active:scale-98 transition-all duration-200">
+      Ayuda
+    </button>
+</header>
+<!-- Main Scrollable Canvas -->
+<main class="flex-1 overflow-y-auto pb-28 pt-2">
+<div class="max-w-[390px] mx-auto px-4 flex flex-col gap-space-xl">
+<!-- Photos Section -->
+<section class="flex flex-col gap-space-sm">
+<div class="grid grid-cols-2 gap-3">
+<!-- Frente Photo -->
+<div class="flex flex-col gap-2">
+<div class="aspect-[4/5] rounded-xl bg-[#F3F7F7] border border-[#E1E9E9] flex flex-col items-center justify-center relative overflow-hidden">
+<span class="material-symbols-outlined text-4xl text-[#7F9392]">image</span>
+<span class="text-xs font-semibold text-[#7F9392] mt-2">Frente</span>
+</div>
+<button class="w-full py-2 px-3 bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] rounded-xl text-button-text font-button-text hover:bg-surface-container active:scale-[0.97] transition-all duration-200 flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-lg">edit</span>
+              Reemplazar
+            </button>
+</div>
+<!-- Atrás Photo -->
+<div class="flex flex-col gap-2">
+<div class="aspect-[4/5] rounded-xl bg-[#F3F7F7] border border-[#E1E9E9] flex flex-col items-center justify-center relative overflow-hidden">
+<span class="material-symbols-outlined text-4xl text-[#7F9392]">image</span>
+<span class="text-xs font-semibold text-[#7F9392] mt-2">Atrás</span>
+</div>
+<button class="w-full py-2 px-3 bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] rounded-xl text-button-text font-button-text hover:bg-surface-container active:scale-[0.97] transition-all duration-200 flex items-center justify-center gap-1">
+<span class="material-symbols-outlined text-lg">edit</span>
+              Reemplazar
+            </button>
+</div>
+</div>
+</section>
+<!-- Meta Section -->
+<section class="flex items-center justify-between bg-[#F3F7F7] p-4 rounded-xl border border-[#E1E9E9]">
+<div class="text-body-default font-body-default text-on-surface-variant font-medium">
+          Marca ejemplo · Playera · Color ejemplo
+        </div>
+<div class="font-mono-data bg-white px-2.5 py-1 rounded-md text-[#0C7C7C] border border-[#BBC9C8] text-xs font-bold shadow-sm">
+          EJ-0000
+        </div>
+</section>
+<!-- Precio Section -->
+<section class="flex flex-col gap-3">
+<h2 class="text-headline-title font-headline-title text-on-surface">Precio</h2>
+<div class="bg-[#F3F7F7] p-4 rounded-xl border border-[#E1E9E9] flex items-center justify-between">
+<div class="font-mono-data text-3xl font-bold text-[#0C7C7C]">
+            $000
+          </div>
+<button class="py-2 px-4 bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] rounded-xl text-button-text font-button-text hover:bg-surface-container active:scale-[0.97] transition-all duration-200" id="toggle-edit-price">
+            Editar precio
+          </button>
+</div>
+<!-- Edit State (Hidden by default, toggleable via JS) -->
+<div class="hidden bg-[#F3F7F7] p-4 rounded-xl border border-[#E1E9E9] flex flex-col gap-3" id="edit-price-container">
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 font-mono-data text-lg text-on-surface-variant">$</span>
+<input class="w-full pl-8 pr-4 py-3 bg-white border border-[#7F9392] rounded-xl font-mono-data text-input-text focus:ring-2 focus:ring-[#0C7C7C] focus:outline-none" type="number" value="000"/>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-3 px-4 bg-[#22B8B8] text-[#16302F] rounded-xl text-button-text font-button-text hover:opacity-90 active:scale-[0.97] transition-all duration-200 text-center" id="save-price">
+              Guardar precio
+            </button>
+<button class="py-3 px-4 bg-white border-2 border-[#0C7C7C] text-[#0C7C7C] rounded-xl text-button-text font-button-text hover:bg-surface-container active:scale-[0.97] transition-all duration-200" id="cancel-price">
+              Cancelar
+            </button>
+</div>
+</div>
+</section>
+<!-- Tallas y existencias Section -->
+<section class="flex flex-col gap-3">
+<h2 class="text-headline-title font-headline-title text-on-surface">Tallas y existencias</h2>
+<div class="flex flex-col gap-2">
+<!-- Row 1 -->
+<div class="bg-[#F3F7F7] p-3.5 rounded-xl border border-[#E1E9E9] flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="font-mono-data font-bold bg-white w-8 h-8 rounded-lg flex items-center justify-center text-sm border border-[#E1E9E9]">CH</span>
+<div class="flex flex-col">
+<span class="text-body-default font-body-default font-medium text-on-surface">Tienda ejemplo</span>
+<span class="text-xs font-semibold" style="color: #1F7A4A;">Disponible</span>
+</div>
+</div>
+<span class="font-mono-data text-on-surface-variant font-semibold">3 piezas</span>
+</div>
+<!-- Row 2 -->
+<div class="bg-[#F3F7F7] p-3.5 rounded-xl border border-[#E1E9E9] flex items-center justify-between opacity-80">
+<div class="flex items-center gap-3">
+<span class="font-mono-data font-bold bg-white w-8 h-8 rounded-lg flex items-center justify-center text-sm border border-[#E1E9E9]">M</span>
+<div class="flex flex-col">
+<span class="text-body-default font-body-default font-medium text-on-surface">Tienda ejemplo</span>
+<span class="text-xs font-semibold" style="color: #9A3B2E;">Agotado</span>
+</div>
+</div>
+<span class="font-mono-data text-on-surface-variant font-semibold">0 piezas</span>
+</div>
+</div>
+</section>
+<!-- Sitio web Card -->
+<section class="bg-[#F3F7F7] p-4 rounded-xl border border-[#E1E9E9] flex flex-col gap-4">
+<div class="flex flex-col gap-1">
+<h2 class="text-headline-title font-headline-title text-on-surface">Sitio web</h2>
+<p class="text-body-default font-body-default text-on-surface-variant">Aún no está en el sitio web</p>
+</div>
+<div class="flex flex-col gap-2.5 bg-white p-3.5 rounded-xl border border-[#E1E9E9]">
+<div class="flex items-center gap-2.5 text-body-default font-body-default">
+<span class="material-symbols-outlined text-lg" style="color: #1F7A4A;">check_circle</span>
+<span>Foto de frente</span>
+</div>
+<div class="flex items-center gap-2.5 text-body-default font-body-default">
+<span class="material-symbols-outlined text-lg" style="color: #1F7A4A;">check_circle</span>
+<span>Foto de atrás</span>
+</div>
+<div class="flex items-center gap-2.5 text-body-default font-body-default">
+<span class="material-symbols-outlined text-lg" style="color: #1F7A4A;">check_circle</span>
+<span>Precio</span>
+</div>
+<div class="flex items-center gap-2.5 text-body-default font-body-default">
+<span class="material-symbols-outlined text-lg" style="color: #1F7A4A;">check_circle</span>
+<span>Con existencias</span>
+</div>
+</div>
+<button class="w-full py-3 px-4 bg-[#22B8B8] text-[#16302F] rounded-xl text-button-text font-button-text hover:opacity-90 active:scale-[0.97] transition-all duration-200 text-center flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">public</span>
+          Publicar
+        </button>
+<p class="text-xs text-on-surface-variant text-center">
+          Se mostrará en el catálogo mientras tenga existencias.
+        </p>
+</section>
+<!-- Bottom Danger Action -->
+<section class="pt-2">
+<button class="w-full py-3 px-4 bg-white border-2 border-[#9A3B2E] text-[#9A3B2E] rounded-xl text-button-text font-button-text hover:bg-error-container active:scale-[0.97] transition-all duration-200 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">block</span>
+          Desactivar producto
+        </button>
+</section>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-1 py-2 bg-surface shadow-[0px_-4px_16px_rgba(22,48,47,0.06)]" style="padding-bottom: max(0.5rem, env(safe-area-inset-bottom));">
+<!-- Inicio -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-98 transition-all duration-200 rounded-xl min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl">home</span>
+<span class="text-nav-label font-nav-label mt-1">Inicio</span>
+</a>
+<!-- Vender -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-98 transition-all duration-200 rounded-xl min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl">point_of_sale</span>
+<span class="text-nav-label font-nav-label mt-1">Vender</span>
+</a>
+<!-- Escanear -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-98 transition-all duration-200 rounded-xl min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl">barcode_scanner</span>
+<span class="text-nav-label font-nav-label mt-1">Escanear</span>
+</a>
+<!-- Etiquetas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-98 transition-all duration-200 rounded-xl min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl">local_offer</span>
+<span class="text-nav-label font-nav-label mt-1">Etiquetas</span>
+</a>
+<!-- Productos (Active) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl p-1 active:scale-98 transition-all duration-200 min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="text-nav-label font-nav-label mt-1">Productos</span>
+</a>
+<!-- Ventas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-98 transition-all duration-200 rounded-xl min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl">receipt_long</span>
+<span class="text-nav-label font-nav-label mt-1">Ventas</span>
+</a>
+<!-- Salir -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface active:scale-98 transition-all duration-200 rounded-xl min-w-[48px]" href="#">
+<span class="material-symbols-outlined text-2xl">logout</span>
+<span class="text-nav-label font-nav-label mt-1">Salir</span>
+</a>
+</nav>
+<!-- Script for price editing interaction -->
+<script>
+    const editBtn = document.getElementById('toggle-edit-price');
+    const editContainer = document.getElementById('edit-price-container');
+    const cancelBtn = document.getElementById('cancel-price');
+    const saveBtn = document.getElementById('save-price');
+
+    editBtn.addEventListener('click', () => {
+      editContainer.classList.remove('hidden');
+      editBtn.parentElement.classList.add('hidden');
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      editContainer.classList.add('hidden');
+      editBtn.parentElement.classList.remove('hidden');
+    });
+
+    saveBtn.addEventListener('click', () => {
+      editContainer.classList.add('hidden');
+      editBtn.parentElement.classList.remove('hidden');
+    });
+  </script>
+</body></html>

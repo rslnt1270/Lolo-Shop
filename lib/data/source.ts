@@ -43,7 +43,7 @@ export interface CreateProductData {
   description?: string | null;
   /** Color del producto (`Product.color`); nulo si no aplica. No toca `Variant.color`. */
   color?: string | null;
-  /** Frente y atrás revisadas en esta misma alta: escribe `catalogPhotosCheckedAt = now()`. */
+  /** Frente y atrás guardadas juntas en esta alta: escribe `catalogPhotosCheckedAt = now()` solo si llegan las dos URL (informativa). */
   photosChecked?: boolean;
   /** Usuario que da de alta; queda en el Movement RESTOCK de cada talla con piezas. */
   userId: string;
@@ -260,8 +260,9 @@ export interface InventoryDataSource {
    */
   addVariant(data: AddVariantData): Promise<VariantMatch>;
   /**
-   * Búsqueda interna: código público exacto (`normalizePublicCode`) o título o
-   * marca que contiene `query` sin distinguir mayúsculas. Solo productos
+   * Búsqueda interna: código público exacto (`normalizePublicCode`), o título,
+   * marca, tipo (`category`) o color que contiene `query` sin distinguir
+   * mayúsculas, o SKU interno de una talla activa (`codeCandidates`). Solo productos
    * activos y sin unir; máximo `MAX_SEARCH_RESULTS`.
    */
   searchProducts(query: string): Promise<ProductSearchHit[]>;
@@ -289,6 +290,13 @@ export interface InventoryDataSource {
    * `InventoryRuleError`. Lanza `ProductNotFoundError` si no existe.
    */
   setProductActive(productId: string, active: boolean): Promise<void>;
+  /**
+   * Publica o despublica en el sitio: escribe solo `isPublished`. La elegibilidad la decide el llamador.
+   * Lanza `ProductNotFoundError` si no existe.
+   */
+  setProductPublished(productId: string, published: boolean): Promise<void>;
+  /** Producto con variantes e inventario para decidir si se puede publicar. `null` si no existe, está inactivo o unido. */
+  getProductForPublish(productId: string): Promise<Product | null>;
   /** Igual que `setProductActive`, para una talla. */
   setVariantActive(variantId: string, active: boolean): Promise<void>;
   /** Asigna el departamento a varios productos; devuelve cuántos existían. */
@@ -324,6 +332,6 @@ export interface InventoryDataSource {
   getProductByPublicCode(code: string): Promise<Product | null>;
   updateProductImage(productId: string, imageUrl: string): Promise<void>;
   updateProductBackImage(productId: string, backImageUrl: string): Promise<void>;
-  /** Escribe las dos fotos y `catalogPhotosCheckedAt = now()` en una sola escritura. */
+  /** Escribe las dos fotos y `catalogPhotosCheckedAt = now()` (informativa) en una sola escritura. */
   setCatalogPhotos(productId: string, photos: { imageUrl: string; backImageUrl: string }): Promise<void>;
 }

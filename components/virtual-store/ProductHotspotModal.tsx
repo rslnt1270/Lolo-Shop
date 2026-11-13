@@ -6,7 +6,7 @@ import { X, MapPin, Check } from "lucide-react";
 import { ProductCard3D } from "@/components/products/ProductCard3D";
 import type { PublicProduct } from "@/lib/data/public-projection";
 import { useDialog } from "./useDialog";
-import { getWhatsAppNumber, productInquiryMessage, whatsAppLink } from "@/lib/public/whatsapp";
+import { SHOW_WHATSAPP_CTA, getWhatsAppNumber, productInquiryMessage, whatsAppLink } from "@/lib/public/whatsapp";
 
 interface Props {
   product: PublicProduct | null;
@@ -33,7 +33,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
   const available = currentSize?.available ?? false;
 
   const number = getWhatsAppNumber();
-  const waLink = number ? whatsAppLink(number, productInquiryMessage(product, currentSize?.size)) : null;
+  const waLink = SHOW_WHATSAPP_CTA && number ? whatsAppLink(number, productInquiryMessage(product, currentSize?.size)) : null;
 
   return (
     <div
@@ -62,7 +62,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
 
         {shelfLabel && (
           <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1 font-mono text-[11px] font-semibold text-primary">
+            <span className="inline-flex items-center gap-1 rounded-full bg-turquesa/20 px-3 py-1 font-mono text-[11px] font-semibold text-turquesa-texto">
               <MapPin size={12} aria-hidden="true" />
               {shelfLabel}
             </span>
@@ -93,7 +93,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
                   aria-label={sz.available ? sz.size : `${sz.size}, agotada`}
                   className={`min-h-[48px] min-w-[48px] rounded-xl border px-3 py-1.5 font-mono text-sm font-medium transition-all ${
                     i === selectedSizeIdx
-                      ? "border-loloteal bg-loloteal text-white shadow-sm"
+                      ? "border-turquesa-texto bg-turquesa text-tinta shadow-sm"
                       : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
                   } ${sz.available ? "" : "line-through decoration-2 opacity-60"}`}
                 >
@@ -108,7 +108,7 @@ function ModalBody({ product, shelfLabel, onClose }: { product: PublicProduct; s
         <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-3.5 text-xs text-gray-600">
           <div className="flex items-center justify-between">
             <span className="font-semibold text-gray-800">Disponibilidad en tienda:</span>
-            <span className={`inline-flex items-center gap-1 font-bold ${available ? "text-emerald-700" : "text-[#9A3B2E]"}`}>
+            <span className={`inline-flex items-center gap-1 font-bold ${available ? "text-ok" : "text-agotado"}`}>
               {available && <Check size={13} aria-hidden="true" />}
               {available ? "Disponible" : "Agotado en tienda"}
             </span>

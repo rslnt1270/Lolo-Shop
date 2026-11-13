@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+
+<html lang="es-MX"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>LoloShop - Ventas</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "background": "#ffffff",
+            "error": "#9A3B2E",
+            "on-tertiary-container": "#711d13",
+            "error-container": "#ffdad6",
+            "surface-tint": "#006a6a",
+            "surface-bright": "#ffffff",
+            "surface-variant": "#dfe3e3",
+            "surface-dim": "#d7dbdb",
+            "on-surface": "#16302F",
+            "surface": "#ffffff",
+            "surface-container": "#F3F7F7",
+            "on-surface-variant": "#3c4949",
+            "primary": "#006a6a",
+            "primary-container": "#22b8b8",
+            "on-primary": "#ffffff",
+            "on-primary-container": "#16302F",
+            "outline": "#7F9392",
+            "outline-variant": "#E1E9E9",
+            "turquesa": "#22B8B8",
+            "turquesa-texto": "#0C7C7C",
+            "tinta": "#16302F",
+            "niebla": "#F3F7F7",
+            "agotado": "#9A3B2E"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          spacing: {
+            "space-xl": "1.5rem",
+            "margin": "1rem",
+            "space-md": "0.75rem",
+            "space-lg": "1rem",
+            "space-sm": "0.5rem",
+            "space-xs": "0.25rem",
+            "gutter": "0.75rem"
+          },
+          fontFamily: {
+            "button-text": ["Plus Jakarta Sans"],
+            "nav-label": ["Plus Jakarta Sans"],
+            "body-default": ["Plus Jakarta Sans"],
+            "code-data": ["JetBrains Mono"],
+            "input-text": ["Plus Jakarta Sans"],
+            "headline-title": ["Plus Jakarta Sans"],
+            "headline-hero": ["Plus Jakarta Sans"]
+          },
+          fontSize: {
+            "button-text": ["15px", { lineHeight: "20px", fontWeight: "700" }],
+            "nav-label": ["11px", { lineHeight: "14px", fontWeight: "600" }],
+            "body-default": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "code-data": ["14px", { lineHeight: "18px", fontWeight: "500" }],
+            "input-text": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+            "headline-title": ["20px", { lineHeight: "26px", fontWeight: "700" }],
+            "headline-hero": ["32px", { lineHeight: "38px", fontWeight: "800" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-default antialiased selection:bg-primary-container selection:text-on-primary-container pb-24">
+<!-- TopAppBar -->
+<header class="bg-surface sticky top-0 z-40 flex justify-between items-center w-full px-4 h-14">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">store</span>
+<h1 class="text-headline-title font-headline-title font-extrabold text-primary">LoloShop</h1>
+</div>
+<button class="text-nav-label font-nav-label text-turquesa-texto hover:bg-surface-container px-3 py-1.5 rounded-lg transition-all duration-200">Ayuda</button>
+</header>
+<!-- Main Content Container -->
+<main class="max-w-[390px] mx-auto px-4 pt-4 space-y-4">
+<!-- Title & Subtitle Section -->
+<div class="flex flex-col gap-1">
+<h2 class="text-[32px] leading-[38px] font-extrabold text-[#0E9494]">Ventas</h2>
+<p class="text-on-surface-variant text-sm font-medium">Todas las tiendas</p>
+</div>
+<!-- Range Chips -->
+<div class="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+<button class="bg-turquesa text-tinta font-bold px-4 py-2 rounded-xl text-sm shadow-sm transition-all duration-200 active:scale-98">Hoy</button>
+<button class="bg-surface-container border border-outline-variant text-turquesa-texto font-semibold px-4 py-2 rounded-xl text-sm hover:bg-surface-container-high transition-all duration-200 active:scale-98">7 días</button>
+<button class="bg-surface-container border border-outline-variant text-turquesa-texto font-semibold px-4 py-2 rounded-xl text-sm hover:bg-surface-container-high transition-all duration-200 active:scale-98">30 días</button>
+<button class="bg-surface-container border border-outline-variant text-turquesa-texto font-semibold px-4 py-2 rounded-xl text-sm hover:bg-surface-container-high transition-all duration-200 active:scale-98">Mes</button>
+</div>
+<!-- Wide Card "Vendido" -->
+<div class="bg-niebla rounded-xl p-4 relative overflow-hidden flex flex-col gap-1 border border-outline-variant/40">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-turquesa"></div>
+<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Vendido</span>
+<div class="font-code-data text-3xl font-bold text-tinta">$000</div>
+<div class="flex items-center gap-1 text-xs text-turquesa-texto font-medium mt-1">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>Comparado con ayer: sin datos</span>
+</div>
+</div>
+<!-- Two Half Cards Below -->
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-1 border border-outline-variant/40">
+<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Cobrado</span>
+<div class="font-code-data text-xl font-bold text-turquesa-texto">$000</div>
+</div>
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-1 border border-outline-variant/40">
+<span class="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">Ventas</span>
+<div class="font-code-data text-xl font-bold text-tinta">0</div>
+</div>
+</div>
+<!-- Card "Vendido por día" -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-3 border border-outline-variant/40">
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold text-tinta">Vendido por día</span>
+<span class="font-code-data text-xs text-on-surface-variant">Lun - Dom</span>
+</div>
+<!-- Week View Proportion Bars -->
+<div class="flex items-end justify-between h-28 pt-4 px-1 gap-2">
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-8"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">L</span>
+</div>
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-10"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">M</span>
+</div>
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-6"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">Mi</span>
+</div>
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-11"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">J</span>
+</div>
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-12"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">V</span>
+</div>
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-9"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">S</span>
+</div>
+<div class="flex flex-col items-center gap-1.5 flex-1">
+<div class="w-full bg-turquesa/20 rounded-t h-12 relative flex items-end">
+<div class="w-full bg-turquesa rounded-t h-4"></div>
+</div>
+<span class="font-code-data text-[10px] text-on-surface-variant">D</span>
+</div>
+</div>
+</div>
+<!-- Section Cards with thin turquesa proportion bars -->
+<div class="space-y-3">
+<!-- Por tienda -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-2 border border-outline-variant/40">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Por tienda</span>
+<div class="space-y-2">
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Tienda ejemplo</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 75%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Almacén ejemplo</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 25%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Por canal -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-2 border border-outline-variant/40">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Por canal</span>
+<div class="space-y-2">
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Mostrador</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 85%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">WhatsApp</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 15%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Por método de pago -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-2 border border-outline-variant/40">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Por método de pago</span>
+<div class="space-y-2">
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Efectivo</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 57%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Tarjeta</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 43%;"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Por marca -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-2 border border-outline-variant/40">
+<span class="text-xs font-bold text-on-surface-variant uppercase tracking-wider">Por marca</span>
+<div class="space-y-2">
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Marca ejemplo</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 61%;"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-sm mb-1">
+<span class="font-medium text-tinta">Marca ejemplo 2</span>
+<span class="font-code-data text-turquesa-texto font-bold">$000</span>
+</div>
+<div class="w-full bg-surface-variant h-1.5 rounded-full overflow-hidden">
+<div class="bg-turquesa h-full rounded-full" style="width: 39%;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card "Ventas recientes" -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-3 border border-outline-variant/40">
+<div class="flex justify-between items-center">
+<span class="text-sm font-bold text-tinta">Ventas recientes</span>
+<span class="font-code-data text-xs text-turquesa-texto font-semibold">Ver todas</span>
+</div>
+<div class="space-y-2.5">
+<!-- Item 1 -->
+<div class="bg-surface rounded-lg p-2.5 flex items-center justify-between border border-outline-variant/30">
+<div class="flex items-center gap-3">
+<div class="bg-surface-container p-2 rounded-md text-turquesa-texto">
+<span class="material-symbols-outlined text-base">receipt</span>
+</div>
+<div>
+<div class="font-code-data text-xs font-bold text-tinta">V-0000</div>
+<div class="text-[11px] text-on-surface-variant">12:00 · Mostrador</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-code-data text-xs font-bold text-turquesa-texto">$000</span>
+<button class="border border-turquesa-texto text-turquesa-texto text-xs px-2.5 py-1 rounded-md font-semibold hover:bg-surface-container active:scale-98 transition-all">Ver</button>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="bg-surface rounded-lg p-2.5 flex items-center justify-between border border-outline-variant/30">
+<div class="flex items-center gap-3">
+<div class="bg-surface-container p-2 rounded-md text-turquesa-texto">
+<span class="material-symbols-outlined text-base">receipt</span>
+</div>
+<div>
+<div class="font-code-data text-xs font-bold text-tinta">V-0000</div>
+<div class="text-[11px] text-on-surface-variant">11:45 · WhatsApp</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-code-data text-xs font-bold text-turquesa-texto">$000</span>
+<button class="border border-turquesa-texto text-turquesa-texto text-xs px-2.5 py-1 rounded-md font-semibold hover:bg-surface-container active:scale-98 transition-all">Ver</button>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="bg-surface rounded-lg p-2.5 flex items-center justify-between border border-outline-variant/30">
+<div class="flex items-center gap-3">
+<div class="bg-surface-container p-2 rounded-md text-turquesa-texto">
+<span class="material-symbols-outlined text-base">receipt</span>
+</div>
+<div>
+<div class="font-code-data text-xs font-bold text-tinta">V-0000</div>
+<div class="text-[11px] text-on-surface-variant">11:15 · Mostrador</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<span class="font-code-data text-xs font-bold text-turquesa-texto">$000</span>
+<button class="border border-turquesa-texto text-turquesa-texto text-xs px-2.5 py-1 rounded-md font-semibold hover:bg-surface-container active:scale-98 transition-all">Ver</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Card "Poco stock" -->
+<div class="bg-niebla rounded-xl p-4 flex flex-col gap-2.5 border border-outline-variant/40 mb-6">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-agotado text-base" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="text-xs font-bold text-agotado uppercase tracking-wider">Alerta de stock</span>
+</div>
+<div class="bg-surface rounded-lg p-3 flex items-center justify-between border border-error/20">
+<div class="flex flex-col gap-0.5">
+<span class="text-sm font-semibold text-tinta">Playera ejemplo · M</span>
+<span class="font-code-data text-xs text-on-surface-variant">EJ-0000</span>
+</div>
+<div class="bg-error-container text-error font-code-data text-xs font-bold px-2.5 py-1 rounded-md">
+          Quedan 1
+        </div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (7 exact destinations, Ventas active) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-1 py-2 bg-surface shadow-[0px_-4px_16px_rgba(22,48,47,0.06)]">
+<!-- 1. Inicio -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">home</span>
+<span class="text-nav-label font-nav-label mt-0.5">Inicio</span>
+</a>
+<!-- 2. Vender -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">point_of_sale</span>
+<span class="text-nav-label font-nav-label mt-0.5">Vender</span>
+</a>
+<!-- 3. Escanear -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">barcode_scanner</span>
+<span class="text-nav-label font-nav-label mt-0.5">Escanear</span>
+</a>
+<!-- 4. Etiquetas -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">local_offer</span>
+<span class="text-nav-label font-nav-label mt-0.5">Etiquetas</span>
+</a>
+<!-- 5. Productos -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">inventory_2</span>
+<span class="text-nav-label font-nav-label mt-0.5">Productos</span>
+</a>
+<!-- 6. Ventas (ACTIVE) -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl p-1 transition-all duration-200 scale-98" href="#">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+<span class="text-nav-label font-nav-label mt-0.5 font-bold">Ventas</span>
+</a>
+<!-- 7. Salir -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container hover:text-on-surface rounded-xl transition-all duration-200" href="#">
+<span class="material-symbols-outlined text-xl">logout</span>
+<span class="text-nav-label font-nav-label mt-0.5">Salir</span>
+</a>
+</nav>
+</body></html>

@@ -139,9 +139,10 @@ body {
 }
 
 #reader button {
-  background-color: #0C7C7C !important;
-  color: white !important;
+  background-color: #22B8B8 !important;
+  color: #16302F !important;
   font-weight: 600 !important;
+  min-height: 44px !important;
   border: none !important;
   padding: 0.75rem 1.5rem !important;
   border-radius: 0.5rem !important;

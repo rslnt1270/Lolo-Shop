@@ -7,6 +7,7 @@ const products = vi.hoisted(() => ({
   updateProductAction: vi.fn(),
   setProductActiveAction: vi.fn(),
   setVariantActiveAction: vi.fn(),
+  setProductPublishedAction: vi.fn(),
 }));
 vi.mock("@/lib/products/actions", () => products);
 vi.mock("@/lib/catalog/actions", () => ({
@@ -51,9 +52,9 @@ const product: Product = {
   ],
 };
 const locations = [
-  { id: "l1", name: "Lomas" },
-  { id: "l2", name: "ClubAlva" },
-  { id: "l3", name: "Almacén" },
+  { id: "l1", name: "Lomas", type: "store" as const, isPublic: true },
+  { id: "l2", name: "ClubAlva", type: "store" as const, isPublic: true },
+  { id: "l3", name: "Almacén", type: "warehouse" as const, isPublic: false },
 ];
 
 const history = [
@@ -78,6 +79,20 @@ beforeEach(() => {
 });
 
 describe("ProductAdminSheet", () => {
+  it.each(["owner", "manager"] as const)("%s ve la sección Sitio web", async (role) => {
+    open(role);
+    const section = await screen.findByRole("region", { name: "Sitio web" });
+    expect(section).toBeInTheDocument();
+    expect(screen.getByText("No publicado")).toBeInTheDocument();
+  });
+
+  it("el colaborador no ve la sección Sitio web", async () => {
+    open("collaborator");
+    await screen.findAllByRole("button", { name: /^guardar precio/i });
+    expect(screen.queryByRole("region", { name: "Sitio web" })).toBeNull();
+    expect(screen.queryByText("No publicado")).toBeNull();
+  });
+
   it("owner ve Guardar precio por talla", async () => {
     open();
     expect(await screen.findAllByRole("button", { name: /^guardar precio/i })).toHaveLength(2);
@@ -307,7 +322,7 @@ describe("ProductAdminSheet", () => {
     open();
     await screen.findAllByRole("button", { name: /^guardar precio/i });
     for (const name of ["Guardar precio de la talla M", "Desactivar talla M", "Desactivar producto", "Guardar cambios"]) {
-      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-\[44px\]/);
+      expect(screen.getByRole("button", { name }).className).toMatch(/min-h-(\[44px\]|11)/);
     }
   });
 

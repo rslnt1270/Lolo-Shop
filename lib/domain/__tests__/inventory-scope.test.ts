@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scopeInventory, scopeVariantMatch } from "../inventory-scope";
+import { scopeInventory, scopeLocations, scopeVariantMatch } from "../inventory-scope";
 import type { Product, Variant } from "../types";
 
 const variant = (): Variant => ({
@@ -35,5 +35,17 @@ describe("inventory-scope", () => {
     const p = product();
     scopeInventory(p, { role: "collaborator", locationId: "loc-1" });
     expect(p.variants[0].inventory).toHaveLength(2);
+  });
+});
+
+describe("scopeLocations", () => {
+  const locs = [{ id: "a" }, { id: "b" }];
+  it("colaborador: solo la suya, o ninguna", () => {
+    expect(scopeLocations(locs, { role: "collaborator", locationId: "a" })).toEqual([{ id: "a" }]);
+    expect(scopeLocations(locs, { role: "collaborator", locationId: null })).toEqual([]);
+  });
+  it("owner y manager: todas", () => {
+    expect(scopeLocations(locs, { role: "owner", locationId: null })).toHaveLength(2);
+    expect(scopeLocations(locs, { role: "manager", locationId: "a" })).toHaveLength(2);
   });
 });

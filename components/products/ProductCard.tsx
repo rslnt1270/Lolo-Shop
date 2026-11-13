@@ -6,7 +6,7 @@ export function ProductCard({ product, locationId }: { product: Product; locatio
     <div className="rounded-lg border p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">{product.title}</h3>
-        <span className="rounded bg-loloteal/10 px-2 py-1 text-sm text-loloteal">
+        <span className="rounded bg-niebla px-2 py-1 text-sm text-turquesa-texto">
           {productStock(product, locationId)} en stock
         </span>
       </div>

@@ -59,7 +59,7 @@ describe("contrast", () => {
   it("agotado on white is at least 6.9:1", () => {
     expect(contrast(colors.agotado, "#FFFFFF")).toBeGreaterThanOrEqual(6.9);
   });
-  it("turquesa-titular on white is at least 3.7:1 (large text only)", () => {
+  it("turquesa-titular on white is at least 3.69:1 (large text only)", () => {
     expect(contrast(colors["turquesa-titular"], "#FFFFFF")).toBeGreaterThanOrEqual(3.695); // 3.6957, "3.70" redondeado; texto grande exige 3:1
   });
 });

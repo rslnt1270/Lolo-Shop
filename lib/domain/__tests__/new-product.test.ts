@@ -111,29 +111,22 @@ describe("validateNewProduct: modos de alta y descripción", () => {
   });
 
   it("C14 (unit): modo catalog con una foto no lanza", () => {
-    const one = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: true });
+    const one = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f") });
     expect(one).toMatchObject({ imageUrl: blob("f"), backImageUrl: null, photosChecked: false });
-    const back = validateNewProduct({ ...valid, mode: "catalog", backImageUrl: blob("b"), photosAnalyzed: true });
+    const back = validateNewProduct({ ...valid, mode: "catalog", backImageUrl: blob("b") });
     expect(back).toMatchObject({ imageUrl: null, backImageUrl: blob("b"), photosChecked: false });
   });
 
   it("modo catalog valida las URLs con isProductBlobUrl", () => {
     expect(() =>
-      validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: "https://evil.example/b.jpg", photosAnalyzed: true }),
+      validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: "https://evil.example/b.jpg" }),
     ).toThrow(/foto/);
   });
 
-  it("review: fotos sin photosAnalyzed se rechazan", () => {
-    const msg = "La foto no pasó la revisión de fondo blanco. Tómala de nuevo.";
-    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") })).toThrow(msg);
-    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: false })).toThrow(msg);
-    expect(() => validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: "true" as unknown as boolean })).toThrow(msg);
-  });
-
-  it("review: dos fotos con photosAnalyzed dejan photosChecked true; una sola, false", () => {
-    const two = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b"), photosAnalyzed: true });
+  it("modo catálogo con dos fotos sin photosAnalyzed: photosChecked true; una sola, false", () => {
+    const two = validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b") });
     expect(two).toMatchObject({ mode: "catalog", imageUrl: blob("f"), backImageUrl: blob("b"), photosChecked: true });
-    expect(validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f"), photosAnalyzed: true }).photosChecked).toBe(false);
+    expect(validateNewProduct({ ...valid, mode: "catalog", imageUrl: blob("f") }).photosChecked).toBe(false);
   });
 
   it("modo stock (por defecto) acepta sin fotos e ignora las que lleguen", () => {

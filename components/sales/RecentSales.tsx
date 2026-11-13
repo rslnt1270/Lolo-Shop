@@ -4,7 +4,7 @@ import type { DashboardData } from "@/lib/data/sales-source";
 import { CHANNEL_LABEL, METHOD_LABEL } from "@/lib/sales/format";
 import { formatPrice } from "@/lib/public/format";
 import { CancelSalePanel } from "./CancelSalePanel";
-import { saleButton } from "./styles";
+import { Button } from "@/components/ui/Button";
 
 type Recent = NonNullable<DashboardData["recentSales"]>[number];
 
@@ -27,28 +27,27 @@ function RecentRow({ sale, locationNames, namesReady = true, onChanged }: Omit<P
   const [open, setOpen] = useState(false);
   const pending = sale.status === "pending_payment";
   return (
-    <li className="rounded-[14px] border border-[rgba(18,33,31,0.12)] bg-white p-3">
+    <li className="rounded-[14px] border border-borde-control bg-white p-3">
       <div className="flex items-baseline justify-between gap-2">
-        <p className="text-sm font-bold text-[#12211F]">
+        <p className="text-sm font-bold text-tinta">
           Venta #{sale.number}
-          <span className="ml-2 font-normal text-[#3A4D4A]">{locationNames[sale.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</span>
+          <span className="ml-2 font-normal text-tinta">{locationNames[sale.locationId] ?? (namesReady ? "Tienda sin nombre" : "…")}</span>
         </p>
-        <p className="flex-none font-data-mono tabular-nums text-sm font-bold text-[#12211F]">{formatPrice(sale.total)}</p>
+        <p className="flex-none font-data-mono tabular-nums text-sm font-bold text-tinta">{formatPrice(sale.total)}</p>
       </div>
-      <p className="mt-0.5 text-xs text-[#3A4D4A]">
+      <p className="mt-0.5 text-xs text-tinta">
         {METHOD_LABEL[sale.paymentMethod]}, {CHANNEL_LABEL[sale.channel]}, {hourFormat.format(new Date(sale.createdAt))}
-        {pending && <span className="ml-2 font-bold text-[#8A5A12]">Pago pendiente</span>}
+        {pending && <span className="ml-2 font-bold text-tinta">Pago pendiente</span>}
       </p>
       <div className="mt-2">
-        <button
-          type="button"
+        <Button
+          variant="danger"
           aria-expanded={open}
           aria-label={`Anular venta #${sale.number}`}
           onClick={() => setOpen((v) => !v)}
-          className={`${saleButton} border border-[#C23A2B] bg-white text-[#9B2C20] hover:bg-[#FFE7E2]`}
         >
           Anular
-        </button>
+        </Button>
       </div>
       {open && <CancelSalePanel saleId={sale.saleId} onCancelled={onChanged} />}
     </li>
@@ -57,7 +56,7 @@ function RecentRow({ sale, locationNames, namesReady = true, onChanged }: Omit<P
 
 /** "Ventas de hoy" del dueño: el único lugar para anular una venta ya pagada. */
 export function RecentSales({ sales, ...rest }: Props) {
-  if (sales.length === 0) return <p className="text-sm text-[#3A4D4A]">Todavía no hay ventas hoy.</p>;
+  if (sales.length === 0) return <p className="text-sm text-tinta">Todavía no hay ventas hoy.</p>;
   return (
     <ul className="space-y-2">
       {sales.map((s) => (

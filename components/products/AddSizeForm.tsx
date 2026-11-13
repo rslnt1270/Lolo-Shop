@@ -7,6 +7,7 @@ import { MAX_SIZE_LENGTH, validateSizeRow } from "@/lib/domain/new-product";
 import { normalizeSize } from "@/lib/domain/sizes";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
+import { Button } from "@/components/ui/Button";
 
 interface AddSizeFormProps {
   product: ProductSearchHit;
@@ -20,7 +21,7 @@ interface AddSizeFormProps {
 }
 
 const inputClass =
-  "block min-h-[44px] w-full rounded-full border border-gray-300 bg-white px-4 text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal";
+  "block min-h-[44px] w-full rounded-full border border-gray-300 bg-white px-4 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto";
 
 /**
  * "Agregar talla": suma una talla (talla, precio y piezas) a un producto ya
@@ -117,7 +118,7 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
             <button
               type="button"
               onClick={onChangeProduct}
-              className="min-h-[44px] px-2 text-sm font-semibold text-loloteal"
+              className="min-h-[44px] px-2 text-sm font-semibold text-turquesa-texto"
             >
               Cambiar producto
             </button>
@@ -159,7 +160,7 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
         </p>
       )}
       {error && (
-        <p role="alert" className="flex items-start gap-2 rounded-xl border border-[#9A3B2E]/40 bg-red-50 p-3 text-sm font-medium text-[#9A3B2E]">
+        <p role="alert" className="flex items-start gap-2 rounded-xl border border-agotado/40 bg-red-50 p-3 text-sm font-medium text-agotado">
           <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
           <span><ActionErrorText message={error} session={sessionExpired} /></span>
         </p>
@@ -207,17 +208,15 @@ export function AddSizeForm({ product, scannedCode, locationId, onDone, onCancel
       </div>
 
       <div className="sticky bottom-[var(--bottom-nav-offset)] md:bottom-0 z-10 -mx-4 flex flex-col gap-2 border-t border-gray-100 bg-white px-4 pb-[max(0.5rem,var(--sticky-safe-pb))] pt-2">
-        <button
+        <Button
           type="submit"
-          disabled={pending}
-          className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-full bg-loloteal px-4 font-semibold text-white transition active:bg-loloteal-dark motion-reduce:transition-none disabled:opacity-60"
-        >
+          disabled={pending} className="w-full">
           <PlusCircle aria-hidden="true" className="h-5 w-5" />
           {pending ? "Guardando…" : "Agregar talla"}
-        </button>
-        <button type="button" onClick={onCancel} disabled={pending} className="min-h-[44px] w-full text-sm font-medium text-gray-600 hover:text-gray-900">
+        </Button>
+        <Button variant="outline" onClick={onCancel} disabled={pending} className="w-full">
           Cancelar
-        </button>
+        </Button>
       </div>
     </form>
   );

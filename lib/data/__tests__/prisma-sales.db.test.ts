@@ -5,6 +5,7 @@ import { hasTestDb, testPrisma } from "../../../test/db/setup";
 import { getTestDatabaseUrl } from "../../../test/db/guard";
 import { resetDb } from "../../../test/db/reset";
 import { PrismaSalesDataSource } from "../prisma-sales-source";
+import { PrismaDataSource } from "../prisma-source";
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "../errors";
 import type { NewSaleInput, PaymentMethod } from "@/lib/domain/sale";
 
@@ -483,6 +484,28 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
       await ds.createSale(sale(w.storeA, [one(w.v1)]), w.owner);
       const line = await testPrisma.saleLine.findFirstOrThrow({ where: { variantId: w.v1 } });
       expect(line.productTypeId).toBeNull();
+    });
+  });
+
+  describe("venta sin código (búsqueda de productos)", () => {
+    it("C22 (db): vender por referencia descuenta la talla", async () => {
+      await setStock(w.v1, w.storeA, 3);
+      await setStock(w.v2, w.storeA, 2);
+      const products = new PrismaDataSource(testPrisma);
+
+      // Se encuentra por tipo, se elige la talla con existencias y se vende sin escanear nada.
+      const [hit] = await products.searchProducts("playeras");
+      expect(hit.productId).toBe(w.productId);
+      const rows = await products.listVariantStockAt(hit.productId, w.storeA);
+      const m = rows.find((r) => r.variantId === w.v1)!;
+      expect(m.available).toBe(3);
+
+      const rec = await ds.createSale(sale(w.storeA, [one(m.variantId, 2, m.price)]), w.owner);
+
+      expect(rec.lines).toEqual([{ variantId: w.v1, quantity: 2, unitPrice: 300 }]);
+      expect(await available(w.v1, w.storeA)).toBe(1);
+      expect(await available(w.v2, w.storeA)).toBe(2);
+      await expectLedger(w.v1, w.storeA, 3);
     });
   });
 

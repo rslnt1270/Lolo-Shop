@@ -11,11 +11,15 @@ const VARIANTS: Record<ButtonVariant, string> = {
 };
 
 const DISABLED = "disabled:bg-[#BFE9E9] disabled:text-[#5C6E6D] disabled:border-transparent disabled:cursor-not-allowed";
-const DISABLED_OUTLINE = "disabled:border-borde-control disabled:text-[#5C6E6D] disabled:cursor-not-allowed";
+const DISABLED_OUTLINE = "disabled:bg-white disabled:border-borde-control disabled:text-[#5C6E6D] disabled:cursor-not-allowed";
+
+/** Sufijo de estado deshabilitado para <button> crudos con buttonClasses (mismos tokens que Button). */
+export function disabledClasses(variant: ButtonVariant): string {
+  return variant === "primary" ? DISABLED : DISABLED_OUTLINE;
+}
 
 export function buttonClasses(variant: ButtonVariant, state: ButtonState = {}): string {
   const parts = [BASE, VARIANTS[variant]];
-  if (state.disabled) parts.push(variant === "outline" ? DISABLED_OUTLINE : DISABLED);
-  if (state.success) parts.push("lolo-btn-success");
+  if (state.disabled) parts.push(disabledClasses(variant));
   return parts.join(" ");
 }

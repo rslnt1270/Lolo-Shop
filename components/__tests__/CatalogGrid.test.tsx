@@ -43,13 +43,64 @@ afterEach(() => {
   cleanup();
 });
 
+describe("CatalogGrid: favorito y Ver prenda", () => {
+  it("cada tarjeta tiene el favorito como botón principal y Ver prenda como segunda acción", () => {
+    render(<CatalogGrid products={twelve.slice(0, 2)} onSelect={() => {}} />);
+    const card = within(screen.getAllByRole("listitem")[0]);
+    const fav = card.getByRole("button", { name: /favoritos/i });
+    const ver = card.getByRole("button", { name: /^Ver prenda/ });
+    expect(fav.className).toContain("bg-turquesa");
+    expect(ver.className).toContain("border-turquesa-texto");
+    expect(ver.className).not.toContain("bg-turquesa ");
+  });
+  it("nombres accesibles únicos por prenda y estables al guardar", () => {
+    window.localStorage.clear();
+    render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={() => {}} />);
+    const fav = screen.getByRole("button", { name: /^Guardar en favoritos: Prenda de prueba 1$/ });
+    expect(screen.getAllByRole("button", { name: /^Guardar en favoritos: Prenda de prueba 1$/ })).toHaveLength(1);
+    const before = fav.getAttribute("aria-label");
+    fireEvent.click(fav);
+    expect(fav.getAttribute("aria-label")).toBe(before);
+    expect(fav.getAttribute("aria-pressed")).toBe("true");
+    expect(fav.hasAttribute("title")).toBe(false);
+    expect(screen.getAllByRole("button", { name: "Ver prenda Prenda de prueba 1" })).toHaveLength(1);
+  });
+  it("en móvil las acciones se apilan a todo el ancho y en fila desde sm", () => {
+    render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={() => {}} />);
+    const row = screen.getByTestId("card-actions");
+    expect(row.className).toContain("flex-col");
+    expect(row.className).toContain("sm:flex-row");
+    expect(screen.getByRole("button", { name: /^Ver prenda/ }).className).toContain("w-full");
+    expect(screen.getByRole("button", { name: /favoritos/i }).className).toContain("w-full");
+  });
+  it("Ver prenda llama onSelect con la prenda", () => {
+    const onSelect = vi.fn();
+    render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Ver prenda/ }));
+    expect(onSelect).toHaveBeenCalledWith(twelve[0]);
+  });
+  it("el favorito no llama onSelect", () => {
+    const onSelect = vi.fn();
+    window.localStorage.clear();
+    render(<CatalogGrid products={twelve.slice(0, 1)} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: /favoritos/i }));
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /favoritos/i })).toBeInTheDocument();
+  });
+  it("la tarjeta no contiene 'Consultar por WhatsApp' ni enlaces wa.me", () => {
+    const { container } = render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={() => {}} />);
+    expect(container.textContent).not.toMatch(/Consultar por WhatsApp/);
+    expect(container.querySelector('a[href*="wa.me"]')).toBeNull();
+  });
+});
+
 describe("CatalogGrid", () => {
   it("lista un elemento por producto y avisa cuál se elige", () => {
     const onSelect = vi.fn();
     render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={onSelect} />);
     const items = within(screen.getByRole("list", { name: "Prendas" })).getAllByRole("listitem");
     expect(items).toHaveLength(3);
-    fireEvent.click(within(items[1]).getByRole("button"));
+    fireEvent.click(within(items[1]).getByRole("button", { name: /^Ver prenda/ }));
     expect(onSelect).toHaveBeenCalledWith(twelve[1]);
   });
 
@@ -99,14 +150,25 @@ describe("CatalogGrid: tallas y precio por producto", () => {
     expect(screen.queryByText(/^\+\d/)).not.toBeInTheDocument();
   });
 
-  it("todas agotadas: 'Agotado'", () => {
-    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", false, 300)])]} onSelect={() => {}} />);
-    expect(screen.getByText("Agotado")).toBeInTheDocument();
+  it("no muestra la palabra Agotado en ninguna tarjeta", () => {
+    const { container } = render(
+      <CatalogGrid
+        products={[
+          withSizes([sz("S", false, 300), sz("M", true, 300)]),
+          withSizes([sz("S", false, 300), sz("M", false, 300)]),
+        ]}
+        onSelect={() => {}}
+      />,
+    );
+    expect(container.textContent).not.toMatch(/agotado/i);
   });
 
-  it("con alguna disponible no dice 'Agotado'", () => {
-    render(<CatalogGrid products={[withSizes([sz("S", false, 300), sz("M", true, 300)])]} onSelect={() => {}} />);
-    expect(screen.queryByText("Agotado")).not.toBeInTheDocument();
+  it("la talla sin stock se muestra tachada y sin cifras", () => {
+    render(<CatalogGrid products={[withSizes([sz("M", false, 300), sz("L", true, 300)])]} onSelect={() => {}} />);
+    const chip = screen.getByLabelText("M, agotada");
+    expect(chip.className).toContain("line-through");
+    expect(chip.textContent).toBe("M");
+    expect(screen.getByLabelText("L").className).not.toContain("line-through");
   });
 
   it("usa un solo formato de precio MXN, con miles y centavos solo si hacen falta", () => {
@@ -135,30 +197,24 @@ describe("VirtualStoreCatalog sin bandera de recorrido", () => {
     expect(screen.getByText(EMPTY_CATALOG_TEXT)).toBeInTheDocument();
   });
 
-  it("con número válido el modal enlaza a wa.me con código y talla, sin id ni SKU", () => {
+  it("con número válido el modal NO muestra CTA de WhatsApp ni texto de respaldo (SHOW_WHATSAPP_CTA = false)", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", NUM);
     const { container } = render(<VirtualStoreCatalog initialProducts={twelve} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
-    fireEvent.click(screen.getByRole("button", { name: "L" }));
-    const link = screen.getByRole("link", { name: /Consultar por WhatsApp/ });
-    const href = link.getAttribute("href") ?? "";
-    expect(href.startsWith(`https://wa.me/${NUM}?text=`)).toBe(true);
-    const text = decodeURIComponent(href.split("?text=")[1]);
-    expect(text).toContain("Código K7Q2M");
-    expect(text).toContain("en talla L");
-    expect(text).not.toMatch(/sku|barcode|id-interno/i);
-    expectNoInternalData(container.innerHTML);
+    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: /^Ver prenda/ }));
+    expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
+    expect(screen.queryByRole("link", { name: /WhatsApp/ })).toBeNull();
     expect(screen.queryByText(NO_WHATSAPP_TEXT)).not.toBeInTheDocument();
+    expectNoInternalData(container.innerHTML);
   });
 
-  it("sin número válido no hay enlace a wa.me y se pide consultar en tienda", () => {
+  it("sin número válido tampoco hay enlace ni texto de respaldo", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", "");
     const { container } = render(<VirtualStoreCatalog initialProducts={twelve} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
+    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button", { name: /^Ver prenda/ }));
     expect(container.querySelector('a[href^="https://wa.me"]')).toBeNull();
-    expect(screen.getByText(NO_WHATSAPP_TEXT)).toBeInTheDocument();
+    expect(screen.queryByText(NO_WHATSAPP_TEXT)).not.toBeInTheDocument();
   });
 });
 
@@ -168,21 +224,20 @@ describe("Modal: precio por talla", () => {
     vi.stubEnv("NEXT_PUBLIC_WHATSAPP_NUMBER", NUM);
     const product = withSizes([sz("S", true, 300), sz("M", true, 350)]);
     render(<VirtualStoreCatalog initialProducts={[product]} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button"));
+    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button", { name: /^Ver prenda/ }));
     const dialog = within(screen.getByRole("dialog"));
     expect(dialog.getByText("$300")).toBeInTheDocument();
     fireEvent.click(dialog.getByRole("button", { name: "M" }));
     expect(dialog.getByText("$350")).toBeInTheDocument();
     expect(dialog.queryByText("$300")).not.toBeInTheDocument();
-    const href = dialog.getByRole("link", { name: /Consultar por WhatsApp/ }).getAttribute("href") ?? "";
-    expect(decodeURIComponent(href.split("?text=")[1])).toContain("talla M");
+    expect(dialog.queryByRole("link", { name: /WhatsApp/ })).toBeNull();
   });
 
   it("la talla agotada tiene nombre accesible '{talla}, agotada'", () => {
     vi.stubEnv("NEXT_PUBLIC_SALA_VIRTUAL", "");
     const product = withSizes([sz("S", false, 300), sz("M", true, 350)]);
     render(<VirtualStoreCatalog initialProducts={[product]} isLoggedIn={false} />);
-    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button"));
+    fireEvent.click(within(screen.getByRole("listitem")).getByRole("button", { name: /^Ver prenda/ }));
     expect(within(screen.getByRole("dialog")).getByRole("button", { name: "S, agotada" })).toBeInTheDocument();
   });
 });

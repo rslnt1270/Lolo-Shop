@@ -14,6 +14,7 @@ import {
   Eye,
 } from "lucide-react";
 import type { StoreHotspot, StoreZone, ZoneConnection } from "@/lib/virtual-store/types";
+import { PALETTE, zoneHalo } from "./palette";
 import { projectSphericalToScreen } from "@/lib/virtual-store/projection";
 
 interface Props {
@@ -163,7 +164,7 @@ export function VirtualStoreCanvas({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      className={`relative w-full h-[65vh] min-h-[480px] max-h-[750px] overflow-hidden rounded-3xl border border-white/50 bg-[#0f171c] select-none touch-none shadow-2xl transition-all ${
+      className={`relative w-full h-[65vh] min-h-[480px] max-h-[750px] overflow-hidden rounded-3xl border border-white/50 bg-tinta select-none touch-none shadow-2xl transition-all ${
         isDragging ? "cursor-grabbing" : "cursor-grab"
       }`}
     >
@@ -177,28 +178,28 @@ export function VirtualStoreCanvas({
         {/* Iluminación volumétrica ambiental según la zona */}
         <div
           className="absolute -top-[20%] left-[20%] w-[60vw] h-[60vw] rounded-full blur-[140px] opacity-40 mix-blend-screen"
-          style={{ backgroundColor: currentZone.accentColor }}
+          style={{ backgroundColor: zoneHalo(currentZone.id, currentZone.accentColor) }}
         />
         <div
           className="absolute bottom-[-10%] right-[10%] w-[50vw] h-[50vw] rounded-full blur-[120px] opacity-25 mix-blend-screen"
-          style={{ backgroundColor: "#3cbfbf" }}
+          style={{ backgroundColor: PALETTE.turquesa }}
         />
 
         {/* Rejilla arquitectónica del suelo y techo */}
         <svg className="absolute inset-0 w-full h-full opacity-30" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <linearGradient id="floor-fade" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0f171c" stopOpacity="0.1" />
-              <stop offset="60%" stopColor="#3cbfbf" stopOpacity="0.4" />
-              <stop offset="100%" stopColor="#0f171c" stopOpacity="0.9" />
+              <stop offset="0%" stopColor={PALETTE.tinta} stopOpacity="0.1" />
+              <stop offset="60%" stopColor={PALETTE.turquesa} stopOpacity="0.4" />
+              <stop offset="100%" stopColor={PALETTE.tinta} stopOpacity="0.9" />
             </linearGradient>
           </defs>
           {/* Líneas de fuga del suelo */}
-          <line x1="10%" y1="95%" x2="45%" y2="52%" stroke="#3cbfbf" strokeWidth="0.8" opacity="0.3" />
-          <line x1="25%" y1="95%" x2="48%" y2="52%" stroke="#3cbfbf" strokeWidth="0.8" opacity="0.3" />
-          <line x1="50%" y1="95%" x2="50%" y2="52%" stroke="#3cbfbf" strokeWidth="1" opacity="0.4" />
-          <line x1="75%" y1="95%" x2="52%" y2="52%" stroke="#3cbfbf" strokeWidth="0.8" opacity="0.3" />
-          <line x1="90%" y1="95%" x2="55%" y2="52%" stroke="#3cbfbf" strokeWidth="0.8" opacity="0.3" />
+          <line x1="10%" y1="95%" x2="45%" y2="52%" stroke={PALETTE.turquesa} strokeWidth="0.8" opacity="0.3" />
+          <line x1="25%" y1="95%" x2="48%" y2="52%" stroke={PALETTE.turquesa} strokeWidth="0.8" opacity="0.3" />
+          <line x1="50%" y1="95%" x2="50%" y2="52%" stroke={PALETTE.turquesa} strokeWidth="1" opacity="0.4" />
+          <line x1="75%" y1="95%" x2="52%" y2="52%" stroke={PALETTE.turquesa} strokeWidth="0.8" opacity="0.3" />
+          <line x1="90%" y1="95%" x2="55%" y2="52%" stroke={PALETTE.turquesa} strokeWidth="0.8" opacity="0.3" />
         </svg>
 
         {/* Siluetas de mobiliario arquitectónico según la zona */}
@@ -207,11 +208,11 @@ export function VirtualStoreCanvas({
             <div className="relative w-full h-full flex items-center justify-center">
               {/* Maniquí / Vitrina */}
               <div className="w-48 h-80 rounded-2xl bg-gradient-to-t from-gray-900 via-gray-800/80 to-teal-950/40 border border-teal-500/20 shadow-2xl flex flex-col items-center justify-between p-4 backdrop-blur-sm">
-                <span className="text-[10px] font-mono tracking-widest text-teal-300 uppercase">
+                <span className="text-[10px] font-mono tracking-widest text-turquesa-luz uppercase">
                   Vitrina Principal
                 </span>
                 <div className="w-24 h-24 rounded-full bg-teal-400/10 border border-teal-300/30 flex items-center justify-center animate-pulse">
-                  <Sparkles className="text-teal-300" size={32} />
+                  <Sparkles className="text-turquesa-luz" size={32} />
                 </div>
                 <span className="text-[11px] font-medium text-gray-300 text-center">
                   Novedades
@@ -230,7 +231,7 @@ export function VirtualStoreCanvas({
                   <div className="h-2 w-3/4 bg-white/20 rounded"></div>
                   <div className="h-2 w-4/5 bg-white/20 rounded"></div>
                 </div>
-                <span className="text-[10px] text-teal-400">Streetwear Drop</span>
+                <span className="text-[10px] text-turquesa-luz">Streetwear Drop</span>
               </div>
               {/* Perchero Derecho */}
               <div className="w-44 h-72 rounded-xl bg-gradient-to-t from-gray-950 to-gray-800/60 border border-white/10 flex flex-col justify-between p-4 shadow-xl">
@@ -239,7 +240,7 @@ export function VirtualStoreCanvas({
                   <div className="h-2 w-full bg-white/20 rounded"></div>
                   <div className="h-2 w-2/3 bg-white/20 rounded"></div>
                 </div>
-                <span className="text-[10px] text-teal-400">Algodón Heavy</span>
+                <span className="text-[10px] text-turquesa-luz">Algodón Heavy</span>
               </div>
             </div>
           )}
@@ -314,9 +315,9 @@ export function VirtualStoreCanvas({
           >
             <div className="flex flex-col items-center group">
               {/* Aro animado de piso */}
-              <div className="relative flex items-center justify-center w-12 h-12 rounded-full bg-loloteal/20 border-2 border-loloteal backdrop-blur-md shadow-lg shadow-loloteal/30 group-hover:bg-loloteal group-hover:text-white transition-all">
-                <div className="absolute inset-0 rounded-full border border-loloteal animate-ping opacity-40"></div>
-                <ArrowRight size={20} className="text-white transform group-hover:translate-x-0.5 transition-transform" />
+              <div className="relative flex items-center justify-center w-12 h-12 rounded-full bg-turquesa/20 border-2 border-turquesa backdrop-blur-md shadow-lg shadow-turquesa/30 group-hover:bg-turquesa transition-all">
+                <div className="absolute inset-0 rounded-full border border-turquesa animate-ping opacity-40"></div>
+                <ArrowRight size={20} className="text-white group-hover:text-tinta transform group-hover:translate-x-0.5 transition-transform" />
               </div>
               {/* Etiqueta flotante */}
               <div className="mt-1.5 rounded-full bg-black/80 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-md border border-white/20 shadow-md whitespace-nowrap">
@@ -350,15 +351,15 @@ export function VirtualStoreCanvas({
           >
             {/* Pin pulsante */}
             <div className="relative flex items-center justify-center cursor-pointer group">
-              <span className="absolute w-8 h-8 rounded-full bg-primary-fixed/40 animate-ping"></span>
-              <div className="relative flex items-center justify-center w-9 h-9 rounded-full bg-white text-gray-900 shadow-xl border-2 border-loloteal transition-transform duration-200 group-hover:scale-125">
-                <ShoppingBag size={15} className="text-loloteal" />
+              <span className="absolute w-8 h-8 rounded-full bg-turquesa/40 animate-ping"></span>
+              <div className="relative flex items-center justify-center w-9 h-9 rounded-full bg-white text-gray-900 shadow-xl border-2 border-turquesa-texto transition-transform duration-200 group-hover:scale-125">
+                <ShoppingBag size={15} className="text-turquesa-texto" />
               </div>
 
               {/* Tag con precio y título */}
               <div className="ml-2 hidden sm:flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur-md px-3 py-1 shadow-lg border border-gray-100 text-xs font-semibold text-gray-900 whitespace-nowrap">
                 <span>{hotspot.title}</span>
-                <span className="text-loloteal font-bold">${hotspot.price}</span>
+                <span className="text-turquesa-texto font-bold">${hotspot.price}</span>
               </div>
             </div>
 
@@ -387,8 +388,8 @@ export function VirtualStoreCanvas({
                   {hotspot.title}
                 </p>
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-bold text-primary">${hotspot.price}</span>
-                  <span className="flex items-center gap-1 text-loloteal font-medium">
+                  <span className="font-bold text-turquesa-texto">${hotspot.price}</span>
+                  <span className="flex items-center gap-1 text-turquesa-texto font-medium">
                     <Eye size={12} /> Ver en 3D
                   </span>
                 </div>
@@ -402,8 +403,8 @@ export function VirtualStoreCanvas({
       <div className="absolute top-5 left-5 z-20 pointer-events-none">
         <div className="rounded-2xl border border-white/20 bg-black/60 px-4 py-2.5 backdrop-blur-xl text-white shadow-xl">
           <div className="flex items-center gap-2">
-            <span className="flex h-2.5 w-2.5 rounded-full bg-loloteal animate-pulse"></span>
-            <span className="text-xs font-mono uppercase tracking-wider text-teal-300">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-turquesa animate-pulse"></span>
+            <span className="text-xs font-mono uppercase tracking-wider text-turquesa-luz">
               Recorrido Virtual
             </span>
           </div>
@@ -448,7 +449,7 @@ export function VirtualStoreCanvas({
       {!hasInteracted && (
         <div className="absolute bottom-6 right-6 z-20 pointer-events-none animate-bounce">
           <div className="rounded-full bg-white/90 border border-white px-3.5 py-1.5 text-xs font-semibold text-gray-800 shadow-xl backdrop-blur-md flex items-center gap-1.5">
-            <RotateCw size={13} className="text-loloteal animate-spin-slow" />
+            <RotateCw size={13} className="text-turquesa-texto animate-spin-slow" />
             <span>Arrastra para mirar 360°</span>
           </div>
         </div>

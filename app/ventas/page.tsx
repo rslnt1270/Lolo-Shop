@@ -1,4 +1,6 @@
 "use client";
+import { Button } from "@/components/ui/Button";
+import { buttonClasses } from "@/components/ui/button-classes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -89,15 +91,12 @@ export default function VentasPage() {
 
   return (
     <main className="mx-auto max-w-2xl pb-8">
-      <div className="flex items-center justify-between gap-3 bg-loloteal px-5 pb-8 pt-6 text-white">
+      <div className="flex items-center justify-between gap-3 bg-turquesa-texto px-5 pb-8 pt-6 text-white">
         <div>
           <h1 className="text-lg font-extrabold leading-tight">Ventas</h1>
-          <p className="mt-0.5 text-sm text-white/90">{isCollaborator ? "Hoy" : period}</p>
+          <p className="mt-0.5 text-sm text-white">{isCollaborator ? "Hoy" : period}</p>
         </div>
-        <Link
-          href="/pos"
-          className="inline-flex min-h-11 flex-none items-center gap-2 rounded-[11px] bg-white px-4 text-sm font-extrabold text-[#0B5E5E] hover:bg-[#E6F2F1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-        >
+        <Link href="/pos" className={`${buttonClasses("primary")} flex-none font-extrabold`}>
           <ShoppingCart size={18} strokeWidth={2.5} aria-hidden="true" />
           Vender
         </Link>
@@ -105,28 +104,24 @@ export default function VentasPage() {
 
       <div
         aria-busy={loading}
-        className={`-mt-3 space-y-5 rounded-t-2xl bg-[#F4FBFA] px-4 pb-6 pt-4 transition-opacity motion-reduce:transition-none ${loading ? "pointer-events-none opacity-60" : ""}`}
+        className={`-mt-3 space-y-5 rounded-t-2xl bg-niebla px-4 pb-6 pt-4 transition-opacity motion-reduce:transition-none ${loading ? "pointer-events-none opacity-60" : ""}`}
       >
         {role && !isCollaborator && (
           <RangePicker preset={preset} from={rangeRef.current.from} to={rangeRef.current.to} onChange={changeRange} />
         )}
 
         {state === "session" && (
-          <p role="alert" className="rounded-[11px] bg-[#FFE7E2] p-3 text-sm font-bold text-[#9B2C20]">
+          <p role="alert" className="rounded-[11px] bg-niebla p-3 text-sm font-bold text-agotado">
             {SESSION_EXPIRED_TEXT} <LoginLink />
           </p>
         )}
 
         {state === "error" && (
-          <div role="alert" className="space-y-2 rounded-[11px] bg-[#FFE7E2] p-3 text-sm font-bold text-[#9B2C20]">
+          <div role="alert" className="space-y-2 rounded-[11px] bg-niebla p-3 text-sm font-bold text-agotado">
             <p>No se pudo actualizar. Estas cifras pueden estar desfasadas.</p>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="min-h-11 rounded-xl bg-loloteal px-4 text-sm font-semibold text-white active:bg-loloteal-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
-            >
+            <Button onClick={() => void load()}>
               Reintentar
-            </button>
+            </Button>
           </div>
         )}
 
@@ -135,7 +130,7 @@ export default function VentasPage() {
             <DashboardCards data={loaded.data} locationNames={locationNames} namesReady={namesReady} />
 
             <section aria-labelledby="pendientes-h">
-              <h2 id="pendientes-h" className="mb-2 text-sm font-bold text-[#12211F]">
+              <h2 id="pendientes-h" className="mb-2 text-sm font-bold text-tinta">
                 Cobros pendientes
               </h2>
               <PendingPayments
@@ -150,7 +145,7 @@ export default function VentasPage() {
 
             {canCancel && loaded.data.recentSales && (
               <section aria-labelledby="hoy-h">
-                <h2 id="hoy-h" className="mb-2 text-sm font-bold text-[#12211F]">
+                <h2 id="hoy-h" className="mb-2 text-sm font-bold text-tinta">
                   Ventas de hoy
                 </h2>
                 <RecentSales sales={loaded.data.recentSales} locationNames={locationNames} namesReady={namesReady} onChanged={load} />
@@ -158,7 +153,7 @@ export default function VentasPage() {
             )}
 
             <section aria-labelledby="stock-h">
-              <h2 id="stock-h" className="mb-2 text-sm font-bold text-[#12211F]">
+              <h2 id="stock-h" className="mb-2 text-sm font-bold text-tinta">
                 Stock bajo
               </h2>
               <LowStockTable

@@ -7,7 +7,7 @@ import { useMotionTiming } from "@/lib/motion/use-reduced-motion";
 export const TOUR_STEPS = [
   { title: "Escanea la etiqueta", body: "Apunta la cámara al código de la etiqueta. Si no se lee, escríbelo a mano." },
   { title: "Elige si va al catálogo", body: "Decide si la prenda se publica con fotos o solo se registra en inventario." },
-  { title: "Toma las fotos", body: "Fotografía el frente y la parte de atrás de la prenda completa." },
+  { title: "Toma fotos de frente y atrás", body: "Fotografía el frente y la parte de atrás de la prenda. El dueño las revisa antes de publicarlas." },
 ] as const;
 
 interface AltaTourProps {
@@ -20,8 +20,17 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
   const t = useMotionTiming();
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const returnRef = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
-    if (open) setStep(0);
+    if (!open) return;
+    setStep(0);
+    returnRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => {
+      const el = returnRef.current;
+      returnRef.current = null;
+      if (el && el !== document.body && el.isConnected) el.focus();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -41,7 +50,22 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
         aria-modal="true"
         aria-labelledby="alta-tour-title"
         onKeyDown={(e) => {
-          if (e.key === "Escape") onClose();
+          if (e.key === "Escape") {
+            onClose();
+            return;
+          }
+          if (e.key !== "Tab") return;
+          const items = Array.from(dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])") ?? []);
+          if (items.length === 0) return;
+          const first = items[0];
+          const lastEl = items[items.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            lastEl.focus();
+          } else if (!e.shiftKey && document.activeElement === lastEl) {
+            e.preventDefault();
+            first.focus();
+          }
         }}
         className="w-full max-w-sm space-y-4 overflow-hidden rounded-xl bg-white p-4 shadow-lg"
       >
@@ -64,12 +88,15 @@ export function AltaTour({ open, onClose }: AltaTourProps) {
         </AnimatePresence>
         <div className="flex justify-center gap-2" aria-hidden="true">
           {TOUR_STEPS.map((_, i) => (
-            <motion.span
-              key={i}
-              className="h-2 w-2 rounded-full border border-loloteal"
-              animate={{ backgroundColor: i <= step ? "#3CBFBF" : "#FFFFFF" }}
-              transition={{ duration: dur }}
-            />
+            <span key={i} className="relative h-2 w-2 overflow-hidden rounded-full border border-turquesa-texto bg-white">
+              {/* Relleno turquesa que aparece con opacidad: el color viene del token, sin hex en el código. */}
+              <motion.span
+                className="absolute inset-0 bg-turquesa"
+                initial={false}
+                animate={{ opacity: i <= step ? 1 : 0 }}
+                transition={{ duration: dur }}
+              />
+            </span>
           ))}
         </div>
         <div className="flex gap-3">

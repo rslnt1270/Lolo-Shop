@@ -106,6 +106,14 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.createProduct con varias tallas", 
     expect(row2.catalogPhotosCheckedAt).toBeNull();
   });
 
+  it("photosChecked sin las dos URL no escribe catalogPhotosCheckedAt", async () => {
+    const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
+    const a = await ds.createProduct(data(w, { publicCode: "ONLY1", photosChecked: true, imageUrl: front, backImageUrl: null,
+      variants: [{ sku: "LS-Y00000-0", barcode: null, size: "U", price: 1, initialStock: 0 }] }));
+    const row = await testPrisma.product.findUniqueOrThrow({ where: { id: a.product.id } });
+    expect(row.catalogPhotosCheckedAt).toBeNull();
+  });
+
   it("setCatalogPhotos escribe las dos URL y catalogPhotosCheckedAt en una sola escritura", async () => {
     const a = await ds.createProduct(data(w));
     const front = "https://abc.public.blob.vercel-storage.com/productos/f.jpg";
@@ -260,7 +268,8 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.searchProducts", () => {
     expect(byCode).toEqual([{
       productId: a.product.id, title: "Playera Logo", brand: "Guess", publicCode: "K7Q2M", imageUrl: null, sizes: ["S", "M", "L"],
     }]);
-    expect((await ds.searchProducts("playera")).map((h) => h.publicCode)).toEqual(["K7Q2M"]);
+    // "playera" también es el tipo (category) de la sudadera del seed: título o tipo, más recientes primero.
+    expect((await ds.searchProducts("playera")).map((h) => h.publicCode)).toEqual(["EEEEE", "K7Q2M"]);
     expect((await ds.searchProducts("GUESS")).length).toBe(2);
     expect(await ds.searchProducts("  ")).toEqual([]);
   });

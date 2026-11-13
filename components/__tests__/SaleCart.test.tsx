@@ -136,3 +136,56 @@ describe("SaleCart", () => {
     expect(screen.getByText("Escribe un precio de 0 en adelante.")).toBeInTheDocument();
   });
 });
+
+describe("SaleCart controles deshabilitados", () => {
+  const handlers = { onSetQty: vi.fn(), onSetPrice: vi.fn(), onRemove: vi.fn() };
+  it("con el carrito bloqueado, restar, sumar y quitar llevan el estilo deshabilitado", () => {
+    render(<SaleCart lines={[line()]} canEditPrice locked {...handlers} />);
+    for (const name of [/Restar una pieza/, /Sumar una pieza/, /Quitar Playera/]) {
+      const b = screen.getByRole("button", { name });
+      expect(b).toBeDisabled();
+      expect(b.className).toMatch(/disabled:text-\[#5C6E6D\]/);
+      expect(b.className).toMatch(/disabled:cursor-not-allowed/);
+    }
+  });
+});
+
+describe("SaleCart filas pendientes con piezas extra", () => {
+  it("fila en espera con extra muestra ×N en espera", () => {
+    render(
+      <SaleCart
+        lines={[]}
+        canEditPrice={false}
+        onSetQty={() => {}}
+        onSetPrice={() => {}}
+        onRemove={() => {}}
+        pendingScans={[
+          { code: "222", status: "queued", extra: 1 },
+          { code: "333", status: "loading", extra: 2 },
+          { code: "444", status: "queued" },
+        ]}
+      />,
+    );
+    expect(screen.getByText("Pendiente para la siguiente venta: 222 · ×2 en espera")).toBeInTheDocument();
+    expect(screen.getByText("Buscando 333… · ×3 en espera")).toBeInTheDocument();
+    expect(screen.getByText("Pendiente para la siguiente venta: 444")).toBeInTheDocument();
+  });
+
+  it("fila rechazada muestra código y motivo con Descartar", () => {
+    const onDiscard = vi.fn();
+    render(
+      <SaleCart
+        lines={[]}
+        canEditPrice={false}
+        onSetQty={() => {}}
+        onSetPrice={() => {}}
+        onRemove={() => {}}
+        onDiscard={onDiscard}
+        pendingScans={[{ code: "222", status: "rejected", reason: "Sin existencias de la talla M en esta tienda" }]}
+      />,
+    );
+    expect(screen.getByText("222 · Sin existencias de la talla M en esta tienda")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar 222" }));
+    expect(onDiscard).toHaveBeenCalledWith("222");
+  });
+});

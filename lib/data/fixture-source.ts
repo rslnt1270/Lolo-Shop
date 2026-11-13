@@ -257,7 +257,8 @@ export class FixtureDataSource implements InventoryDataSource {
       description: data.description ?? null,
       color: data.color ?? null,
       isPublished: false,
-      catalogPhotosCheckedAt: data.photosChecked ? new Date().toISOString() : null,
+      catalogPhotosCheckedAt:
+        data.photosChecked && data.imageUrl && data.backImageUrl ? new Date().toISOString() : null,
       publicCode: data.publicCode,
       isActive: true,
       mergedIntoId: null,
@@ -295,8 +296,17 @@ export class FixtureDataSource implements InventoryDataSource {
     const code = normalizePublicCode(q);
     const exact = code ? live.find((p) => p.publicCode === code) : undefined;
     const needle = q.toLowerCase();
+    const candidates = codeCandidates(q);
     const rest = live
-      .filter((p) => p !== exact && (p.title.toLowerCase().includes(needle) || p.brand.toLowerCase().includes(needle)))
+      .filter(
+        (p) =>
+          p !== exact &&
+          (p.title.toLowerCase().includes(needle) ||
+            p.brand.toLowerCase().includes(needle) ||
+            p.category.toLowerCase().includes(needle) ||
+            (p.color ?? "").toLowerCase().includes(needle) ||
+            p.variants.some((v) => v.isActive !== false && candidates.includes(v.sku))),
+      )
       .reverse()
       .slice(0, MAX_SEARCH_RESULTS - (exact ? 1 : 0));
     return [...(exact ? [exact] : []), ...rest].map((p) => ({
@@ -361,6 +371,18 @@ export class FixtureDataSource implements InventoryDataSource {
       throw new InventoryRuleError("Este producto se unió con otro y no se puede reactivar.");
     }
     product.isActive = active;
+    if (!active) product.isPublished = false;
+  }
+
+  async setProductPublished(productId: string, published: boolean): Promise<void> {
+    const product = this.products.find((p) => p.id === productId);
+    if (!product) throw new ProductNotFoundError();
+    product.isPublished = published;
+  }
+
+  async getProductForPublish(productId: string): Promise<Product | null> {
+    const p = this.products.find((x) => x.id === productId);
+    return p && p.isActive !== false && !p.mergedIntoId ? p : null;
   }
 
   async setVariantActive(variantId: string, active: boolean): Promise<void> {
@@ -524,6 +546,7 @@ export class FixtureDataSource implements InventoryDataSource {
       target.variants.push(...src.variants);
       src.variants = [];
       src.isActive = false;
+      src.isPublished = false;
       src.mergedIntoId = targetId;
     }
     void userId;

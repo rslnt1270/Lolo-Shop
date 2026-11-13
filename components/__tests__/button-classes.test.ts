@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { buttonClasses } from "../ui/button-classes";
+import { buttonClasses, disabledClasses } from "../ui/button-classes";
 
 it("primary button uses turquesa fill and tinta text, never white", () => {
   const c = buttonClasses("primary");
@@ -27,8 +27,22 @@ it("disabled primary uses BFE9E9 fill and 5C6E6D text", () => {
   expect(c).toContain("disabled:bg-[#BFE9E9]");
   expect(c).toContain("text-[#5C6E6D]");
 });
-it("disabled outline uses borde-control border; success adds lolo-btn-success", () => {
+it("disabled outline uses borde-control border", () => {
   expect(buttonClasses("outline", { disabled: true })).toContain("disabled:border-borde-control");
-  expect(buttonClasses("primary", { success: true })).toContain("lolo-btn-success");
-  expect(buttonClasses("primary")).not.toContain("lolo-btn-success");
+});
+it("disabled danger keeps a white fill", () => {
+  const c = buttonClasses("danger", { disabled: true });
+  expect(c).toContain("disabled:bg-white");
+  expect(c).toContain("disabled:border-borde-control");
+  expect(c).not.toContain("BFE9E9");
+});
+it("buttonClasses never emits lolo-btn-success, with or without loading", () => {
+  expect(buttonClasses("primary", { success: true })).not.toContain("lolo-btn-success");
+  expect(buttonClasses("primary", { success: true, loading: true })).not.toContain("lolo-btn-success");
+});
+it("disabledClasses gives primary the turquoise fill and others an outline treatment", () => {
+  expect(disabledClasses("primary")).toContain("disabled:bg-[#BFE9E9]");
+  expect(disabledClasses("outline")).toContain("disabled:bg-white");
+  expect(disabledClasses("danger")).toBe(disabledClasses("outline"));
+  expect(disabledClasses("danger")).not.toContain("BFE9E9");
 });

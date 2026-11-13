@@ -68,7 +68,7 @@ const pickBrand = async (name = "ALO") => {
   fireEvent.mouseDown(await screen.findByRole("option", { name }));
 };
 async function fillAll({ withBrand = true, mode = "stock" as "stock" | "catalog" } = {}) {
-  if (mode === "catalog") fireEvent.click(screen.getByRole("radio", { name: "Para catálogo" }));
+  if (mode === "catalog") fireEvent.click(screen.getByRole("radio", { name: "Catálogo" }));
   fireEvent.change(screen.getByLabelText(/descripción/i), { target: { value: "Algodón suave" } });
   await dept("d1");
   fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
@@ -213,7 +213,38 @@ describe("NewProductForm (alta): guardado", () => {
     expect(info.message).toContain(status);
   });
 
-  it("review: el payload lleva productTypeId, color, description y photosAnalyzed, y no lleva category ni tipo", async () => {
+  it("alta en catálogo con dos fotos no manda photosAnalyzed", async () => {
+    mount();
+    await fillAll({ mode: "catalog" });
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera" } });
+    fireEvent.click(screen.getByRole("button", { name: /capturar front/ }));
+    fireEvent.click(screen.getByRole("button", { name: /capturar back/ }));
+    save();
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled());
+    expect(createProductAction.mock.calls[0][0]).not.toHaveProperty("photosAnalyzed");
+  });
+
+  it("estado Listo para catálogo muestra que queda en Por publicar", async () => {
+    createProductAction.mockResolvedValue({ ...OK, catalogStatus: "Listo para catálogo" });
+    const { onSuccess } = mount();
+    await fillAll();
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera" } });
+    save();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0][0].message).toContain("Queda en «Por publicar» hasta que el dueño o el encargado lo publiquen.");
+  });
+
+  it("otros estados no dicen Por publicar", async () => {
+    createProductAction.mockResolvedValue({ ...OK, catalogStatus: "Solo stock" });
+    const { onSuccess } = mount();
+    await fillAll();
+    fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Playera" } });
+    save();
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0][0].message).not.toContain("Por publicar");
+  });
+
+  it("review: el payload lleva productTypeId, color y description, y no lleva category ni tipo", async () => {
     createColorAction.mockResolvedValue({ ok: true, label: "Rosa" });
     mount();
     await fillAll({ mode: "catalog" });
@@ -224,22 +255,23 @@ describe("NewProductForm (alta): guardado", () => {
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     const p = createProductAction.mock.calls[0][0];
     expect(p).toMatchObject({
-      productTypeId: "t1", color: "Rosa", description: "Algodón suave", photosAnalyzed: true,
+      productTypeId: "t1", color: "Rosa", description: "Algodón suave",
       mode: "catalog", imageUrl: FRONT, backImageUrl: BACK,
     });
+    expect(p).not.toHaveProperty("photosAnalyzed");
     expect(p).not.toHaveProperty("category");
     expect(p).not.toHaveProperty("tipo");
   });
 
   it("G12(b): el color escrito se guarda con la etiqueta de la lista, antes de subir fotos", async () => {
-    createColorAction.mockResolvedValue({ ok: true, label: "Rosa" });
+    createColorAction.mockResolvedValue({ ok: true, label: "Verde lima" });
     mount();
     await fillAll({ mode: "catalog" });
     fireEvent.click(screen.getByRole("button", { name: /capturar front/ }));
-    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "verde lima" } });
     save();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
-    expect(createColorAction).toHaveBeenCalledWith("rosas");
+    expect(createColorAction).toHaveBeenCalledWith("verde lima");
     expect(createColorAction.mock.invocationCallOrder[0]).toBeLessThan(uploadProductImageAction.mock.invocationCallOrder[0]);
   });
 
@@ -248,7 +280,7 @@ describe("NewProductForm (alta): guardado", () => {
     mount();
     await fillAll({ mode: "catalog" });
     fireEvent.click(screen.getByRole("button", { name: /capturar front/ }));
-    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "verde lima" } });
     save();
     expect(await screen.findByText("El color puede tener máximo 40 caracteres.")).toBeInTheDocument();
     expect(uploadProductImageAction).not.toHaveBeenCalled();
@@ -272,7 +304,7 @@ describe("NewProductForm (alta): guardado", () => {
     save();
     await waitFor(() => expect(createProductAction).toHaveBeenCalled());
     expect(uploadProductImageAction).not.toHaveBeenCalled();
-    expect(createProductAction.mock.calls[0][0]).toMatchObject({ imageUrl: null, backImageUrl: null, photosAnalyzed: false });
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ imageUrl: null, backImageUrl: null });
   });
 
   it("G12(a): una foto de más de 4 MB se rechaza en el cliente sin subir nada", async () => {
@@ -302,7 +334,7 @@ describe("NewProductForm (alta): guardado", () => {
     fireEvent.click(screen.getByRole("button", { name: /guardar como solo stock/i }));
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(createProductAction.mock.calls[0][0]).toMatchObject({
-      mode: "stock", imageUrl: null, backImageUrl: null, photosAnalyzed: false,
+      mode: "stock", imageUrl: null, backImageUrl: null,
     });
   });
 
@@ -323,5 +355,25 @@ describe("NewProductForm (alta): guardado", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(uploadProductImageAction).toHaveBeenCalledTimes(2);
     expect(createProductAction.mock.calls[1][0]).toMatchObject({ imageUrl: FRONT, backImageUrl: BACK });
+  });
+
+  it("el título sugerido usa la etiqueta de la lista: 'rosas' → '… rosa'", async () => {
+    mount();
+    await dept("d1");
+    fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
+    await pickBrand();
+    await screen.findByRole("option", { name: "Rosa", hidden: true }).catch(() => null);
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveValue("Playeras ALO rosa"));
+  });
+
+  it("color que ya está en la lista con otra forma no llama createColorAction", async () => {
+    mount();
+    await fillAll();
+    fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
+    save();
+    await waitFor(() => expect(createProductAction).toHaveBeenCalled());
+    expect(createColorAction).not.toHaveBeenCalled();
+    expect(createProductAction.mock.calls[0][0]).toMatchObject({ color: "Rosa" });
   });
 });
