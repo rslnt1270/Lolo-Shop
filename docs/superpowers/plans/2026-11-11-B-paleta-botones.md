@@ -183,7 +183,7 @@ Expected: FAIL: el módulo `../ui/button-classes` no existe.
 
 - [x] **Step 3: Implement `buttonClasses`**
 
-Base común: `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto lolo-btn`. Variantes: `primary` → `bg-turquesa text-tinta border-2 border-transparent`; `outline` → `bg-white text-turquesa-texto border-2 border-turquesa-texto`; `danger` → `bg-white text-agotado border-2 border-agotado`. Estado `disabled` añade `disabled:bg-[#BFE9E9] disabled:text-[#5C6E6D] disabled:border-transparent disabled:cursor-not-allowed` (outline deshabilitado: `disabled:border-borde-control disabled:text-[#5C6E6D]`). Estado `loading` añade `aria-busy` por el componente, no clase. Estado `success` añade `lolo-btn-success`. Un solo lugar de verdad: cualquier cambio de variante pasa por este archivo.
+Base común: `inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto lolo-btn`. Variantes: `primary` → `bg-turquesa text-tinta border-2 border-transparent`; `outline` → `bg-white text-turquesa-texto border-2 border-turquesa-texto`; `danger` → `bg-white text-agotado border-2 border-agotado`. Estado `disabled` añade `disabled:bg-[#BFE9E9] disabled:text-[#5C6E6D] disabled:border-transparent disabled:cursor-not-allowed` (outline y danger deshabilitados, desde G28: `disabled:bg-white disabled:border-borde-control disabled:text-[#5C6E6D]`). Estado `loading` añade `aria-busy` por el componente, no clase. Estado `success` no añade clase (G28 quitó `lolo-btn-success`, que no tenía regla CSS): el check lo dibuja `Button`. Un solo lugar de verdad: cualquier cambio de variante pasa por este archivo.
 
 - [x] **Step 4: Run tests to verify they pass**
 
@@ -206,8 +206,8 @@ git commit -m "feat(ui): clases de botón primario, contorno y peligro con contr
 - Test: `components/__tests__/button-motion.test.ts`
 
 **Interfaces:**
-- Consumes: clases `lolo-btn` y `lolo-btn-success` de Task 2.
-- Produces: clases `lolo-btn`, `lolo-btn-spinner`, `lolo-btn-check` (con `path` hijo), `lolo-btn-success`; keyframes `lolo-spin` y `lolo-draw`.
+- Consumes: clase `lolo-btn` de Task 2 (`lolo-btn-success` fue retirada en G28).
+- Produces: clases `lolo-btn`, `lolo-btn-spinner`, `lolo-btn-check` (con `path` hijo); keyframes `lolo-spin` y `lolo-draw`.
 
 - [x] **Step 1: Write the failing tests**
 

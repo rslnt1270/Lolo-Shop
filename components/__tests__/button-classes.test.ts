@@ -36,7 +36,7 @@ it("disabled danger keeps a white fill", () => {
   expect(c).toContain("disabled:border-borde-control");
   expect(c).not.toContain("BFE9E9");
 });
-it("loading wins over success and no unstyled success class is emitted", () => {
+it("buttonClasses never emits lolo-btn-success, with or without loading", () => {
   expect(buttonClasses("primary", { success: true })).not.toContain("lolo-btn-success");
   expect(buttonClasses("primary", { success: true, loading: true })).not.toContain("lolo-btn-success");
 });

@@ -130,11 +130,12 @@ describe("barrido de paleta (plan B, zonas)", () => {
     expect(bad).toEqual([]);
   });
 
-  it("no primary fill uses white text anywhere in app or components", () => {
-    expect(offenders(["app", "components"].filter(Boolean)).filter((x) => !x.startsWith("components/virtual-store"))).toEqual([]);
+  // Excluye virtual-store: la flecha en reposo de VirtualStoreCanvas (icono blanco sobre velo turquesa al 20% en la escena 3D oscura) es decorativa, no texto (decisión del controlador).
+  it("no primary fill uses white text in app or components, outside virtual-store", () => {
+    expect(offenders(["app", "components"]).filter((x) => !x.startsWith("components/virtual-store"))).toEqual([]);
   });
 
-  it("no old #007272 literal and no loloteal-dark remain", () => {
+  it("no #007272 literal or loloteal-dark remain in app/ and components/ (lib/virtual-store keeps a zoneHalo fallback)", () => {
     const bad: string[] = [];
     for (const { file, lines } of readSources(["app", "components"])) {
       lines.forEach((line, i) => {
