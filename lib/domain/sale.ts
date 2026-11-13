@@ -4,6 +4,16 @@ export type SaleChannel = "store" | "whatsapp";
 export type PaymentMethod = "spay_transfer" | "cash" | "card";
 export type SaleStatus = "pending_payment" | "paid" | "cancelled" | "refunded";
 
+export type SaleOrigin = "online" | "offline";
+export type SaleReviewStatus = "pending" | "approved" | "rejected";
+export type ReviewReason = "insufficient_stock" | "price_unverified" | "inactive_product" | "clock_skew";
+export const REVIEW_REASONS: readonly ReviewReason[] = [
+  "insufficient_stock",
+  "price_unverified",
+  "inactive_product",
+  "clock_skew",
+];
+
 export interface SaleLineInput {
   variantId: string;
   quantity: number;

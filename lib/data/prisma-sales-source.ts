@@ -8,6 +8,8 @@ import {
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
+  REVIEW_REASONS,
+  type ReviewReason,
   type NewSaleInput,
   type SaleStatus,
 } from "../domain/sale";
@@ -56,10 +58,17 @@ function toRecord(s: SaleWithLines): SaleRecord {
     locationId: s.locationId,
     createdById: s.createdById,
     createdAt: s.createdAt.toISOString(),
+    origin: s.origin,
+    soldAt: s.soldAt ? s.soldAt.toISOString() : null,
+    reviewStatus: s.reviewStatus,
+    reviewReasons: s.reviewReasons.filter((r): r is ReviewReason =>
+      (REVIEW_REASONS as readonly string[]).includes(r),
+    ),
     lines: s.lines.map((l) => ({
       variantId: l.variantId,
       quantity: l.quantity,
       unitPrice: Number(l.unitPrice),
+      shortfall: l.shortfall,
     })),
   };
 }

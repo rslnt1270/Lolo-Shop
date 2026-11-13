@@ -1,4 +1,4 @@
-import type { NewSaleInput, PaymentMethod, SaleChannel, SaleStatus } from "@/lib/domain/sale";
+import type { NewSaleInput, PaymentMethod, ReviewReason, SaleChannel, SaleOrigin, SaleReviewStatus, SaleStatus } from "@/lib/domain/sale";
 
 export interface SaleRecord {
   id: string;
@@ -14,8 +14,13 @@ export interface SaleRecord {
   createdById: string;
   /** ISO 8601. */
   createdAt: string;
-  /** Ordenados por variantId. */
-  lines: { variantId: string; quantity: number; unitPrice: number }[];
+  origin: SaleOrigin;
+  /** ISO 8601 de la venta sin internet en el teléfono; null si es en línea. */
+  soldAt: string | null;
+  reviewStatus: SaleReviewStatus | null;
+  reviewReasons: ReviewReason[];
+  /** Ordenados por variantId. `shortfall`: piezas vendidas sin existencia (sin internet). */
+  lines: { variantId: string; quantity: number; unitPrice: number; shortfall: number }[];
 }
 
 /** Fechas de negocio `YYYY-MM-DD`, inclusivas. */

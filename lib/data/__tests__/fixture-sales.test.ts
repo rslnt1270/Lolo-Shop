@@ -41,6 +41,16 @@ describe("FixtureSalesDataSource", () => {
     });
   });
 
+  it("venta en línea nace origin online, sin revisión y shortfall 0", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await ds.createSale(sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }]), "u1");
+    expect(rec.origin).toBe("online");
+    expect(rec.soldAt).toBeNull();
+    expect(rec.reviewStatus).toBeNull();
+    expect(rec.reviewReasons).toEqual([]);
+    expect(rec.lines.every((l) => l.shortfall === 0)).toBe(true);
+  });
+
   describe("idempotencia", () => {
     it("el mismo clientRequestId devuelve la misma venta y descuenta una vez", async () => {
       const ds = new FixtureSalesDataSource();

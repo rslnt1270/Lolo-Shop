@@ -105,7 +105,11 @@ export class FixtureSalesDataSource implements SalesDataSource {
       locationId: sale.locationId,
       createdById: userId,
       createdAt: now.toISOString(),
-      lines: lines.map((l) => ({ ...l })),
+      origin: "online",
+      soldAt: null,
+      reviewStatus: null,
+      reviewReasons: [],
+      lines: lines.map((l) => ({ ...l, shortfall: 0 })),
     };
     this.sales.set(rec.id, rec);
     this.byRequestId.set(sale.clientRequestId, rec);
