@@ -129,4 +129,29 @@ describe("barrido de paleta (plan B, zonas)", () => {
     }
     expect(bad).toEqual([]);
   });
+
+  it("no primary fill uses white text anywhere in app or components", () => {
+    expect(offenders(["app", "components"].filter(Boolean)).filter((x) => !x.startsWith("components/virtual-store"))).toEqual([]);
+  });
+
+  it("no old #007272 literal and no loloteal-dark remain", () => {
+    const bad: string[] = [];
+    for (const { file, lines } of readSources(["app", "components"])) {
+      lines.forEach((line, i) => {
+        if (/#007272|loloteal-dark/i.test(line)) bad.push(`${file}:${i + 1}`);
+      });
+    }
+    expect(bad).toEqual([]);
+    expect(readFileSync(join(ROOT, "app/globals.css"), "utf8")).not.toMatch(/#007272/i);
+  });
+
+  it("no hardcoded palette hex classes in components", () => {
+    const bad: string[] = [];
+    for (const { file, lines } of readSources(["app", "components"])) {
+      lines.forEach((line, i) => {
+        if (/bg-\[#22B8B8\]|text-\[#16302F\]|border-\[#0C7C7C\]|text-\[#0C7C7C\]|#9A3B2E/i.test(line)) bad.push(`${file}:${i + 1}`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
 });
