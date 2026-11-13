@@ -117,4 +117,15 @@ describe("barrido de paleta (plan B, zonas)", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("virtual store uses no loloteal or primary text colors", () => {
+    const bad: string[] = [];
+    for (const { file, lines } of readSources(["components/virtual-store", "components/products/ProductCard3D.tsx"])) {
+      lines.forEach((line, i) => {
+        if (/text-loloteal|text-primary|text-turquesa(\s|")|loloteal|bg-primary|#3cbfbf|#007272|#0f171c/i.test(line)) bad.push(`${file}:${i + 1}`);
+        if (/bg-turquesa(?![-\w])/.test(line) && /text-white(?!\/)/.test(line)) bad.push(`${file}:${i + 1}`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
 });

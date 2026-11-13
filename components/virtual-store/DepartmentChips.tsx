@@ -19,8 +19,8 @@ interface Props {
 }
 
 const base =
-  "inline-flex min-h-[44px] flex-none items-center rounded-full border px-4 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal";
-const on = "border-loloteal bg-loloteal text-white active:bg-loloteal-dark";
+  "inline-flex min-h-[44px] flex-none items-center rounded-full border px-4 text-sm font-semibold transition-colors motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto";
+const on = "border-turquesa-texto bg-turquesa text-tinta active:brightness-95";
 const off = "border-gray-300 bg-white text-gray-800 active:bg-gray-100";
 
 /** Chips de departamento: "Todo" + los presentes. Sin conteos; cada uno es un botón con `aria-pressed`. */

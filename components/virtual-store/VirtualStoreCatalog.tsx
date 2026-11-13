@@ -19,6 +19,7 @@ import { isTourEnabled } from "@/lib/public/tour-flag";
 import { VirtualStoreCanvas } from "./VirtualStoreCanvas";
 import { StoreMinimap } from "./StoreMinimap";
 import { ProductHotspotModal } from "./ProductHotspotModal";
+import { PALETTE } from "./palette";
 import { CatalogDrawer } from "./CatalogDrawer";
 import { CatalogGrid } from "./CatalogGrid";
 import { DepartmentChips, departmentsOf } from "./DepartmentChips";
@@ -115,10 +116,10 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
   }, []);
 
   return (
-    <div className="min-h-pantalla bg-[#f8f9fa] text-[#111827] flex flex-col relative overflow-x-hidden selection:bg-loloteal/20">
+    <div className="min-h-pantalla bg-white text-tinta flex flex-col relative overflow-x-hidden selection:bg-turquesa/20">
       {/* Luces y degradados ambientales sutiles */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute -top-[15%] -left-[10%] w-[55vw] h-[55vw] rounded-full bg-loloteal/10 blur-[130px] opacity-70 mix-blend-multiply" />
+        <div className="absolute -top-[15%] -left-[10%] w-[55vw] h-[55vw] rounded-full bg-turquesa/10 blur-[130px] opacity-70 mix-blend-multiply" />
         <div className="absolute bottom-[-15%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-tertiary-container/15 blur-[140px] opacity-60 mix-blend-multiply" />
       </div>
 
@@ -137,7 +138,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
                 LoloShop
               </span>
               {tourEnabled && (
-                <span className="font-mono text-[10px] text-loloteal font-bold uppercase tracking-wider block">
+                <span className="font-mono text-[10px] text-turquesa-texto font-bold uppercase tracking-wider block">
                   Tienda Virtual 3D
                 </span>
               )}
@@ -157,7 +158,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            <Rotate3d aria-hidden="true" size={14} className={viewMode === "tour" ? "text-loloteal" : ""} />
+            <Rotate3d aria-hidden="true" size={14} className={viewMode === "tour" ? "text-turquesa-texto" : ""} />
             <span className="hidden sm:inline">Recorrido 3D</span>
           </button>
           <button
@@ -169,7 +170,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
                 : "text-gray-500 hover:text-gray-900"
             }`}
           >
-            <Grid aria-hidden="true" size={14} className={viewMode === "grid" ? "text-loloteal" : ""} />
+            <Grid aria-hidden="true" size={14} className={viewMode === "grid" ? "text-turquesa-texto" : ""} />
             <span className="hidden sm:inline">Catálogo</span>
           </button>
         </div>
@@ -222,13 +223,13 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
                     onClick={() => handleSelectZone(zone.id)}
                     className={`flex min-h-11 items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold transition-all flex-none border ${
                       isActive
-                        ? "border-loloteal bg-white text-gray-900 shadow-md ring-2 ring-loloteal/20"
+                        ? "border-turquesa-texto bg-white text-gray-900 shadow-md ring-2 ring-turquesa-texto/20"
                         : "border-gray-200/80 bg-white/60 text-gray-600 hover:bg-white hover:border-gray-300"
                     }`}
                   >
                     <span
                       className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: isActive ? "#3cbfbf" : "#9ca3af" }}
+                      style={{ backgroundColor: isActive ? PALETTE.turquesa : PALETTE.borde }}
                     />
                     {zone.name}
                   </button>
@@ -264,7 +265,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
             <div className="rounded-2xl border border-white/60 bg-white/80 p-4 shadow-sm backdrop-blur-md">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="rounded-xl bg-loloteal/10 p-2 text-loloteal">
+                  <div className="rounded-xl bg-turquesa/10 p-2 text-turquesa-texto">
                     <Sparkles size={18} />
                   </div>
                   <div>
@@ -305,7 +306,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
               {tourEnabled && (
                 <button
                   onClick={() => setViewMode("tour")}
-                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-loloteal px-4 py-2 text-xs font-bold text-white shadow-lg shadow-loloteal/30 transition-all active:bg-loloteal-dark"
+                  className="inline-flex min-h-[44px] items-center gap-2 rounded-full bg-turquesa px-4 py-2 text-xs font-bold text-tinta shadow-lg shadow-turquesa/30 transition-all active:brightness-95"
                 >
                   <Rotate3d size={16} />
                   Ver en Recorrido 3D
@@ -333,7 +334,7 @@ export function VirtualStoreCatalog({ initialProducts, isLoggedIn, loadError = f
                     <button
                       type="button"
                       onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-                      className="min-h-[44px] rounded-full bg-loloteal px-6 text-sm font-bold text-white transition-colors active:bg-loloteal-dark motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-loloteal"
+                      className="min-h-[44px] rounded-full bg-turquesa px-6 text-sm font-bold text-tinta transition-colors active:brightness-95 motion-reduce:transition-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto"
                     >
                       Ver más
                     </button>

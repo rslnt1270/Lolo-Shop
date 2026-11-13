@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Compass, MapPin, Maximize2, Minimize2 } from "lucide-react";
+import { PALETTE } from "./palette";
 import type { StoreZone } from "@/lib/virtual-store/types";
 
 interface Props {
@@ -39,7 +40,7 @@ export function StoreMinimap({
         {/* Header con botón para colapsar */}
         <div className="flex items-center justify-between border-b border-black/5 px-3 py-2 text-xs font-semibold text-gray-800">
           <div className="flex items-center gap-1.5">
-            <Compass size={14} className="text-loloteal animate-spin-slow" />
+            <Compass size={14} className="text-turquesa-texto animate-spin-slow" />
             <span>Croquis de la Tienda</span>
           </div>
           <button
@@ -76,8 +77,8 @@ export function StoreMinimap({
                 </pattern>
                 {/* Gradiente del radar */}
                 <radialGradient id="radar-gradient" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#3cbfbf" stopOpacity="0.5" />
-                  <stop offset="100%" stopColor="#3cbfbf" stopOpacity="0.02" />
+                  <stop offset="0%" stopColor={PALETTE.turquesa} stopOpacity="0.5" />
+                  <stop offset="100%" stopColor={PALETTE.turquesa} stopOpacity="0.02" />
                 </radialGradient>
               </defs>
 
@@ -92,7 +93,7 @@ export function StoreMinimap({
                 height="84"
                 rx="6"
                 fill="none"
-                stroke="#d1d5db"
+                stroke={PALETTE.borde}
                 strokeWidth="1.5"
                 strokeDasharray="2 1"
               />
@@ -105,10 +106,10 @@ export function StoreMinimap({
                 height="38"
                 rx="2"
                 fill="rgba(246, 149, 98, 0.12)"
-                stroke="#f69562"
+                stroke={PALETTE.calzado}
                 strokeWidth="0.8"
               />
-              <text x="20" y="38" fontSize="4.5" fill="#702d01" textAnchor="middle" fontWeight="bold">
+              <text x="20" y="38" fontSize="4.5" fill={PALETTE.calzadoTexto} textAnchor="middle" fontWeight="bold">
                 Sneakers
               </text>
 
@@ -119,11 +120,11 @@ export function StoreMinimap({
                 width="28"
                 height="22"
                 rx="3"
-                fill="rgba(0, 106, 106, 0.1)"
-                stroke="#007272"
+                fill="rgba(12, 124, 124, 0.1)"
+                stroke={PALETTE.turquesaTexto}
                 strokeWidth="0.8"
               />
-              <text x="46" y="48" fontSize="4.5" fill="#004f50" textAnchor="middle" fontWeight="bold">
+              <text x="46" y="48" fontSize="4.5" fill={PALETTE.tinta} textAnchor="middle" fontWeight="bold">
                 Percheros
               </text>
 
@@ -135,21 +136,21 @@ export function StoreMinimap({
                 height="30"
                 rx="2"
                 fill="rgba(92, 217, 216, 0.15)"
-                stroke="#007272"
+                stroke={PALETTE.turquesaTexto}
                 strokeWidth="0.8"
               />
-              <text x="81" y="44" fontSize="4.2" fill="#004949" textAnchor="middle" fontWeight="bold">
+              <text x="81" y="44" fontSize="4.2" fill={PALETTE.tinta} textAnchor="middle" fontWeight="bold">
                 Caja
               </text>
 
               {/* Puerta de Entrada (Abajo centro) */}
               <path
                 d="M 40 92 L 60 92"
-                stroke="#3cbfbf"
+                stroke={PALETTE.turquesa}
                 strokeWidth="2.5"
                 strokeLinecap="round"
               />
-              <text x="50" y="97" fontSize="4" fill="#3cbfbf" textAnchor="middle" fontWeight="bold">
+              <text x="50" y="97" fontSize="4" fill={PALETTE.turquesa} textAnchor="middle" fontWeight="bold">
                 ▲ Acceso
               </text>
 
@@ -157,7 +158,7 @@ export function StoreMinimap({
               <path
                 d={`M ${currentZone.mapCoords.x} ${currentZone.mapCoords.y} L ${x1} ${y1} A ${radarLength} ${radarLength} 0 0 1 ${x2} ${y2} Z`}
                 fill="url(#radar-gradient)"
-                stroke="#3cbfbf"
+                stroke={PALETTE.turquesa}
                 strokeWidth="0.5"
                 strokeOpacity="0.4"
               />
@@ -178,7 +179,7 @@ export function StoreMinimap({
                           cx={zone.mapCoords.x}
                           cy={zone.mapCoords.y}
                           r="6.5"
-                          fill="#3cbfbf"
+                          fill={PALETTE.turquesa}
                           opacity="0.3"
                           className="animate-ping"
                         />
@@ -186,8 +187,8 @@ export function StoreMinimap({
                           cx={zone.mapCoords.x}
                           cy={zone.mapCoords.y}
                           r="4"
-                          fill="#007272"
-                          stroke="#ffffff"
+                          fill={PALETTE.turquesaTexto}
+                          stroke="white"
                           strokeWidth="1.2"
                         />
                       </>
@@ -196,8 +197,8 @@ export function StoreMinimap({
                         cx={zone.mapCoords.x}
                         cy={zone.mapCoords.y}
                         r="3"
-                        fill="#9ca3af"
-                        stroke="#ffffff"
+                        fill={PALETTE.borde}
+                        stroke="white"
                         strokeWidth="1"
                       />
                     )}
@@ -209,7 +210,7 @@ export function StoreMinimap({
             {/* Etiqueta de la zona actual */}
             <div className="mt-2 flex items-center justify-between text-[11px] text-gray-600">
               <span className="flex items-center gap-1 font-medium">
-                <MapPin size={11} className="text-loloteal" />
+                <MapPin size={11} className="text-turquesa-texto" />
                 {currentZone.shortName}
               </span>
               <span className="font-mono text-[9px] text-gray-400">

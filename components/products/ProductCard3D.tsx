@@ -119,7 +119,7 @@ export function ProductCard3D({ title, brand, imageUrl, publicCode, price, waLin
                 href={waLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-xl bg-loloteal px-4 text-base font-semibold text-white shadow-sm transition-colors active:bg-loloteal-dark"
+                className="inline-flex h-14 w-full items-center justify-center gap-2.5 rounded-xl bg-turquesa px-4 text-base font-semibold text-tinta shadow-sm transition-colors active:brightness-95"
                 onClick={(e) => e.stopPropagation()}
               >
                 <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
