@@ -3,7 +3,7 @@
 import type { PublicProduct } from "@/lib/data/public-projection";
 
 import { formatPrice } from "@/lib/public/format";
-import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { FavoriteButton, SaveFailedStatus } from "@/components/favorites/FavoriteButton";
 import { useFavorites } from "@/components/favorites/useFavorites";
 import { Button } from "@/components/ui/Button";
 
@@ -25,6 +25,8 @@ interface Props {
 export function CatalogGrid({ products, onSelect }: Props) {
   const favorites = useFavorites();
   return (
+    <>
+    <SaveFailedStatus failed={favorites.saveFailed} />
     <ul aria-label="Prendas" className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
       {products.map((p) => (
         <li key={p.id} id={`p-${p.id}`}>
@@ -95,5 +97,6 @@ export function CatalogGrid({ products, onSelect }: Props) {
         </li>
       ))}
     </ul>
+    </>
   );
 }

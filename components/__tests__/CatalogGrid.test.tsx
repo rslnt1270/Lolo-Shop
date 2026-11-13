@@ -56,8 +56,8 @@ describe("CatalogGrid: favorito y Ver prenda", () => {
   it("nombres accesibles únicos por prenda y estables al guardar", () => {
     window.localStorage.clear();
     render(<CatalogGrid products={twelve.slice(0, 3)} onSelect={() => {}} />);
-    const fav = screen.getByRole("button", { name: /Prenda de prueba 1.*favoritos/i });
-    expect(screen.getAllByRole("button", { name: /Prenda de prueba 1.*favoritos/i })).toHaveLength(1);
+    const fav = screen.getByRole("button", { name: /^Guardar en favoritos: Prenda de prueba 1$/ });
+    expect(screen.getAllByRole("button", { name: /^Guardar en favoritos: Prenda de prueba 1$/ })).toHaveLength(1);
     const before = fav.getAttribute("aria-label");
     fireEvent.click(fav);
     expect(fav.getAttribute("aria-label")).toBe(before);

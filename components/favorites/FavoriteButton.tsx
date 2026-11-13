@@ -21,7 +21,7 @@ export function FavoriteButton({ productId, title, saved, disabled, onToggle, cl
       <button
         type="button"
         aria-pressed={saved}
-        aria-label={`Guardar ${title} en favoritos`}
+        aria-label={`Guardar en favoritos: ${title}`}
         aria-describedby={disabled ? descId : undefined}
         disabled={disabled}
         onClick={(e) => {
@@ -31,7 +31,7 @@ export function FavoriteButton({ productId, title, saved, disabled, onToggle, cl
         className={`${buttonClasses("primary", { disabled })} w-full`}
       >
         <Heart className="h-4 w-4" fill={saved ? "currentColor" : "none"} aria-hidden="true" />
-        <span>{saved ? "En favoritos" : "Guardar en favoritos"}</span>
+        <span>Guardar en favoritos</span>
       </button>
       {disabled && (
         <span id={descId} className="text-xs leading-snug text-gray-600">
@@ -39,5 +39,16 @@ export function FavoriteButton({ productId, title, saved, disabled, onToggle, cl
         </span>
       )}
     </div>
+  );
+}
+
+export const SAVE_FAILED_TEXT = "No se pudo guardar en este navegador.";
+
+/** Aviso cortés cuando la última escritura de favoritos falló. El contenedor vive siempre en el DOM para que se anuncie. */
+export function SaveFailedStatus({ failed }: { failed: boolean }) {
+  return (
+    <p role="status" aria-live="polite" className={failed ? "mb-2 text-sm font-semibold text-agotado" : "sr-only"}>
+      {failed ? SAVE_FAILED_TEXT : ""}
+    </p>
   );
 }

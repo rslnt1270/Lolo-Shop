@@ -7,6 +7,7 @@ import type { PublicProduct } from "@/lib/data/public-projection";
 import { formatPrice } from "@/lib/public/format";
 import { Button } from "@/components/ui/Button";
 import { buttonClasses } from "@/components/ui/button-classes";
+import { SaveFailedStatus } from "./FavoriteButton";
 import { useFavorites } from "./useFavorites";
 
 interface Props {
@@ -51,13 +52,21 @@ export default function FavoritesClient({ products, loadError = false }: Props) 
   // Con error de carga no se sabe qué sigue publicado: no se marca nada como "Ya no disponible".
   const rows = loadError ? [] : fav.ids;
 
+  const mainRef = useRef<HTMLElement>(null);
+  const [refocusId, setRefocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (refocusId === null) return;
+    mainRef.current?.querySelector<HTMLButtonElement>(`[data-quitar="${CSS.escape(refocusId)}"]`)?.focus();
+    setRefocusId(null);
+  }, [refocusId]);
+
   const remove = (id: string) => {
     fav.toggle(id);
     setConfirmId(null);
   };
 
   return (
-    <main className="mx-auto min-h-pantalla w-full max-w-2xl bg-white px-4 pb-10 text-tinta">
+    <main ref={mainRef} className="mx-auto min-h-pantalla w-full max-w-2xl bg-white px-4 pb-10 text-tinta">
       <header className="flex min-h-14 items-center justify-between border-b border-niebla">
         <Link href="/catalogo" className="inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-turquesa-texto">
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -71,6 +80,8 @@ export default function FavoritesClient({ products, loadError = false }: Props) 
       <p className="mt-4 rounded-2xl border border-borde-control/30 bg-niebla p-4 text-sm leading-relaxed text-tinta">
         {LEYENDA}
       </p>
+
+      <SaveFailedStatus failed={fav.saveFailed} />
 
       {!fav.storageOk && fav.ready && (
         <p role="status" className="mt-3 text-sm text-agotado">
@@ -104,6 +115,7 @@ export default function FavoritesClient({ products, loadError = false }: Props) 
         <ul aria-label="Prendas guardadas" className="mt-4 space-y-3">
           {rows.map((id) => {
             const p = byId.get(id);
+            const missingNo = p ? 0 : rows.filter((r) => !byId.has(r)).indexOf(id) + 1;
             return (
               <li key={id} className="rounded-2xl border border-borde-control/30 bg-niebla p-3">
                 {p ? (
@@ -125,11 +137,14 @@ export default function FavoritesClient({ products, loadError = false }: Props) 
                     <span className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl bg-white text-agotado">
                       <AlertTriangle className="h-6 w-6" aria-hidden="true" />
                     </span>
-                    <p className="flex items-center gap-1 text-sm font-bold text-agotado">Ya no disponible</p>
+                    <p className="flex items-center gap-1 text-sm font-bold text-agotado">Ya no disponible (n.º {missingNo})</p>
                   </div>
                 )}
                 {confirmId === id ? (
-                  <ConfirmRemove onYes={() => remove(id)} onNo={() => setConfirmId(null)} />
+                  <ConfirmRemove onYes={() => remove(id)} onNo={() => {
+                    setConfirmId(null);
+                    setRefocusId(id);
+                  }} />
                 ) : (
                   <div className="mt-3 flex gap-2">
                     {p && (
@@ -140,7 +155,8 @@ export default function FavoritesClient({ products, loadError = false }: Props) 
                     <Button
                       variant="danger"
                       className={p ? "" : "flex-1"}
-                      aria-label={p ? `Quitar ${p.title} de favoritos` : "Quitar prenda que ya no está disponible de favoritos"}
+                      data-quitar={id}
+                      aria-label={p ? `Quitar ${p.title} de favoritos` : `Quitar prenda que ya no está disponible (n.º ${missingNo}) de favoritos`}
                       onClick={() => setConfirmId(id)}
                     >
                       Quitar
