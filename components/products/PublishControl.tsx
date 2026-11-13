@@ -25,6 +25,7 @@ export function PublishControl({ product, locations, onChanged }: Props) {
   const [error, setError] = useState<{ text: string; session?: boolean } | null>(null);
 
   const published = product.isPublished === true;
+  const inactive = product.isActive === false;
   const { eligible, gaps } = catalogEligibility({
     imageUrl: product.imageUrl,
     backImageUrl: product.backImageUrl,
@@ -53,7 +54,13 @@ export function PublishControl({ product, locations, onChanged }: Props) {
 
   return (
     <div className="space-y-2">
-      <p className="text-sm font-semibold text-gray-900">{published ? "Publicado en el sitio" : "No publicado"}</p>
+      <p className="text-sm font-semibold text-gray-900">
+        {published
+          ? eligible
+            ? "Publicado en el sitio"
+            : `Publicado, pero no aparece en el sitio: ${gaps.map((g) => ELIGIBILITY_GAP_TEXT[g]).join(" ")}`
+          : "No publicado"}
+      </p>
 
       {!published && !eligible && (
         <ul className="list-disc space-y-0.5 pl-5 text-sm text-gray-700">
@@ -67,6 +74,8 @@ export function PublishControl({ product, locations, onChanged }: Props) {
         <Button variant="outline" onClick={() => void run(false)} loading={busy}>
           Quitar del sitio
         </Button>
+      ) : inactive ? (
+        <p className="text-sm text-gray-700">Reactívalo para publicarlo.</p>
       ) : confirming ? (
         <div className="space-y-2">
           <p className="text-sm text-gray-800">{PUBLISH_CONFIRM_TEXT}</p>

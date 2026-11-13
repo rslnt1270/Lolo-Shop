@@ -437,12 +437,32 @@ describe("/pos escaneo continuo", () => {
       expect(screen.queryByRole("button", { name: "Descartar 222" })).toBeNull();
     });
 
+    it("lectura de varias piezas con existencias parciales deja una fila rechazada por el resto", async () => {
+      let resolve!: (v: unknown) => void;
+      actions.lookupCodeAction.mockReturnValueOnce(new Promise((r) => (resolve = r)));
+      await ready();
+      scan("111");
+      await screen.findByText("Buscando 111…");
+      scan("111");
+      scan("111");
+      await screen.findByText("Otra pieza de 111 en espera (×3).");
+      await act(async () => resolve(found("v1", "M", { available: 2, sold: false })));
+      await screen.findByText("111 · 1 sin existencias de la talla M en esta tienda");
+      expect(screen.getByText("×2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^cobrar/i })).toBeEnabled();
+    });
+
     it("un código que no existe deja una fila con el motivo", async () => {
       await ready();
       actions.lookupCodeAction.mockResolvedValueOnce({ found: false, code: "999" });
       scan("999");
       expect(await screen.findByText(/^999 · No encontramos el código/)).toBeInTheDocument();
     });
+  });
+
+  it("la zona de avisos respeta el notch: su separación superior usa --safe-top", async () => {
+    await ready();
+    expect(document.querySelector('[aria-live="polite"]')!.className).toContain("top-[calc(0.5rem+var(--safe-top))]");
   });
 
   it("al cambiar de tienda se borran las existencias conocidas y se descarta la consulta de la tienda anterior", async () => {
@@ -565,6 +585,7 @@ describe("/pos escaneo continuo", () => {
       expect(screen.getByRole("button", { name: /quitar playera/i })).toBeDisabled();
       expect(screen.getByLabelText("Tarjeta")).toBeDisabled();
       expect(screen.getByLabelText("WhatsApp")).toBeDisabled();
+      expect(document.getElementById("tienda")).toBeDisabled();
       await act(async () => resolve({ ok: false, code: "UNAVAILABLE", message: "Lento." }));
       const b = await screen.findByRole("button", { name: /ya revisé en ventas/i });
       expect(b).toBeEnabled();

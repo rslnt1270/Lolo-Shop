@@ -75,4 +75,22 @@ describe("PublishControl", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("No tienes permiso.");
     expect(onChanged).not.toHaveBeenCalled();
   });
+
+  it("publicado pero no elegible avisa que no aparece en el sitio y por qué", () => {
+    open({ ...base, isPublished: true, description: null });
+    expect(screen.getByText("Publicado, pero no aparece en el sitio: Falta la descripción.")).toBeInTheDocument();
+    expect(screen.queryByText("Publicado en el sitio")).toBeNull();
+    expect(screen.getByRole("button", { name: "Quitar del sitio" })).toBeInTheDocument();
+  });
+
+  it("producto inactivo no publicado: sin botón Publicar y con el aviso de reactivar", () => {
+    open({ ...base, isActive: false });
+    expect(screen.queryByRole("button", { name: "Publicar" })).toBeNull();
+    expect(screen.getByText("Reactívalo para publicarlo.")).toBeInTheDocument();
+  });
+
+  it("producto inactivo y publicado conserva Quitar del sitio", () => {
+    open({ ...base, isActive: false, isPublished: true });
+    expect(screen.getByRole("button", { name: "Quitar del sitio" })).toBeInTheDocument();
+  });
 });

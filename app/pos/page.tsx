@@ -21,7 +21,7 @@ import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expi
 
 type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
-type ApplyOutcome = { added: number; rejected: string | null; ok: string; title?: string };
+type ApplyOutcome = { added: number; rejected: string | null; ok: string; title?: string; shortReason?: string };
 type StockError = { message: string; signature: string; variantId?: string };
 
 /** Aviso del cobro primero y el posterior después: error si alguno lo es, y conserva el enlace de sesión. */
@@ -157,14 +157,19 @@ export default function POSPage() {
       if (!variant) return { added: 0, rejected: null, ok: "" };
       let added = 0;
       let rejected: string | null = null;
+      let shortReason: string | undefined;
       for (let i = 0; i < pieces; i++) {
         const r = add({ product: result.product, variant }, result.stock);
         if (r.ok) added += 1;
-        else rejected = `Sin existencias de la talla ${r.size} en esta tienda`;
+        else {
+          rejected = `Sin existencias de la talla ${r.size} en esta tienda`;
+          shortReason = `${pieces - added} sin existencias de la talla ${r.size} en esta tienda`;
+        }
       }
       return {
         added,
         rejected,
+        shortReason,
         title: result.product.title,
         ok: added ? `Agregado: ${result.product.title} (${variant.size}) · ×${quantityOf(variant.id)}` : "",
       };
@@ -190,7 +195,17 @@ export default function POSPage() {
   const addFromSearch = useCallback(
     (match: VariantMatch, stock: { available: number; sold: boolean }) => {
       if (submittingRef.current || lockRef.current) {
-        setNotice({ kind: "error", text: "Hay un cobro en curso: espera a que termine para agregar prendas." });
+        // Igual que una lectura: la talla espera y entra al carrito de la siguiente venta cuando el cobro termine.
+        const key = match.variant.sku;
+        const pending = pendingRef.current.get(key);
+        if (pending && (pending.status === "loading" || pending.status === "queued")) {
+          pending.extra += 1;
+          syncPending();
+        } else {
+          heldRef.current.set(key, { found: true, product: match.product, variantId: match.variant.id, stock });
+          setPending(key, "queued");
+        }
+        setNotice({ kind: "error", text: "Hay un cobro en curso: la talla queda en espera y entra a la siguiente venta." });
         return;
       }
       lastOutcomeRef.current = null;
@@ -198,7 +213,7 @@ export default function POSPage() {
         noticeFor([applyFound({ found: true, product: match.product, variantId: match.variant.id, stock })], false),
       );
     },
-    [applyFound, noticeFor],
+    [applyFound, noticeFor, setPending],
   );
 
   /** Aviso de algo que llegó solo (consulta que terminó): no pisa el del cobro, se le agrega. */
@@ -226,7 +241,7 @@ export default function POSPage() {
       const outcome = applyFound(result, pieces);
       outcomes.push(outcome);
       // Nada entró al carrito: el motivo queda en una fila que no se tapa con el siguiente aviso.
-      if (outcome.added === 0 && outcome.rejected) setPending(code, "rejected", outcome.rejected);
+      if (outcome.rejected) setPending(code, "rejected", outcome.added === 0 ? outcome.rejected : outcome.shortReason);
     }
     return noticeFor(outcomes, true);
   }, [applyFound, noticeFor, setPending]);
@@ -259,7 +274,7 @@ export default function POSPage() {
             const outcome = applyFound(result, pieces);
             const next = noticeFor([outcome], pieces > 1);
             if (next) notify(next);
-            if (outcome.added === 0 && outcome.rejected) setPending(code, "rejected", outcome.rejected);
+            if (outcome.rejected) setPending(code, "rejected", outcome.added === 0 ? outcome.rejected : outcome.shortReason);
           }
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
@@ -499,7 +514,7 @@ export default function POSPage() {
         </Link>
       </header>
 
-<div aria-live="polite" className="sticky top-2 z-30 space-y-2">
+<div aria-live="polite" className="sticky top-[calc(0.5rem+var(--safe-top))] z-30 space-y-2">
             {notice && (
               <p
                 role={notice.kind === "error" ? "alert" : "status"}
@@ -528,7 +543,7 @@ export default function POSPage() {
               <select
                 id="tienda"
                 value={chosenLocation}
-                disabled={lock !== null}
+                disabled={lock !== null || submitting}
                 onChange={(e) => chooseLocation(e.target.value)}
                 className="mt-1 block min-h-[44px] w-full rounded-lg border border-borde-control bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
               >

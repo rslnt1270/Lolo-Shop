@@ -131,6 +131,25 @@ describe("/pos «Sin código»", () => {
       await act(async () => sale.resolve({ ok: false, code: "UNAVAILABLE", message: "Lento." }));
     });
 
+    it("la talla elegida durante un cobro entra al carrito de la siguiente venta y el aviso lo reporta", async () => {
+      await withOneLine();
+      const late = defer();
+      actions.lookupCodeAction.mockReturnValueOnce(late.promise);
+      const sale = defer();
+      actions.createSaleAction.mockReturnValueOnce(sale.promise);
+      await pickM();
+      fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+      await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalledTimes(1));
+      await act(async () => late.resolve(lookup(5)));
+      expect(await screen.findByText(/Pendiente para la siguiente venta: LS-BBBBBB-1/)).toBeInTheDocument();
+      await act(async () => sale.resolve({ ok: true, sale: { number: 9, status: "paid" } }));
+      const status = await screen.findByRole("status");
+      expect(status).toHaveTextContent("Venta #9 registrada");
+      expect(status).toHaveTextContent("Agregado: Playera Logo (M) · ×1");
+      expect(screen.queryByText(/Pendiente para la siguiente venta/)).toBeNull();
+      expect(screen.getByRole("button", { name: /^cobrar/i })).toBeEnabled();
+    });
+
     it("con el carrito bloqueado avisa y no cambia el carrito", async () => {
       await withOneLine();
       const late = defer();
