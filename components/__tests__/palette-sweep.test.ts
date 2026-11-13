@@ -93,4 +93,28 @@ describe("barrido de paleta (plan B, zonas)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("scanner override uses turquesa fill and tinta text, not white", () => {
+    const css = readFileSync(join(ROOT, "app/globals.css"), "utf8");
+    const rule = /#reader button\s*\{[^}]*\}/.exec(css)![0];
+    expect(rule).toContain("#22B8B8");
+    expect(rule).toContain("#16302F");
+    expect(rule).not.toMatch(/color:\s*white/);
+  });
+
+  it("stock labels pair color with text", () => {
+    const src = readFileSync(join(ROOT, "components/inventory/StockSummary.tsx"), "utf8");
+    expect(src).toContain("Disponible");
+    expect(src).toContain("Agotado");
+    expect(src).toMatch(/text-ok/);
+    expect(src).toMatch(/text-agotado/);
+  });
+
+  it("inventory and scanner files have no loloteal, white fills or fixed hex", () => {
+    expect(
+      offenders(["components/inventory", "app/escanear/page.tsx"], [
+        /loloteal|bg-primary|text-primary|bg-red-|#[0-9A-Fa-f]{6}\b|#[0-9A-Fa-f]{3}\b(?![\w-])/,
+      ]),
+    ).toEqual([]);
+  });
 });

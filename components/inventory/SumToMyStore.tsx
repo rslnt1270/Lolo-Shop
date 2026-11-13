@@ -90,7 +90,7 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
               setQty(e.target.value);
               if (!busyRef.current) requestIdRef.current = null;
             }}
-            className="mt-1 block min-h-[44px] w-28 rounded-md border border-gray-300 bg-white px-3 font-mono text-base text-gray-900 focus:border-loloteal focus:outline-none focus:ring-2 focus:ring-loloteal"
+            className="mt-1 block min-h-[44px] w-28 rounded-md border border-gray-300 bg-white px-3 font-mono text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto"
           />
         </div>
       )}
@@ -98,7 +98,7 @@ export function SumToMyStore({ variantId, locationId, quantity, defaultQuantity 
         {pending ? "Sumando…" : (label ?? sumLabel(shown))}
       </Button>
       {error && (
-        <p role="alert" className="text-sm font-medium text-[#9A3B2E]"><ActionErrorText message={error} session={sessionExpired} /></p>
+        <p role="alert" className="text-sm font-medium text-agotado"><ActionErrorText message={error} session={sessionExpired} /></p>
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Button } from "@/components/ui/Button";
 
 type Props = {
   onSubmit: (code: string) => void;
@@ -37,24 +38,15 @@ export function ManualCodeEntry({ onSubmit, onNoBarcode, noBarcodeLabel = "Prend
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="Escribe el código"
-          className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-loloteal"
+          className="min-h-[44px] w-full rounded-lg border border-gray-300 px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
         />
-        <button
-          type="submit"
-          disabled={!trimmed}
-          className="min-h-[44px] w-full rounded-lg bg-loloteal px-4 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <Button type="submit" disabled={!trimmed} className="w-full">
           Usar este código
-        </button>
+        </Button>
       </form>
-      <button
-        type="button"
-        onClick={onNoBarcode}
-        disabled={noBarcodeDisabled}
-        className="min-h-[44px] w-full rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium disabled:opacity-50"
-      >
+      <Button variant="outline" onClick={onNoBarcode} disabled={noBarcodeDisabled} className="w-full">
         {noBarcodeLabel}
-      </button>
+      </Button>
     </div>
   );
 }
