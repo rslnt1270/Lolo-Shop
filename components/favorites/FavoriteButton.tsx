@@ -28,7 +28,7 @@ export function FavoriteButton({ productId, title, saved, disabled, onToggle, cl
           e.stopPropagation();
           if (!disabled) onToggle();
         }}
-        className={`${buttonClasses("primary", { disabled })} w-full`}
+        className={`${buttonClasses(saved ? "outline" : "primary", { disabled })} w-full`}
       >
         <Heart className="h-4 w-4" fill={saved ? "currentColor" : "none"} aria-hidden="true" />
         <span>Guardar en favoritos</span>

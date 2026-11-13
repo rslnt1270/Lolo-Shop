@@ -123,6 +123,7 @@ describe("barrido de paleta (plan B, zonas)", () => {
     for (const { file, lines } of readSources(["components/virtual-store", "components/products/ProductCard3D.tsx"])) {
       lines.forEach((line, i) => {
         if (/text-loloteal|text-primary|text-turquesa(\s|")|loloteal|bg-primary|#3cbfbf|#007272|#0f171c/i.test(line)) bad.push(`${file}:${i + 1}`);
+        if (/<text[^>]*fill=\{PALETTE\.turquesa\}|<text[^>]*text-turquesa(\s|")/.test(line)) bad.push(`${file}:${i + 1}`);
         if (/bg-turquesa(?![-\w])/.test(line) && /text-white(?!\/)/.test(line)) bad.push(`${file}:${i + 1}`);
       });
     }

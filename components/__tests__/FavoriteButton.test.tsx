@@ -34,6 +34,15 @@ describe("FavoriteButton", () => {
     expect(after.getAttribute("aria-label")).toBe("Guardar en favoritos: Playera");
     expect(after.textContent!.trim()).toBe(visible);
   });
+  it("guardada cambia de variante (contorno) sin cambiar el nombre", () => {
+    const { rerender } = render(<FavoriteButton {...base} saved={false} />);
+    expect(screen.getByRole("button").className).toContain("bg-turquesa");
+    rerender(<FavoriteButton {...base} saved />);
+    const b = screen.getByRole("button");
+    expect(b.className).toContain("border-turquesa-texto");
+    expect(b.className).not.toMatch(/(^|\s)bg-turquesa(\s|$)/);
+    expect(b.getAttribute("aria-label")).toBe("Guardar en favoritos: Playera");
+  });
   it("SaveFailedStatus avisa de forma cortés solo cuando falla", () => {
     const { rerender } = render(<SaveFailedStatus failed={false} />);
     const status = screen.getByRole("status");

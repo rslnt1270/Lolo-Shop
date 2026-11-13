@@ -150,7 +150,7 @@ export function StoreMinimap({
                 strokeWidth="2.5"
                 strokeLinecap="round"
               />
-              <text x="50" y="97" fontSize="4" fill={PALETTE.turquesa} textAnchor="middle" fontWeight="bold">
+              <text x="50" y="97" fontSize="4" fill={PALETTE.turquesaTexto} textAnchor="middle" fontWeight="bold">
                 ▲ Acceso
               </text>
 
