@@ -41,9 +41,14 @@ export interface QueuedSale {
   syncedAt?: string;
 }
 
-/** Copia guardada: la proyección de §5 más la firma del servidor que la acompaña. */
+/**
+ * Copia guardada: la proyección de §5 más la firma del servidor que la acompaña
+ * y el usuario que la bajó. Una copia solo se usa con la identidad de ese
+ * usuario (otra persona en el mismo teléfono baja la suya).
+ */
 export interface StoredSnapshot extends OfflineSnapshot {
   snapshotToken: string;
+  userId: string;
 }
 
 export interface StoredIdentity {

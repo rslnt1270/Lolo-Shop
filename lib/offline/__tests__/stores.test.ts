@@ -5,7 +5,7 @@ import { OFFLINE_DB_NAME, OfflineStorageError, onOfflineStorageError, openOfflin
 import {
   discardQueued, enqueueSale, listQueue, onQueueEnqueued, purgeSynced, resetStoragePersistRequest, updateQueued,
 } from "../queue-store";
-import { getLatestSnapshot, getSnapshot, localAvailable, saveSnapshot } from "../snapshot-store";
+import { deleteSnapshot, getLatestSnapshot, getSnapshot, localAvailable, saveSnapshot } from "../snapshot-store";
 import { clearOnSignOut, getIdentity, saveIdentity } from "../identity-store";
 
 const sale = (id: string, over: Partial<Omit<QueuedSale, "state" | "attempts">> = {}): Omit<QueuedSale, "state" | "attempts"> => ({
@@ -26,6 +26,7 @@ const snap = (available = 5) => ({
   locationId: "loc-1",
   generatedAt: "2026-11-10T09:00:00.000Z",
   snapshotToken: "tok.sig",
+  userId: "u1",
   variants: [{
     variantId: "v1", productId: "p1", barcode: null, sku: "S1", productTitle: "Playera",
     variantTitle: "M", size: "M", price: 450, available,
@@ -218,11 +219,23 @@ describe("copia", () => {
     expect(await getSnapshot("otra")).toBeNull();
   });
 
-  it("getLatestSnapshot devuelve la copia más reciente de las guardadas", async () => {
-    expect(await getLatestSnapshot()).toBeNull();
+  it("getLatestSnapshot devuelve la copia más reciente de ese usuario", async () => {
+    expect(await getLatestSnapshot("u1")).toBeNull();
     await saveSnapshot({ ...snap(), locationId: "loc-2", generatedAt: "2026-11-10T11:00:00.000Z" });
+    await saveSnapshot({ ...snap(), locationId: "loc-3", generatedAt: "2026-11-10T12:00:00.000Z", userId: "u2" });
     await saveSnapshot(snap());
-    expect(await getLatestSnapshot()).toMatchObject({ locationId: "loc-2" });
+    expect(await getLatestSnapshot("u1")).toMatchObject({ locationId: "loc-2" });
+    expect(await getLatestSnapshot("u2")).toMatchObject({ locationId: "loc-3" });
+    expect(await getLatestSnapshot("u3")).toBeNull();
+  });
+
+  it("guarda quién bajó la copia y deleteSnapshot borra solo esa tienda", async () => {
+    await saveSnapshot(snap());
+    await saveSnapshot({ ...snap(), locationId: "loc-2" });
+    expect(await getSnapshot("loc-1")).toMatchObject({ userId: "u1" });
+    await deleteSnapshot("loc-1");
+    expect(await getSnapshot("loc-1")).toBeNull();
+    expect(await getSnapshot("loc-2")).not.toBeNull();
   });
 
   it("localAvailable resta pending y sending, no synced ni otras tiendas", async () => {

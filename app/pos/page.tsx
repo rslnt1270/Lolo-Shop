@@ -21,7 +21,8 @@ import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expi
 import { listQueue } from "@/lib/offline/queue-store";
 import { lookupOffline, toDraftMatch } from "@/lib/offline/lookup";
 import {
-  OFFLINE_IDENTITY_EXPIRED_TEXT, OFFLINE_NOT_FOUND_TEXT, OFFLINE_SNAPSHOT_BLOCKED_TEXT, useOfflinePos, useOnline,
+  OFFLINE_IDENTITY_EXPIRED_TEXT, OFFLINE_NOT_FOUND_TEXT, OFFLINE_SNAPSHOT_BLOCKED_TEXT, OFFLINE_SNAPSHOT_TOO_LARGE_TEXT,
+  useOfflinePos, useOnline, useRevalidatedSession,
 } from "@/lib/offline/use-offline-pos";
 
 type LocationOption = { id: string; name: string };
@@ -85,15 +86,19 @@ export default function POSPage() {
     () => (sessionId && sessionRole ? { id: sessionId, role: sessionRole, locationId: sessionLocation } : null),
     [sessionId, sessionRole, sessionLocation],
   );
+  // next-auth no recupera una sesión que quedó en null sin red: al volver la conexión se pregunta al servidor.
+  const revalidated = useRevalidatedSession({ online, status, sessionUser });
+  const serverUser = sessionUser ?? revalidated.user;
   const offline = useOfflinePos({
     online,
-    sessionUser,
-    locationId: sessionRole === "collaborator" ? (sessionLocation ?? "") : chosenLocation,
+    sessionUser: serverUser,
+    locationId: serverUser?.role === "collaborator" ? (serverUser.locationId ?? "") : chosenLocation,
   });
-  // Sin conexión next-auth no puede leer la sesión: manda la identidad local (≤ 12 h).
-  const user = online
-    ? sessionUser
-    : offline.identity && { id: offline.identity.userId, role: offline.identity.role, locationId: offline.identity.locationId };
+  // Sin conexión (o mientras se confirma la sesión al volver) manda la identidad local (≤ 12 h).
+  const localUser =
+    offline.identity && { id: offline.identity.userId, role: offline.identity.role, locationId: offline.identity.locationId };
+  const user = online ? (serverUser ?? (revalidated.pending ? localUser : null)) : localUser;
+  const hasServerSession = serverUser !== null;
   const role = user?.role;
   const isCollaborator = role === "collaborator";
   const canEditPrice = role === "owner" || role === "manager";
@@ -104,7 +109,7 @@ export default function POSPage() {
   offlineRef.current = offline;
 
   useEffect(() => {
-    if (status !== "authenticated" || isCollaborator) return;
+    if (!hasServerSession || isCollaborator) return;
     let cancelled = false;
     setLocationsFailed(false);
     fetchLocationsAction()
@@ -134,7 +139,7 @@ export default function POSPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, isCollaborator, locationsAttempt]);
+  }, [hasServerSession, isCollaborator, locationsAttempt]);
 
   const chooseLocation = (id: string) => {
     setChosenLocation(id);
@@ -301,11 +306,12 @@ export default function POSPage() {
    */
   const lookupLocal = useCallback(
     async (code: string, store: string): Promise<boolean> => {
-      const { snapshot, canSellOffline } = offlineRef.current;
+      const { snapshot, canSellOffline, blockReason } = offlineRef.current;
       if (!canSellOffline || !snapshot || snapshot.locationId !== store) {
         if (onlineRef.current) return false;
-        setPending(code, "rejected", OFFLINE_SNAPSHOT_BLOCKED_TEXT);
-        notify({ kind: "error", text: OFFLINE_SNAPSHOT_BLOCKED_TEXT });
+        const text = blockReason === "too_large" ? OFFLINE_SNAPSHOT_TOO_LARGE_TEXT : OFFLINE_SNAPSHOT_BLOCKED_TEXT;
+        setPending(code, "rejected", text);
+        notify({ kind: "error", text });
         return true;
       }
       const queue = await listQueue();
@@ -559,7 +565,7 @@ export default function POSPage() {
     setNotice(flushed);
   };
 
-  if (online ? status === "loading" : !offline.identityChecked) {
+  if (online ? status === "loading" || (!user && revalidated.checking) : !offline.identityChecked) {
     return <StaffLoadState state="loading" retry={() => {}} />;
   }
   if (!user && !online) {
@@ -597,7 +603,7 @@ export default function POSPage() {
 <div aria-live="polite" className="sticky top-[calc(0.5rem+var(--safe-top))] z-30 space-y-2">
             {!online && offline.blockReason && offline.snapshotChecked && (
               <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado shadow-sm">
-                {OFFLINE_SNAPSHOT_BLOCKED_TEXT}
+                {offline.blockReason === "too_large" ? OFFLINE_SNAPSHOT_TOO_LARGE_TEXT : OFFLINE_SNAPSHOT_BLOCKED_TEXT}
               </p>
             )}
             {notice && (

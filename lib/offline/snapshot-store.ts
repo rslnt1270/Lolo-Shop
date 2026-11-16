@@ -8,6 +8,7 @@ export async function saveSnapshot(s: StoredSnapshot): Promise<void> {
     generatedAt: s.generatedAt,
     variants: s.variants,
     snapshotToken: s.snapshotToken,
+    userId: s.userId,
   };
   await withDb((db) => db.put("snapshots", record).then(() => undefined), { value: undefined });
 }
@@ -16,15 +17,21 @@ export async function getSnapshot(locationId: string): Promise<StoredSnapshot | 
   return withDb(async (db) => (await db.get("snapshots", locationId)) ?? null, { value: null });
 }
 
+/** Borra la copia de una tienda (p. ej. cuando el servidor dice que es demasiado grande). */
+export async function deleteSnapshot(locationId: string): Promise<void> {
+  await withDb((db) => db.delete("snapshots", locationId).then(() => undefined), { value: undefined });
+}
+
 /**
- * La copia más reciente guardada en este teléfono (mayor `generatedAt`). Sirve
- * a owner y manager sin tienda que abren `/pos` sin conexión: la tienda queda
- * fija a la de esa copia.
+ * La copia más reciente que bajó `userId` en este teléfono (mayor
+ * `generatedAt`). Sirve a owner y manager sin tienda que abren `/pos` sin
+ * conexión: la tienda queda fija a la de esa copia.
  */
-export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
+export async function getLatestSnapshot(userId: string): Promise<StoredSnapshot | null> {
   return withDb(async (db) => {
     let latest: StoredSnapshot | null = null;
     for (const s of await db.getAll("snapshots")) {
+      if (s.userId !== userId) continue;
       if (!latest || Date.parse(s.generatedAt) > Date.parse(latest.generatedAt)) latest = s;
     }
     return latest;

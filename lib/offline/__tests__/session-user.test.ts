@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SESSION_TIMEOUT_MS, fetchSessionUserId } from "../session-user";
+import { SESSION_TIMEOUT_MS, fetchSessionUser, fetchSessionUserId } from "../session-user";
 
 const respond = (body: unknown, status = 200) =>
   vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(body), { status }));
@@ -56,5 +56,29 @@ describe("fetchSessionUserId", () => {
     respond({ user: { id: "u1" } });
     await expect(fetchSessionUserId(1_000)).resolves.toBe("u1");
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("fetchSessionUser", () => {
+  it("devuelve id, rol y tienda de la sesión", async () => {
+    respond({ user: { id: "u1", name: "Lolo", role: "manager", locationId: "l1" }, expires: "x" });
+    await expect(fetchSessionUser()).resolves.toEqual({ id: "u1", role: "manager", locationId: "l1" });
+  });
+
+  it("sin tienda devuelve locationId null", async () => {
+    respond({ user: { id: "u1", role: "owner" } });
+    await expect(fetchSessionUser()).resolves.toEqual({ id: "u1", role: "owner", locationId: null });
+  });
+
+  it.each([[{}], [null], [{ user: { id: "u1" } }], [{ user: { id: "u1", role: "admin" } }], [{ user: { role: "owner" } }]])(
+    "sin sesión válida (%j) → null", async (body) => {
+      respond(body);
+      await expect(fetchSessionUser()).resolves.toBeNull();
+    },
+  );
+
+  it("falla de red lanza", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(fetchSessionUser()).rejects.toThrow();
   });
 });

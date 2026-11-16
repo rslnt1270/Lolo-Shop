@@ -11,11 +11,13 @@ const m = vi.hoisted(() => ({
   fetchLocationsAction: vi.fn(),
   createSaleAction: vi.fn(),
   getOfflineSnapshotAction: vi.fn(),
+  fetchSessionUser: vi.fn(),
   getIdentity: vi.fn(),
   saveIdentity: vi.fn(),
   getSnapshot: vi.fn(),
   getLatestSnapshot: vi.fn(),
   saveSnapshot: vi.fn(),
+  deleteSnapshot: vi.fn(),
   listQueue: vi.fn(),
   onScan: { current: null as null | ((c: string) => void) },
 }));
@@ -40,6 +42,11 @@ vi.mock("@/lib/offline/snapshot-store", async (orig) => ({
   getSnapshot: m.getSnapshot,
   getLatestSnapshot: m.getLatestSnapshot,
   saveSnapshot: m.saveSnapshot,
+  deleteSnapshot: m.deleteSnapshot,
+}));
+vi.mock("@/lib/offline/session-user", async (orig) => ({
+  ...(await orig<typeof import("@/lib/offline/session-user")>()),
+  fetchSessionUser: m.fetchSessionUser,
 }));
 vi.mock("@/lib/offline/queue-store", async (orig) => ({
   ...(await orig<typeof import("@/lib/offline/queue-store")>()),
@@ -75,11 +82,17 @@ const variant = (over: Partial<OfflineSnapshotVariant> = {}): OfflineSnapshotVar
   ...over,
 });
 
-const stored = (locationId = "l1", ageMs = H, variants = [variant()]): StoredSnapshot => ({
+const stored = (locationId = "l1", ageMs = H, variants = [variant()], userId = "u2"): StoredSnapshot => ({
   locationId,
   generatedAt: new Date(Date.now() - ageMs).toISOString(),
   variants,
   snapshotToken: "tok.sig",
+  userId,
+});
+
+const goOnline = () => act(() => {
+  online = true;
+  window.dispatchEvent(new Event("online"));
 });
 
 const identity = (ageMs: number, over: Partial<StoredIdentity> = {}): StoredIdentity => ({
@@ -136,14 +149,16 @@ beforeEach(() => {
   m.session.current = { data: null, status: "unauthenticated" };
   m.fetchLocationsAction.mockResolvedValue([{ id: "l1", name: "Centro" }, { id: "l2", name: "Norte" }]);
   m.getOfflineSnapshotAction.mockImplementation(async (loc: string) => {
-    const { snapshotToken, ...snapshot } = stored(loc, 0);
-    return { ok: true, snapshot, snapshotToken };
+    const { locationId, generatedAt, variants, snapshotToken } = stored(loc, 0);
+    return { ok: true, snapshot: { locationId, generatedAt, variants }, snapshotToken };
   });
   m.getIdentity.mockResolvedValue(null);
   m.saveIdentity.mockResolvedValue(undefined);
   m.getSnapshot.mockResolvedValue(null);
   m.getLatestSnapshot.mockResolvedValue(null);
   m.saveSnapshot.mockResolvedValue(undefined);
+  m.deleteSnapshot.mockResolvedValue(undefined);
+  m.fetchSessionUser.mockResolvedValue(null);
   m.listQueue.mockResolvedValue([]);
 });
 
@@ -233,7 +248,7 @@ describe("/pos sin internet: copia local", () => {
 
   it("con red, si la búsqueda falla por red usa la copia", async () => {
     ownerSession();
-    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc));
+    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc, H, [variant()], "u1"));
     m.lookupCodeAction.mockRejectedValue(new Error("Failed to fetch"));
     render(<POSPage />);
     await screen.findByDisplayValue("Centro");
@@ -251,7 +266,7 @@ describe("/pos sin internet: copia local", () => {
     await waitFor(() => expect(m.getOfflineSnapshotAction).toHaveBeenCalledTimes(1));
     expect(m.getOfflineSnapshotAction).toHaveBeenLastCalledWith("l1");
     await waitFor(() => expect(m.saveSnapshot).toHaveBeenCalledTimes(1));
-    expect(m.saveSnapshot.mock.calls[0][0]).toMatchObject({ locationId: "l1", snapshotToken: "tok.sig" });
+    expect(m.saveSnapshot.mock.calls[0][0]).toMatchObject({ locationId: "l1", snapshotToken: "tok.sig", userId: "u1" });
 
     act(() => { vi.advanceTimersByTime(9 * 60 * 1000); });
     expect(m.getOfflineSnapshotAction).toHaveBeenCalledTimes(1);
@@ -278,7 +293,7 @@ describe("/pos sin internet: copia local", () => {
 describe("/pos sin internet: tienda", () => {
   it("owner sin red no puede cambiar de tienda", async () => {
     ownerSession();
-    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc));
+    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc, H, [variant()], "u1"));
     render(<POSPage />);
     const select = await screen.findByDisplayValue("Centro");
     expect(select).not.toBeDisabled();
@@ -288,7 +303,7 @@ describe("/pos sin internet: tienda", () => {
   });
 
   it("owner que abre sin red queda fijo en la tienda de la copia", async () => {
-    offlineCold(identity(H, { userId: "u1", role: "owner", locationId: null }), stored("l2"));
+    offlineCold(identity(H, { userId: "u1", role: "owner", locationId: null }), stored("l2", H, [variant()], "u1"));
     render(<POSPage />);
     const select = await screen.findByRole("combobox", { name: "Tienda" });
     await waitFor(() => expect(select).toHaveValue("l2"));
@@ -297,5 +312,102 @@ describe("/pos sin internet: tienda", () => {
     scan("7501234567890");
     expect(await screen.findByText("Agregado: Playera Guess negro (M) · ×1")).toBeInTheDocument();
     expect(m.fetchLocationsAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("/pos al volver la conexión sin sesión de next-auth", () => {
+  it("abrió sin red: al volver la red revalida la sesión y sigue vendiendo", async () => {
+    offlineCold(identity(H), stored("l1"));
+    let resolve!: (u: unknown) => void;
+    m.fetchSessionUser.mockReturnValue(new Promise((r) => (resolve = r)));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    goOnline();
+    await waitFor(() => expect(m.fetchSessionUser).toHaveBeenCalledTimes(1));
+    // Mientras se confirma, sigue con la identidad local.
+    expect(screen.getByTestId("scanner")).toBeInTheDocument();
+    expect(screen.queryByText(/inicia sesión/i)).toBeNull();
+    await act(async () => resolve({ id: "u2", role: "collaborator", locationId: "l1" }));
+    expect(screen.getByTestId("scanner")).toBeInTheDocument();
+    // La sesión confirmada reanuda la copia y la identidad.
+    await waitFor(() => expect(m.getOfflineSnapshotAction).toHaveBeenCalledWith("l1"));
+    await waitFor(() => expect(m.saveIdentity).toHaveBeenCalledWith(expect.objectContaining({ userId: "u2" })));
+  });
+
+  it("si el servidor confirma que no hay sesión, pide iniciar sesión", async () => {
+    offlineCold(identity(H), stored("l1"));
+    m.fetchSessionUser.mockResolvedValue(null);
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    goOnline();
+    expect(await screen.findByRole("link", { name: "Iniciar sesión" })).toBeInTheDocument();
+    expect(screen.queryByTestId("scanner")).toBeNull();
+  });
+
+  it("si la revalidación falla por red, sigue con la identidad local y reintenta al volver la red", async () => {
+    offlineCold(identity(H), stored("l1"));
+    m.fetchSessionUser.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    m.fetchSessionUser.mockResolvedValueOnce({ id: "u2", role: "collaborator", locationId: "l1" });
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    goOnline();
+    await waitFor(() => expect(m.fetchSessionUser).toHaveBeenCalledTimes(1));
+    await act(async () => {});
+    expect(screen.getByTestId("scanner")).toBeInTheDocument();
+    goOffline();
+    goOnline();
+    await waitFor(() => expect(m.fetchSessionUser).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(m.getOfflineSnapshotAction).toHaveBeenCalledWith("l1"));
+  });
+});
+
+describe("/pos copia demasiado grande", () => {
+  it("too_large descarta la copia anterior de esa tienda y deshabilita la venta sin internet", async () => {
+    ownerSession();
+    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc, H, [variant()], "u1"));
+    m.getOfflineSnapshotAction.mockResolvedValue({ ok: false, reason: "too_large" });
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    await waitFor(() => expect(m.deleteSnapshot).toHaveBeenCalledWith("l1"));
+    goOffline();
+    const text = "Esta tienda tiene demasiadas prendas para vender sin internet. Avisa al dueño.";
+    expect(await screen.findByText(text)).toBeInTheDocument();
+    scan("7501234567890");
+    await waitFor(() => expect(screen.getAllByText(text).length).toBeGreaterThan(1));
+    expect(screen.queryByText(/Agregado:/)).toBeNull();
+  });
+
+  it("una falla de red al pedir la copia conserva la anterior", async () => {
+    ownerSession();
+    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc, H, [variant()], "u1"));
+    m.getOfflineSnapshotAction.mockRejectedValue(new TypeError("Failed to fetch"));
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    await waitFor(() => expect(m.getOfflineSnapshotAction).toHaveBeenCalled());
+    await snapshotRead();
+    goOffline();
+    scan("7501234567890");
+    expect(await screen.findByText("Agregado: Playera Guess negro (M) · ×1")).toBeInTheDocument();
+    expect(m.deleteSnapshot).not.toHaveBeenCalled();
+  });
+});
+
+describe("/pos copia de otro usuario", () => {
+  it("sin red no usa la copia que bajó otro usuario en este teléfono", async () => {
+    offlineCold(identity(H), stored("l1", H, [variant()], "u-otro"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    await snapshotRead();
+    expect(await screen.findByText("Conéctate para actualizar precios y existencias")).toBeInTheDocument();
+    scan("7501234567890");
+    await waitFor(() => expect(screen.getAllByText("Conéctate para actualizar precios y existencias").length).toBeGreaterThan(1));
+    expect(screen.queryByText(/Agregado:/)).toBeNull();
+  });
+
+  it("owner que abre sin red solo toma la tienda de una copia suya", async () => {
+    offlineCold(identity(H, { userId: "u1", role: "owner", locationId: null }), stored("l2", H, [variant()], "u1"));
+    render(<POSPage />);
+    await screen.findByRole("combobox", { name: "Tienda" });
+    await waitFor(() => expect(m.getLatestSnapshot).toHaveBeenCalledWith("u1"));
   });
 });
