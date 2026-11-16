@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { pinMexicoNoon } from "../../../test/mexico-noon";
 import { FixtureSalesDataSource } from "../fixture-sales-source";
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "../errors";
 import type { NewSaleInput, PaymentMethod } from "@/lib/domain/sale";
@@ -130,6 +131,7 @@ describe("FixtureSalesDataSource.getDashboard: alias y Ventas de hoy", () => {
 });
 
 describe("FixtureSalesDataSource sin internet", () => {
+  pinMexicoNoon();
   const HOUR = 60 * 60 * 1000;
   const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
   const meta = (soldMsAgo = HOUR, gap = HOUR) => ({ soldAt: ago(soldMsAgo), snapshotAt: ago(soldMsAgo + gap) });
@@ -191,6 +193,22 @@ describe("FixtureSalesDataSource sin internet", () => {
     expect(stale.reviewReasons).toEqual(["clock_skew"]);
   });
 
+  it("reloj: venta de ayer → clock_skew", async () => {
+    const ds = new FixtureSalesDataSource();
+    const rec = await ds.createSale(sale([line(1, 450, "var-1")]), "u1", { offline: meta(24 * HOUR) });
+    expect(rec).toMatchObject({ reviewStatus: "pending", reviewReasons: ["clock_skew"] });
+  });
+
+  it("copia no verificada: price_unverified para cualquier rol y un oldPrice reciente no lo limpia", async () => {
+    const ds = new FixtureSalesDataSource();
+    const at2 = (opts: Parameters<FixtureSalesDataSource["createSale"]>[2]) =>
+      ds.createSale({ ...sale([line(1, 400, "var-1")]), locationId: "loc-2" }, "u1", opts).then((r) => r.reviewReasons);
+    expect(await at2({ offline: meta(), snapshotUnverified: true })).toEqual(["price_unverified"]);
+    ds.recordPriceChange("var-1", 400, 450, new Date(Date.now() - HOUR / 2));
+    expect(await at2({ offline: meta(HOUR, HOUR), checkPrice: true })).toEqual([]);
+    expect(await at2({ offline: meta(HOUR, HOUR), checkPrice: true, snapshotUnverified: true })).toEqual(["price_unverified"]);
+  });
+
   it("checkPrice sin offline se ignora", async () => {
     const ds = new FixtureSalesDataSource();
     const rec = await ds.createSale(sale([line(1, 400, "var-1")]), "u1", { checkPrice: true });
@@ -207,6 +225,7 @@ describe("FixtureSalesDataSource sin internet", () => {
 });
 
 describe("FixtureSalesDataSource: revisión del dueño", () => {
+  pinMexicoNoon();
   const HOUR = 60 * 60 * 1000;
   const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
   const meta = () => ({ soldAt: ago(HOUR), snapshotAt: ago(2 * HOUR) });

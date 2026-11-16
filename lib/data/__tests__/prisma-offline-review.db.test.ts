@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { pinMexicoNoon } from "../../../test/mexico-noon";
 import { hasTestDb, testPrisma } from "../../../test/db/setup";
 import { getTestDatabaseUrl } from "../../../test/db/guard";
 import { resetDb } from "../../../test/db/reset";
@@ -62,6 +63,7 @@ async function pendingSale(locationId = storeA) {
 }
 
 describe.skipIf(!hasTestDb)("PrismaSalesDataSource: revisión del dueño", () => {
+  pinMexicoNoon();
   beforeEach(async () => {
     await resetDb();
     await seed();

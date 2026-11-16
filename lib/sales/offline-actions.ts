@@ -11,9 +11,14 @@ import {
 import type { SaleRecord } from "@/lib/data/sales-source";
 import { validateOfflineSale } from "@/lib/domain/offline-sale";
 import { fail, mapOfflineError, sessionExpired, type SaleActionResult } from "./action-errors";
+import { signSnapshotToken, verifySnapshotToken } from "./snapshot-token";
 
 export type OfflineSnapshotResult =
-  | { ok: true; snapshot: OfflineSnapshot }
+  /**
+   * `snapshotToken`: firma del servidor sobre usuario, tienda y `generatedAt`. El
+   * teléfono la guarda con la copia y la manda con cada venta hecha con ella.
+   */
+  | { ok: true; snapshot: OfflineSnapshot; snapshotToken: string }
   | { ok: false; reason: "session_expired" | "forbidden" | "too_large" | "unavailable" };
 
 export type OfflineSaleResult =
@@ -58,6 +63,7 @@ export async function getOfflineSnapshotAction(locationId: string): Promise<Offl
   if (snapshot.variants.length > MAX_SNAPSHOT_VARIANTS) return { ok: false, reason: "too_large" };
   return {
     ok: true,
+    snapshotToken: signSnapshotToken({ userId: user.id, locationId, generatedAt: snapshot.generatedAt }),
     snapshot: {
       locationId: snapshot.locationId,
       generatedAt: snapshot.generatedAt,
@@ -73,13 +79,20 @@ export async function getOfflineSnapshotAction(locationId: string): Promise<Offl
  * venta queda en revisión del dueño. Reenviar el mismo `clientRequestId`
  * devuelve la venta original (replay). El usuario de la venta es siempre el de
  * la sesión.
+ *
+ * La fecha de la copia sale solo del `snapshotToken` firmado (el `snapshotAt`
+ * del cliente se ignora). Sin token válido para este usuario y esta tienda la
+ * venta se acepta igual (ya se cobró), pero queda en revisión con
+ * `price_unverified` y solo el precio vigente cuenta.
  */
 export async function submitOfflineSaleAction(input: unknown): Promise<OfflineSaleResult> {
   const user = await currentUserOrNull();
   if (!user) return sessionExpired();
-  const parsed = validateOfflineSale(input);
+  const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : null;
+  // La hora del servidor como fecha de copia provisional: solo para validar la forma.
+  const parsed = validateOfflineSale(raw && { ...raw, snapshotAt: new Date().toISOString() });
   if (!parsed.ok) return fail("INVALID", parsed.message);
-  const { soldAt, snapshotAt, ...sale } = parsed.value;
+  const { soldAt, snapshotAt: serverNow, ...sale } = parsed.value;
 
   if (user.role === "collaborator" && !user.locationId) {
     return fail("FORBIDDEN", "No tienes tienda asignada. Pide al dueño que te asigne una.");
@@ -88,10 +101,13 @@ export async function submitOfflineSaleAction(input: unknown): Promise<OfflineSa
     return fail("FORBIDDEN", "Solo puedes vender en tu tienda.");
   }
 
+  const signed = verifySnapshotToken(raw?.snapshotToken, { userId: user.id, locationId: sale.locationId });
+
   try {
     const record = await getSalesSource().createSale(sale, user.id, {
-      offline: { soldAt, snapshotAt },
+      offline: { soldAt, snapshotAt: signed ? signed.generatedAt : serverNow },
       checkPrice: user.role === "collaborator",
+      snapshotUnverified: !signed,
     });
     revalidatePath("/ventas");
     return { ok: true, sale: record, review: record.reviewStatus === "pending" };

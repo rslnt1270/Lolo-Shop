@@ -143,7 +143,9 @@ export class PrismaSalesDataSource implements SalesDataSource {
 
   async createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord> {
     // Venta cobrada sin internet: camino aparte (spec F §8.3); el de abajo no cambia.
-    if (opts?.offline) return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true);
+    if (opts?.offline) {
+      return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true, opts.snapshotUnverified === true);
+    }
 
     // Paso 1 (ER §3.1): validación fuera de la transacción.
     const checked = validateNewSale(input);
@@ -263,6 +265,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
     userId: string,
     offline: OfflineMeta,
     checkPrice: boolean,
+    snapshotUnverified: boolean,
   ): Promise<SaleRecord> {
     const checked = validateOfflineSale({ ...input, ...offline });
     if (!checked.ok) throw new SalesRuleError(checked.message);
@@ -298,8 +301,12 @@ export class PrismaSalesDataSource implements SalesDataSource {
     }
 
     const now = new Date();
-    const times = resolveOfflineTimes({ soldAt: rawSoldAt, snapshotAt: rawSnapshotAt }, now);
+    const times = resolveOfflineTimes({ soldAt: rawSoldAt, snapshotAt: rawSnapshotAt }, now, {
+      snapshotTrusted: !snapshotUnverified,
+    });
     const reasons = new Set<ReviewReason>();
+    // Copia sin firma: el precio no se puede verificar contra lo que tenía el teléfono.
+    if (snapshotUnverified) reasons.add("price_unverified");
     // Inactiva o unida a otro producto: la prenda ya salió, se acepta.
     if (variants.some((v) => !v.isActive || !v.product.isActive || v.product.mergedIntoId)) {
       reasons.add("inactive_product");
@@ -343,7 +350,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
             customerAlias: sale.customerAlias ?? null,
             origin: "offline",
             soldAt: times.soldAt,
-            offlineSnapshotAt: new Date(rawSnapshotAt),
+            offlineSnapshotAt: snapshotUnverified ? null : new Date(rawSnapshotAt),
           },
         });
 

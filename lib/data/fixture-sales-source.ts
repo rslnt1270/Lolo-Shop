@@ -96,7 +96,9 @@ export class FixtureSalesDataSource implements SalesDataSource {
   }
 
   async createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord> {
-    if (opts?.offline) return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true);
+    if (opts?.offline) {
+      return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true, opts.snapshotUnverified === true);
+    }
     const checked = validateNewSale(input);
     if (!checked.ok) throw new SalesRuleError(checked.message);
     const sale = checked.value;
@@ -148,7 +150,13 @@ export class FixtureSalesDataSource implements SalesDataSource {
   }
 
   /** Mismas reglas que Prisma (spec F §8.3): descuenta hasta 0 y guarda el faltante. */
-  private createOfflineSale(input: NewSaleInput, userId: string, offline: OfflineMeta, checkPrice: boolean): SaleRecord {
+  private createOfflineSale(
+    input: NewSaleInput,
+    userId: string,
+    offline: OfflineMeta,
+    checkPrice: boolean,
+    snapshotUnverified: boolean,
+  ): SaleRecord {
     const checked = validateOfflineSale({ ...input, ...offline });
     if (!checked.ok) throw new SalesRuleError(checked.message);
     const { soldAt, snapshotAt, ...sale } = checked.value;
@@ -163,8 +171,9 @@ export class FixtureSalesDataSource implements SalesDataSource {
     }
 
     const now = new Date();
-    const times = resolveOfflineTimes({ soldAt, snapshotAt }, now);
+    const times = resolveOfflineTimes({ soldAt, snapshotAt }, now, { snapshotTrusted: !snapshotUnverified });
     const reasons = new Set<ReviewReason>();
+    if (snapshotUnverified) reasons.add("price_unverified");
     const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : 1));
     const planned = lines.map((l) => {
       const key = stockKey(l.variantId, sale.locationId);

@@ -106,7 +106,7 @@ describe("textos y folio", () => {
       insufficient_stock: "Faltó stock",
       price_unverified: "Precio distinto al registrado",
       inactive_product: "Prenda dada de baja",
-      clock_skew: "Hora del teléfono incorrecta",
+      clock_skew: "Fecha u hora del teléfono distinta",
     });
   });
   it("folio local", () => expect(offlineFolio(ID)).toBe("L-3f9a2c1b"));
@@ -142,7 +142,28 @@ describe("resolveOfflineTimes", () => {
   });
   it("los cambios de precio nunca se miran más allá de 7 días", () => {
     const r = resolveOfflineTimes({ soldAt: iso(-h(24 * 7) + h(1)), snapshotAt: iso(-h(24 * 7) - h(1)) }, now);
-    expect(r.skewed).toBe(false);
+    // Otro día de negocio: va a revisión aunque la hora sea creíble.
+    expect(r.skewed).toBe(true);
+    expect(r.soldAt).toEqual(new Date(iso(-h(24 * 7) + h(1))));
     expect(r.priceSince).toEqual(new Date(iso(-h(24 * 7))));
+  });
+  it("venta de ayer (día de negocio de México) se marca para revisión", () => {
+    // now = 06:00 en México; 7 h antes = 23:00 del día anterior.
+    const r = resolveOfflineTimes({ soldAt: iso(-h(7)), snapshotAt: iso(-h(8)) }, now);
+    expect(r.skewed).toBe(true);
+    expect(r.soldAt).toEqual(new Date(iso(-h(7))));
+  });
+  it("venta de hoy temprano (00:30 en México) no se marca", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(5.5)), snapshotAt: iso(-h(6)) }, now);
+    expect(r.skewed).toBe(false);
+  });
+  it("copia no verificada: el precio solo cuadra con el vigente y la copia no decide el reloj", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(2)), snapshotAt: iso(-h(24 * 6)) }, now, { snapshotTrusted: false });
+    expect(r.priceSince).toEqual(now);
+    expect(r.skewed).toBe(false);
+  });
+  it("copia no verificada con venta de otro día sigue marcando el reloj", () => {
+    const r = resolveOfflineTimes({ soldAt: iso(-h(30)), snapshotAt: iso(0) }, now, { snapshotTrusted: false });
+    expect(r.skewed).toBe(true);
   });
 });

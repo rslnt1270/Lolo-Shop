@@ -30,6 +30,13 @@ export interface CreateSaleOptions {
   offline?: OfflineMeta;
   /** Solo con `offline`: verifica el precio contra `PriceChange` (la acción lo pide para colaborador). */
   checkPrice?: boolean;
+  /**
+   * Solo con `offline`: la fecha de la copia no viene firmada por el servidor
+   * (token ausente, alterado o de otro usuario o tienda). La venta se acepta
+   * pero queda en revisión con `price_unverified` (cualquier rol), la copia no
+   * cuenta para el precio ni el reloj y `offlineSnapshotAt` queda nulo.
+   */
+  snapshotUnverified?: boolean;
 }
 
 /** Una venta sin internet por aprobar (spec F §9). */

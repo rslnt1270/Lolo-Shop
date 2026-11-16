@@ -1,4 +1,4 @@
-import { validateNewSale, type NewSaleInput, type ReviewReason } from "./sale";
+import { businessDateMx, validateNewSale, type NewSaleInput, type ReviewReason } from "./sale";
 
 export interface OfflineMeta {
   /** Instante ISO en que el teléfono cobró. */
@@ -20,7 +20,7 @@ export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
   insufficient_stock: "Faltó stock",
   price_unverified: "Precio distinto al registrado",
   inactive_product: "Prenda dada de baja",
-  clock_skew: "Hora del teléfono incorrecta",
+  clock_skew: "Fecha u hora del teléfono distinta",
 };
 
 const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -63,22 +63,28 @@ export function resolveSoldAt(soldAt: string, now: Date): { at: Date; skewed: bo
 /**
  * Horas de una venta sin internet vistas desde el servidor (`now`):
  * - `soldAt`: la del teléfono, o `now` si es absurda (ver `resolveSoldAt`).
- * - `skewed`: hora de venta absurda, copia con fecha futura (> now + 5 min),
- *   copia generada más de 5 min después de la venta, o copia de más de 24 h
- *   respecto a la venta. El cliente ya bloquea estos casos con su reloj; si
- *   llegan aquí, el reloj del teléfono no es confiable.
+ * - `skewed`: hora de venta absurda, venta de otro día de negocio de México
+ *   que `now` (una venta con fecha atrasada siempre la revisa el dueño), y con
+ *   copia verificada: copia con fecha futura (> now + 5 min), generada más de
+ *   5 min después de la venta, o de más de 24 h respecto a la venta.
  * - `priceSince`: desde cuándo cuentan los `PriceChange` para verificar el
  *   precio: la copia (su `oldPrice` es lo que el teléfono pudo tener), nunca
  *   antes de `now − 7 días` ni después de `now`.
+ *
+ * `snapshotTrusted: false` (la fecha de la copia no viene firmada por el
+ * servidor): la copia no cuenta para nada; `priceSince = now`, así que solo el
+ * precio vigente cuadra.
  */
 export function resolveOfflineTimes(
   meta: OfflineMeta,
   now: Date,
+  opts: { snapshotTrusted?: boolean } = {},
 ): { soldAt: Date; skewed: boolean; priceSince: Date } {
   const sold = resolveSoldAt(meta.soldAt, now);
-  const snap = parseIso(meta.snapshotAt);
   const nowMs = now.getTime();
-  let skewed = sold.skewed;
+  let skewed = sold.skewed || businessDateMx(sold.at) !== businessDateMx(now);
+  if (opts.snapshotTrusted === false) return { soldAt: sold.at, skewed, priceSince: now };
+  const snap = parseIso(meta.snapshotAt);
   if (!snap || snap.getTime() - nowMs > CLOCK_SKEW_FUTURE_MS) {
     skewed = true;
   } else if (!sold.skewed) {
