@@ -7,6 +7,8 @@ const actions = vi.hoisted(() => ({
   lookupCodeAction: vi.fn(),
 }));
 vi.mock("@/lib/actions", () => actions);
+const queue = vi.hoisted(() => ({ listQueue: vi.fn() }));
+vi.mock("@/lib/offline/queue-store", () => ({ listQueue: queue.listQueue }));
 
 import { SaleProductSearch } from "@/components/sales/SaleProductSearch";
 
@@ -29,6 +31,7 @@ const type = (q: string) => fireEvent.change(screen.getByLabelText(/buscar produ
 
 beforeEach(() => {
   vi.clearAllMocks();
+  queue.listQueue.mockResolvedValue([]);
   actions.searchProductsAction.mockResolvedValue([hit]);
   actions.listVariantStockAtAction.mockResolvedValue(rows);
   actions.lookupCodeAction.mockResolvedValue(lookupFor("v-m", "M"));
@@ -120,5 +123,56 @@ describe("SaleProductSearch", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^M\b.*4/ }));
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();
+  });
+});
+
+describe("SaleProductSearch sin internet", () => {
+  const snapVariant = (variantId: string, size: string, available: number) => ({
+    variantId, productId: "p1", barcode: null, sku: `LS-AAAAAA-${size}`, productTitle: "Playera Guess negro",
+    variantTitle: size, size, price: 450, available,
+  });
+  const snapshot = {
+    locationId: "l1",
+    generatedAt: new Date().toISOString(),
+    variants: [snapVariant("v-m", "M", 3), snapVariant("v-s", "S", 0)],
+  };
+  const pendingSale = {
+    clientRequestId: "q1", userId: "u1", locationId: "l1", channel: "store", paymentMethod: "cash",
+    lines: [{ variantId: "v-m", quantity: 1, unitPrice: 450, sku: "x", productTitle: "x", variantTitle: "M" }],
+    total: 450, soldAt: "2026-11-12T10:00:00.000Z", snapshotAt: "2026-11-12T09:00:00.000Z", snapshotToken: "t",
+    state: "pending" as const, attempts: 0,
+  };
+  const BLOCKED = "Conéctate para actualizar precios y existencias";
+
+  it("busca en la copia local, descuenta la cola y agrega sin llamar al servidor", async () => {
+    queue.listQueue.mockResolvedValue([pendingSale]);
+    const onAdd = vi.fn();
+    render(<SaleProductSearch locationId="l1" onAdd={onAdd} offline={{ snapshot, blockedText: BLOCKED }} />);
+    type("guess");
+    expect(await screen.findByText("Playera Guess negro")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /S\s+Sin existencias/ })).toBeDisabled();
+    fireEvent.click(await screen.findByRole("button", { name: /M\s+2 disponibles/ }));
+    expect(onAdd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        product: expect.objectContaining({ id: "p1", title: "Playera Guess negro" }),
+        variant: expect.objectContaining({ id: "v-m", size: "M", price: 450 }),
+      }),
+      { available: 2, sold: false },
+    );
+    expect(actions.searchProductsAction).not.toHaveBeenCalled();
+    expect(actions.listVariantStockAtAction).not.toHaveBeenCalled();
+    expect(actions.lookupCodeAction).not.toHaveBeenCalled();
+  });
+
+  it("sin resultados en la copia lo dice", async () => {
+    render(<SaleProductSearch locationId="l1" onAdd={vi.fn()} offline={{ snapshot, blockedText: BLOCKED }} />);
+    type("zapato");
+    expect(await screen.findByText("No está en la copia de esta tienda. Si es nueva, se vende cuando vuelva la conexión.")).toBeInTheDocument();
+  });
+
+  it("sin copia vigente muestra el aviso y no busca", async () => {
+    render(<SaleProductSearch locationId="l1" onAdd={vi.fn()} offline={{ snapshot: null, blockedText: BLOCKED }} />);
+    expect(screen.getByText(BLOCKED)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/buscar producto registrado/i)).toBeNull();
   });
 });

@@ -13,6 +13,10 @@ export interface OfflineSyncState {
   otherUserCount: number;
   /** Rechazadas por el servidor; se quedan hasta que owner o manager las descarten. */
   needsAttention: QueuedSale[];
+  /** Toda la cola de este teléfono (FIFO por `soldAt`), para la hoja de ventas del cajero. */
+  items: QueuedSale[];
+  /** Vuelve a leer la cola sin enviar (p. ej. después de descartar una venta). */
+  refresh: () => Promise<void>;
   /** Última vuelta que envió, rechazó o se detuvo (las vueltas sin nada que hacer no la cambian). */
   lastSummary: SyncSummary | null;
   syncing: boolean;
@@ -45,6 +49,7 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
   const [pendingCount, setPendingCount] = useState(0);
   const [otherUserCount, setOtherUserCount] = useState(0);
   const [needsAttention, setNeedsAttention] = useState<QueuedSale[]>([]);
+  const [items, setItems] = useState<QueuedSale[]>([]);
   const [lastSummary, setLastSummary] = useState<SyncSummary | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -75,6 +80,7 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
       setPendingCount(own);
       setOtherUserCount(others);
       setNeedsAttention(queue.filter((s) => s.state === "needs_attention"));
+      setItems(queue);
     }
     return own;
   }, []);
@@ -175,6 +181,9 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
   }, []);
 
   const syncNow = useCallback(() => triggerRef.current("resume"), []);
+  const reread = useCallback(async () => {
+    await refresh();
+  }, [refresh]);
 
-  return { pendingCount, otherUserCount, needsAttention, lastSummary, syncing, syncNow };
+  return { pendingCount, otherUserCount, needsAttention, items, refresh: reread, lastSummary, syncing, syncNow };
 }

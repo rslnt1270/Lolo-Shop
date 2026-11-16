@@ -78,6 +78,16 @@ describe("useOfflineSync", () => {
     expect(result.current.needsAttention.map((s) => s.clientRequestId)).toEqual([ID(3)]);
   });
 
+  it("expone la cola completa (items) y refresh la vuelve a leer sin enviar", async () => {
+    await seed(record(1, { state: "synced", saleNumber: 120 }), record(2, { userId: "u2" }));
+    const { result } = renderHook(() => useOfflineSync(null));
+    await waitFor(() => expect(result.current.items.map((s) => s.clientRequestId)).toEqual([ID(1), ID(2)]));
+    await seed(record(3, { state: "needs_attention", lastError: "x" }));
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.items.map((s) => s.clientRequestId)).toEqual([ID(1), ID(2), ID(3)]);
+    expect(action.submit).not.toHaveBeenCalled();
+  });
+
   it("sin usuario no envía nada", async () => {
     await seed(record(1));
     const { result } = renderHook(() => useOfflineSync(null));

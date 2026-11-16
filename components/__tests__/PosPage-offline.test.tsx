@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { OfflineSnapshotVariant } from "@/lib/data/source";
 import type { QueuedSale, StoredIdentity, StoredSnapshot } from "@/lib/offline/db";
 
@@ -19,6 +19,14 @@ const m = vi.hoisted(() => ({
   saveSnapshot: vi.fn(),
   deleteSnapshot: vi.fn(),
   listQueue: vi.fn(),
+  enqueueSale: vi.fn(),
+  discardQueued: vi.fn(),
+  sync: {
+    current: {} as {
+      pendingCount: number; otherUserCount: number; needsAttention: QueuedSale[]; items: QueuedSale[];
+      lastSummary: unknown; syncing: boolean; syncNow: () => void; refresh: () => Promise<void>;
+    },
+  },
   onScan: { current: null as null | ((c: string) => void) },
 }));
 
@@ -51,7 +59,10 @@ vi.mock("@/lib/offline/session-user", async (orig) => ({
 vi.mock("@/lib/offline/queue-store", async (orig) => ({
   ...(await orig<typeof import("@/lib/offline/queue-store")>()),
   listQueue: m.listQueue,
+  enqueueSale: m.enqueueSale,
+  discardQueued: m.discardQueued,
 }));
+vi.mock("@/lib/offline/use-offline-sync", () => ({ useOfflineSync: () => m.sync.current }));
 vi.mock("@/components/inventory/Scanner", () => ({
   Scanner: ({ onScan }: { onScan: (c: string) => void }) => {
     m.onScan.current = onScan;
@@ -160,6 +171,12 @@ beforeEach(() => {
   m.deleteSnapshot.mockResolvedValue(undefined);
   m.fetchSessionUser.mockResolvedValue(null);
   m.listQueue.mockResolvedValue([]);
+  m.enqueueSale.mockResolvedValue(undefined);
+  m.discardQueued.mockResolvedValue(true);
+  m.sync.current = {
+    pendingCount: 0, otherUserCount: 0, needsAttention: [], items: [], lastSummary: null, syncing: false,
+    syncNow: vi.fn(), refresh: vi.fn().mockResolvedValue(undefined),
+  };
 });
 
 afterEach(() => {
@@ -409,5 +426,372 @@ describe("/pos copia de otro usuario", () => {
     render(<POSPage />);
     await screen.findByRole("combobox", { name: "Tienda" });
     await waitFor(() => expect(m.getLatestSnapshot).toHaveBeenCalledWith("u1"));
+  });
+});
+
+// ── Task 10: cobro sin internet, bloqueo incierto y avisos ──────────────────
+
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const savedText = (id: string) => `Venta guardada sin internet (L-${id.slice(0, 8)}). Se enviará sola.`;
+const cobrar = () => fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+const enqueued = () => m.enqueueSale.mock.calls.map((c) => c[0] as QueuedSale);
+
+/** Respuesta en línea de lookupCodeAction para la variante de la copia. */
+const foundOnline = () => ({
+  found: true as const,
+  variantId: "v1",
+  stock: { available: 3, sold: false },
+  product: {
+    id: "p1", title: "Playera Guess negro", category: "Ropa", brand: "Guess", imageUrl: null,
+    variants: [{ id: "v1", sku: "LS-AAAAAA-1", title: "M", size: "M", color: "", price: 450, barcode: "7501234567890", inventory: [] }],
+  },
+});
+
+/** Colaborador sin red, con copia vigente, y una prenda ya en el carrito. */
+async function offlineWithLine(snap = stored("l1")) {
+  offlineCold(identity(H), snap);
+  render(<POSPage />);
+  await screen.findByTestId("scanner");
+  await snapshotRead();
+  scan("7501234567890");
+  await screen.findByText("Agregado: Playera Guess negro (M) · ×1");
+}
+
+/** Owner en línea con copia suya y una prenda en el carrito (consulta al servidor). */
+async function onlineWithLine() {
+  ownerSession();
+  m.getSnapshot.mockImplementation(async (loc: string) => stored(loc, H, [variant()], "u1"));
+  m.lookupCodeAction.mockResolvedValue(foundOnline());
+  const view = render(<POSPage />);
+  await screen.findByDisplayValue("Centro");
+  await snapshotRead();
+  await waitFor(() => expect(m.saveSnapshot).toHaveBeenCalled());
+  scan("7501234567890");
+  await screen.findByText("Agregado: Playera Guess negro (M) · ×1");
+  return view;
+}
+
+describe("/pos cobro sin internet", () => {
+  it('sin red, Cobrar encola con el id del borrador, limpia el carrito y avisa "Venta guardada sin internet (L-xxxxxxxx). Se enviará sola."', async () => {
+    const snap = stored("l1");
+    await offlineWithLine(snap);
+    cobrar();
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    const sale = enqueued()[0];
+    expect(sale.clientRequestId).toMatch(UUID_V4);
+    expect(sale).toMatchObject({
+      userId: "u2",
+      locationId: "l1",
+      channel: "store",
+      paymentMethod: "cash",
+      lines: [{ variantId: "v1", quantity: 1, unitPrice: 450, sku: "LS-AAAAAA-1", productTitle: "Playera Guess negro", variantTitle: "M" }],
+      total: 450,
+      snapshotAt: snap.generatedAt,
+      snapshotToken: "tok.sig",
+    });
+    expect(Number.isNaN(Date.parse(sale.soldAt))).toBe(false);
+    // Nada secreto en la venta guardada.
+    expect(Object.keys(sale).sort()).toEqual([
+      "channel", "clientRequestId", "lines", "locationId", "paymentMethod", "snapshotAt", "snapshotToken", "soldAt", "total", "userId",
+    ]);
+    expect(await screen.findByText(savedText(sale.clientRequestId))).toBeInTheDocument();
+    expect(screen.getByText("Agrega al menos una prenda para cobrar.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar cobro" })).toBeNull();
+    expect(m.createSaleAction).not.toHaveBeenCalled();
+  });
+
+  it("si no se pudo guardar en el teléfono, la venta NO se da por hecha y el carrito se queda", async () => {
+    const { OfflineStorageError } = await import("@/lib/offline/db");
+    m.enqueueSale.mockRejectedValue(new OfflineStorageError("unavailable", "Almacenamiento local no disponible"));
+    await offlineWithLine();
+    cobrar();
+    expect(
+      await screen.findByText("No se pudo guardar la venta en este teléfono. No quedó registrada: intenta de nuevo."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Venta guardada sin internet/)).toBeNull();
+    expect(screen.getByRole("button", { name: /^cobrar \$450/i })).toBeInTheDocument();
+  });
+
+  it("el carrito sin internet no deja pasar del stock local", async () => {
+    await offlineWithLine(stored("l1", H, [variant({ available: 1 })]));
+    scan("7501234567890");
+    expect(await screen.findByText("Sin existencias de la talla M en esta tienda")).toBeInTheDocument();
+    // Otra pestaña vendió la última pieza mientras tanto: al cobrar se vuelve a revisar con la cola.
+    m.listQueue.mockResolvedValue([queued("v1", 1)]);
+    cobrar();
+    expect(
+      await screen.findByText("No alcanzan las piezas de Playera Guess negro (M) en la copia de esta tienda. Revisa las cantidades."),
+    ).toBeInTheDocument();
+    expect(m.enqueueSale).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /^cobrar \$450/i })).toBeInTheDocument();
+  });
+
+  it("lecturas en espera entran al carrito nuevo tras encolar", async () => {
+    let finish!: () => void;
+    m.enqueueSale.mockReturnValue(new Promise<void>((r) => (finish = r)));
+    await offlineWithLine();
+    cobrar();
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalled());
+    scan("7501234567890");
+    // Lectura, revisión de stock al encolar y la segunda lectura (que espera al cobro).
+    await waitFor(() => expect(m.listQueue).toHaveBeenCalledTimes(3));
+    await act(async () => {});
+    await act(async () => finish());
+    const id = enqueued()[0].clientRequestId;
+    expect(
+      await screen.findByText(`${savedText(id)} Agregado: Playera Guess negro (M) · ×1`),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^cobrar \$450/i })).toBeInTheDocument();
+  });
+
+  it("cobro que lanza por red con navigator.onLine false se encola con el mismo id y no bloquea", async () => {
+    await onlineWithLine();
+    m.createSaleAction.mockImplementation(async () => {
+      online = false;
+      throw new TypeError("Failed to fetch");
+    });
+    cobrar();
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    const sentId = m.createSaleAction.mock.calls[0][0].clientRequestId;
+    expect(enqueued()[0]).toMatchObject({ clientRequestId: sentId, userId: "u1", locationId: "l1", snapshotToken: "tok.sig" });
+    expect(await screen.findByText(savedText(sentId))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar cobro" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Guardar sin internet" })).toBeNull();
+  });
+
+  it("lie-fi: bloqueo incierto ofrece Guardar sin internet con el mismo id", async () => {
+    await onlineWithLine();
+    m.createSaleAction.mockRejectedValue(new TypeError("Failed to fetch"));
+    cobrar();
+    expect(await screen.findByRole("button", { name: "Reintentar cobro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ya revisé en Ventas: empezar otra venta" })).toBeInTheDocument();
+    expect(m.enqueueSale).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Guardar sin internet" }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    const sentId = m.createSaleAction.mock.calls[0][0].clientRequestId;
+    expect(enqueued()[0]).toMatchObject({ clientRequestId: sentId, userId: "u1" });
+    expect(await screen.findByText(savedText(sentId))).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reintentar cobro" })).toBeNull();
+    expect(screen.getByText("Agrega al menos una prenda para cobrar.")).toBeInTheDocument();
+  });
+
+  it("Guardar sin internet guarda el usuario que hizo el cobro en línea", async () => {
+    const view = await onlineWithLine();
+    m.createSaleAction.mockRejectedValue(new TypeError("Failed to fetch"));
+    cobrar();
+    await screen.findByRole("button", { name: "Guardar sin internet" });
+    // La sesión cambia de usuario con el carrito bloqueado.
+    m.session.current = {
+      data: { user: { id: "u9", name: "Otro", role: "owner", locationId: null } },
+      status: "authenticated",
+    };
+    m.getSnapshot.mockImplementation(async (loc: string) => stored(loc, H, [variant()], "u9"));
+    m.getOfflineSnapshotAction.mockImplementation(async (loc: string) => {
+      const { locationId, generatedAt, variants } = stored(loc, 0);
+      return { ok: true, snapshot: { locationId, generatedAt, variants }, snapshotToken: "tok.u9" };
+    });
+    view.rerender(<POSPage />);
+    // La copia que se usa es la del cajero actual.
+    await waitFor(() => expect(m.saveSnapshot).toHaveBeenCalledWith(expect.objectContaining({ userId: "u9" })));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "Guardar sin internet" }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect(enqueued()[0].userId).toBe("u1");
+    expect(enqueued()[0].snapshotToken).toBe("tok.u9");
+  });
+
+  it("con lock conflict no aparece Guardar sin internet", async () => {
+    await onlineWithLine();
+    m.createSaleAction.mockResolvedValue({
+      ok: false, code: "INVALID", reason: "request_conflict",
+      message: "Este cobro ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.",
+    });
+    cobrar();
+    expect(await screen.findByText("Esta venta quedó bloqueada: verifica en Ventas antes de empezar otra.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Guardar sin internet" })).toBeNull();
+  });
+
+  it("UNAVAILABLE mantiene el bloqueo actual", async () => {
+    await onlineWithLine();
+    m.createSaleAction.mockImplementation(async () => {
+      online = false; // aunque se caiga la red, el servidor sí respondió
+      return { ok: false, code: "UNAVAILABLE", message: "El servidor tardó en responder. Intenta cobrar de nuevo." };
+    });
+    cobrar();
+    expect(await screen.findByRole("button", { name: "Reintentar cobro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar sin internet" })).toBeInTheDocument();
+    expect(m.enqueueSale).not.toHaveBeenCalled();
+  });
+
+  it("tras un cobro en línea con éxito pide enviar la cola", async () => {
+    await onlineWithLine();
+    m.createSaleAction.mockResolvedValue({ ok: true, sale: { number: 77, status: "completed" } });
+    cobrar();
+    await screen.findByText("Venta #77 registrada");
+    expect(m.sync.current.syncNow).toHaveBeenCalled();
+  });
+
+  it('"Sin código" sin internet busca en la copia local', async () => {
+    offlineCold(identity(H), stored("l1"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    await snapshotRead();
+    fireEvent.click(screen.getByRole("button", { name: "Sin código" }));
+    fireEvent.change(screen.getByLabelText(/buscar producto registrado/i), { target: { value: "guess" } });
+    fireEvent.click(await screen.findByRole("button", { name: /M\s+3 disponibles/ }));
+    expect(await screen.findByText("Agregado: Playera Guess negro (M) · ×1")).toBeInTheDocument();
+    expect(m.lookupCodeAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("/pos avisos de la cola", () => {
+  const BANNER = "Sin internet. Las ventas se guardan en este teléfono y se envían solas al volver la conexión.";
+
+  it("banda sin internet y edad de la copia", async () => {
+    offlineCold(identity(H), stored("l1", 2 * H));
+    render(<POSPage />);
+    expect(await screen.findByText(BANNER)).toBeInTheDocument();
+    expect(await screen.findByText("Precios y existencias de hace 2 h")).toBeInTheDocument();
+  });
+
+  it("con red no hay banda", async () => {
+    ownerSession();
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    expect(screen.queryByText(BANNER)).toBeNull();
+  });
+
+  it('"N por enviar" abre la hoja con las ventas', async () => {
+    const pending = { ...queued("v1", 1), clientRequestId: "abcdef12-0000-4000-8000-000000000000" };
+    m.sync.current = { ...m.sync.current, pendingCount: 1, items: [pending] };
+    ownerSession();
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    fireEvent.click(screen.getByRole("button", { name: "1 por enviar" }));
+    const sheet = await screen.findByRole("dialog", { name: "Ventas guardadas en este teléfono" });
+    expect(within(sheet).getByText("L-abcdef12")).toBeInTheDocument();
+    expect(within(sheet).getByText("Por enviar")).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole("button", { name: "Enviar ahora" }));
+    expect(m.sync.current.syncNow).toHaveBeenCalled();
+  });
+
+  it("owner descarta una venta que necesita atención", async () => {
+    const bad = {
+      ...queued("v1", 1), clientRequestId: "badbad12-0000-4000-8000-000000000000",
+      state: "needs_attention" as const, lastError: "La tienda no corresponde.",
+    };
+    m.sync.current = { ...m.sync.current, needsAttention: [bad], items: [bad] };
+    ownerSession();
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    fireEvent.click(screen.getByRole("button", { name: "1 necesita atención" }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.click(within(sheet).getByRole("button", { name: "Descartar L-badbad12" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Sí, descartar" }));
+    await waitFor(() => expect(m.discardQueued).toHaveBeenCalledWith(bad.clientRequestId));
+    await waitFor(() => expect(m.sync.current.refresh).toHaveBeenCalled());
+  });
+
+  it("colaborador no puede descartar", async () => {
+    const bad = { ...queued("v1", 1), state: "needs_attention" as const, lastError: "x" };
+    m.sync.current = { ...m.sync.current, needsAttention: [bad], items: [bad] };
+    offlineCold(identity(H), stored("l1"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    fireEvent.click(screen.getByRole("button", { name: "1 necesita atención" }));
+    const sheet = await screen.findByRole("dialog");
+    expect(within(sheet).queryByRole("button", { name: /Descartar/ })).toBeNull();
+  });
+
+  it('resumen "3 ventas enviadas (#120, #121, #122). 1 quedó por aprobar del dueño."', async () => {
+    m.sync.current = {
+      ...m.sync.current,
+      lastSummary: {
+        sent: [
+          { folio: "L-1", number: 120, review: false },
+          { folio: "L-2", number: 121, review: true },
+          { folio: "L-3", number: 122, review: false },
+        ],
+        failed: [],
+        stoppedBy: null,
+      },
+    };
+    ownerSession();
+    render(<POSPage />);
+    expect(
+      await screen.findByText("3 ventas enviadas (#120, #121, #122). 1 quedó por aprobar del dueño."),
+    ).toBeInTheDocument();
+  });
+
+  it('si alguna falla, aviso en rojo con "Avisa al dueño"', async () => {
+    m.sync.current = {
+      ...m.sync.current,
+      lastSummary: { sent: [{ folio: "L-1", number: 120, review: false }], failed: [{ folio: "L-abc", message: "x" }], stoppedBy: null },
+    };
+    ownerSession();
+    render(<POSPage />);
+    const alert = await screen.findByText(/1 venta necesita atención\. Avisa al dueño\./);
+    expect(alert).toHaveTextContent("1 venta enviada (#120). 1 venta necesita atención. Avisa al dueño.");
+    expect(alert.closest("[role=alert]")).not.toBeNull();
+  });
+
+  it("sesión vencida al enviar: pide iniciar sesión", async () => {
+    m.sync.current = {
+      ...m.sync.current, pendingCount: 2,
+      lastSummary: { sent: [], failed: [], stoppedBy: "session_expired" },
+    };
+    ownerSession();
+    render(<POSPage />);
+    const msg = await screen.findByText(/Inicia sesión para enviar 2 ventas/);
+    expect(within(msg).getByRole("link", { name: "Iniciar sesión" })).toBeInTheDocument();
+  });
+
+  it("ventas de otro usuario: esperan a esa persona", async () => {
+    m.sync.current = {
+      ...m.sync.current, pendingCount: 1,
+      lastSummary: { sent: [], failed: [], stoppedBy: "user_mismatch" },
+    };
+    ownerSession();
+    render(<POSPage />);
+    expect(
+      await screen.findByText("Hay ventas de otro usuario en este teléfono. Se enviarán cuando esa persona inicie sesión."),
+    ).toBeInTheDocument();
+  });
+
+  it("con red pero sin salida: avisa que se reintenta solo", async () => {
+    m.sync.current = {
+      ...m.sync.current, pendingCount: 1,
+      lastSummary: { sent: [], failed: [], stoppedBy: "network" },
+    };
+    ownerSession();
+    render(<POSPage />);
+    expect(
+      await screen.findByText("No se pudieron enviar las ventas guardadas. Se reintentará sola."),
+    ).toBeInTheDocument();
+  });
+
+  it("falla del almacenamiento al enviar: avisa", async () => {
+    m.sync.current = {
+      ...m.sync.current, pendingCount: 1,
+      lastSummary: { sent: [], failed: [], stoppedBy: "storage" },
+    };
+    ownerSession();
+    render(<POSPage />);
+    expect(
+      await screen.findByText("No se pudo leer o guardar la cola de este teléfono. Se reintentará sola."),
+    ).toBeInTheDocument();
+  });
+
+  it("sin red, una falla del almacenamiento local se avisa", async () => {
+    const { OfflineStorageError, reportStorageError } = await import("@/lib/offline/db");
+    offlineCold(identity(H), stored("l1"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    act(() => reportStorageError(new OfflineStorageError("unavailable", "x")));
+    expect(
+      await screen.findByText(
+        "Este teléfono no pudo guardar datos sin internet (modo privado o sin espacio). Las ventas sin internet podrían no guardarse.",
+      ),
+    ).toBeInTheDocument();
   });
 });
