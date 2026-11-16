@@ -210,6 +210,33 @@ export interface VariantStockRow {
   available: number;
 }
 
+/**
+ * Una talla en la copia local del POS sin internet (spec §5). Proyección cerrada:
+ * sin costo, `minStock`, fotos, movimientos ni existencias de otra tienda.
+ */
+export interface OfflineSnapshotVariant {
+  variantId: string;
+  productId: string;
+  barcode: string | null;
+  sku: string;
+  productTitle: string;
+  variantTitle: string;
+  size: string;
+  price: number;
+  /** Piezas en la tienda de la copia (incluye 0). */
+  available: number;
+}
+
+export interface OfflineSnapshot {
+  locationId: string;
+  /** ISO, reloj del servidor, tomado antes de leer. */
+  generatedAt: string;
+  variants: OfflineSnapshotVariant[];
+}
+
+/** Máximo de variantes por copia; más es `too_large` (protege la memoria del teléfono). */
+export const MAX_SNAPSHOT_VARIANTS = 20_000;
+
 export interface InventoryDataSource {
   /**
    * Historial de movimientos, el más nuevo primero (`timestamp` desc, `id` desc),
@@ -237,6 +264,13 @@ export interface InventoryDataSource {
   getStockAt(variantId: string, locationId: string): Promise<StockAt>;
   /** Tallas activas del producto con sus existencias en la tienda (0 sin fila), en orden de `sortSizes`. */
   listVariantStockAt(productId: string, locationId: string): Promise<VariantStockRow[]>;
+  /**
+   * Copia de la tienda para vender sin internet: tallas activas de productos activos
+   * y sin unir que tienen fila `InventoryLevel` en `locationId` (incluidas las de 0),
+   * en orden de `variantId`. Lee como máximo `MAX_SNAPSHOT_VARIANTS + 1` filas: el
+   * llamador detecta el exceso por la longitud. No valida permisos.
+   */
+  getOfflineSnapshot(locationId: string): Promise<OfflineSnapshot>;
   /**
    * Movimiento de stock atómico con `Movement` tipado. Una salida que deja el
    * stock en negativo (o sin fila de inventario) lanza `InsufficientStockError`

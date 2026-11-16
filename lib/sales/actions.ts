@@ -3,76 +3,13 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
 import { UnauthenticatedError } from "@/lib/auth/errors";
 import { getSalesSource } from "@/lib/data/get-sales-source";
-import type { SaleRecord } from "@/lib/data/sales-source";
-import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "@/lib/data/errors";
 import { MAX_CANCEL_REASON_LENGTH, validateNewSale } from "@/lib/domain/sale";
 import prisma from "@/lib/prisma";
+import { fail, mapError, sessionExpired, type SaleActionResult } from "./action-errors";
 
-export type SaleActionResult =
-  | { ok: true; sale: SaleRecord }
-  | {
-      ok: false;
-      /** `UNAVAILABLE`: el servidor no terminó; se reintenta con el mismo identificador. */
-      code: "INVALID" | "FORBIDDEN" | "NO_STOCK" | "NOT_FOUND" | "UNAVAILABLE" | "PRICE_CHANGED";
-      message: string;
-      /** NO_STOCK: la prenda que no alcanzó. */
-      variantId?: string;
-      /** PRICE_CHANGED: el precio vigente de cada renglón que ya no coincide. */
-      lines?: { variantId: string; price: number }[];
-      /**
-       * `request_conflict`: el identificador ya se usó en otra venta; el cliente
-       * cobra con uno nuevo. `session_expired`: hay que volver a iniciar sesión.
-       */
-      reason?: "request_conflict" | "session_expired";
-    };
+export type { SaleActionResult } from "./action-errors";
 
-type Failure = Extract<SaleActionResult, { ok: false }>;
-
-const fail = (code: Failure["code"], message: string, extra: Partial<Failure> = {}): Failure => ({
-  ok: false,
-  code,
-  message,
-  ...extra,
-});
 const toCents = (n: number) => Math.round(n * 100);
-
-const sessionExpired = (): Failure =>
-  fail("FORBIDDEN", "Tu sesión terminó. Vuelve a iniciar sesión.", { reason: "session_expired" });
-
-function prismaCode(err: unknown): string | null {
-  const code = (err as { code?: unknown } | null)?.code;
-  return typeof code === "string" && /^P\d{4}$/.test(code) ? code : null;
-}
-
-function mapError(err: unknown, retryVerb: "cobrar" | "confirmar" | "anular"): Failure {
-  if (err instanceof InsufficientStockError) {
-    return fail(
-      "NO_STOCK",
-      `Solo hay ${err.available} de esta prenda en la tienda (pediste ${err.requested}).`,
-      { variantId: err.variantId },
-    );
-  }
-  if (err instanceof SaleRequestConflictError) {
-    return fail(
-      "INVALID",
-      `La venta #${err.saleNumber} ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.`,
-      { reason: "request_conflict" },
-    );
-  }
-  if (err instanceof SalesRuleError) {
-    return fail(/no existe|no encontr/i.test(err.message) ? "NOT_FOUND" : "INVALID", err.message);
-  }
-  if (err instanceof UnauthenticatedError) return sessionExpired();
-  switch (prismaCode(err)) {
-    // Llave foránea: la tienda o la prenda se borró entre la pantalla y el cobro.
-    case "P2003":
-      return fail("INVALID", "La tienda o la prenda ya no existe.");
-    // Transacción vencida (timeout o maxWait): Prisma hizo rollback.
-    case "P2028":
-      return fail("UNAVAILABLE", `El servidor tardó en responder. Intenta ${retryVerb} de nuevo.`);
-  }
-  throw err;
-}
 
 /** Usuario de la sesión, o null si falta o expiró (la action responde FORBIDDEN, no lanza). */
 async function sessionUser(): Promise<CurrentUser | null> {
