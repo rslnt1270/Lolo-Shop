@@ -36,17 +36,19 @@ describe("dashboard-actions con sesión vencida", () => {
 });
 
 describe("pendingReviewCount solo para el dueño", () => {
-  const data = () => ({ pendingReviewCount: 3, salesCount: 1 });
+  const data = () => ({ pendingReviewCount: 3, pendingReviewTotal: 500, salesCount: 1 });
   it.each(["manager", "collaborator"])("%s recibe 0", async (role) => {
     getCurrentUser.mockResolvedValue({ id: "u", role, locationId: "l1" });
     source.getDashboard.mockResolvedValue(data());
     const res = await getDashboardAction({});
     expect((res as { data: { pendingReviewCount: number } }).data.pendingReviewCount).toBe(0);
+    expect((res as { data: { pendingReviewTotal: number } }).data.pendingReviewTotal).toBe(0);
   });
   it("el dueño recibe el número real", async () => {
     getCurrentUser.mockResolvedValue({ id: "u", role: "owner", locationId: null });
     source.getDashboard.mockResolvedValue(data());
     const res = await getDashboardAction({});
     expect((res as { data: { pendingReviewCount: number } }).data.pendingReviewCount).toBe(3);
+    expect((res as { data: { pendingReviewTotal: number } }).data.pendingReviewTotal).toBe(500);
   });
 });

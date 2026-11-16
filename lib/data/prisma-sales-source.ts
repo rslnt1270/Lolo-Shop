@@ -561,9 +561,10 @@ export class PrismaSalesDataSource implements SalesDataSource {
       AND s."status" IN ('paid'::"SaleStatus", 'pending_payment'::"SaleStatus") ${locSql}`;
     const threshold = await this.getLowStockThreshold();
 
-    const [pendingReviewCount, sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
+    const [pendingReviewCount, reviewSold, sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
       await Promise.all([
         this.db.sale.count({ where: { reviewStatus: "pending", ...locFilter } }),
+        this.db.sale.aggregate({ where: { ...valid, reviewStatus: "pending" }, _sum: { total: true } }),
         this.db.sale.aggregate({ where: valid, _sum: { total: true }, _count: true }),
         this.db.sale.aggregate({ where: { ...valid, status: "paid" }, _sum: { total: true } }),
         this.db.sale.groupBy({ by: ["businessDate"], where: valid, _sum: { total: true }, _count: true, orderBy: { businessDate: "asc" } }),
@@ -631,6 +632,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
                 channel: true,
                 paymentMethod: true,
                 createdAt: true,
+                reviewStatus: true,
               },
             })
           : null,
@@ -641,6 +643,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
       collectedTotal: pesos(collected._sum.total),
       salesCount: sold._count,
       pendingReviewCount,
+      pendingReviewTotal: pesos(reviewSold._sum.total),
       byDay: byDay.map((r) => ({ date: r.businessDate.toISOString().slice(0, 10), total: pesos(r._sum.total), count: r._count })),
       byLocation: byLocation.map((r) => ({ locationId: r.locationId, total: pesos(r._sum.total) })),
       byChannel: byChannel.map((r) => ({ channel: r.channel, total: pesos(r._sum.total) })),
@@ -666,6 +669,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
               channel: r.channel,
               paymentMethod: r.paymentMethod,
               createdAt: r.createdAt.toISOString(),
+              reviewStatus: r.reviewStatus,
             })),
           }
         : {}),

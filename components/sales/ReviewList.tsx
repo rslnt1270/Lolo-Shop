@@ -72,6 +72,9 @@ function ReviewCard({ item, onChanged }: { item: ReviewItem; onChanged: () => vo
       </p>
 
       <ul className="mt-3 space-y-1" aria-label="Por qué está por aprobar">
+        {item.reasons.includes("insufficient_stock") && shortLines.length === 0 && (
+          <li className="text-sm font-bold text-agotado">{REVIEW_REASON_TEXT.insufficient_stock}</li>
+        )}
         {item.reasons.includes("insufficient_stock") &&
           shortLines.map((l) => (
             <li key={`s-${l.variantId}`} className="text-sm font-bold text-agotado">

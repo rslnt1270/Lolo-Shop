@@ -286,9 +286,10 @@ describe("FixtureSalesDataSource: revisión del dueño", () => {
     const d = await ds.getDashboard(q);
     expect(d.pendingReviewCount).toBe(1);
     expect(d.soldTotal).toBe(900);
+    expect(d.pendingReviewTotal).toBe(900);
     expect((await ds.getDashboard({ ...q, locationIds: ["loc-2"] })).pendingReviewCount).toBe(0);
     await ds.rejectReview(rec.id, "owner", "No procede", true);
     const after = await ds.getDashboard(q);
-    expect(after).toMatchObject({ pendingReviewCount: 0, soldTotal: 0 });
+    expect(after).toMatchObject({ pendingReviewCount: 0, pendingReviewTotal: 0, soldTotal: 0 });
   });
 });

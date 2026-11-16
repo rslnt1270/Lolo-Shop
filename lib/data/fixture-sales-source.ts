@@ -341,6 +341,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
       collectedTotal: sum(valid.filter((s) => s.status === "paid")),
       salesCount: valid.length,
       pendingReviewCount: all.filter((s) => s.reviewStatus === "pending").length,
+      pendingReviewTotal: sum(valid.filter((s) => s.reviewStatus === "pending")),
       byDay: group((s) => s.businessDate)
         .map(([date, rows]) => ({ date, total: sum(rows), count: rows.length }))
         .sort((a, b) => (a.date < b.date ? -1 : 1)),
@@ -377,6 +378,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
                 channel: s.channel,
                 paymentMethod: s.paymentMethod,
                 createdAt: s.createdAt,
+                reviewStatus: s.reviewStatus,
               })),
           }
         : {}),

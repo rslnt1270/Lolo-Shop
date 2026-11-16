@@ -229,6 +229,7 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource: revisión del dueño", () =>
     it("ventas en revisión cuentan en soldTotal y las rechazadas no", async () => {
       const rec = await pendingSale();
       expect((await ds.getDashboard(q("all"))).soldTotal).toBe(600);
+      expect((await ds.getDashboard(q("all"))).pendingReviewTotal).toBe(600);
       await ds.rejectReview(rec.id, owner, "No procede", true);
       const d = await ds.getDashboard(q("all"));
       expect(d.soldTotal).toBe(0);

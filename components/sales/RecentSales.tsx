@@ -38,6 +38,11 @@ function RecentRow({ sale, locationNames, namesReady = true, onChanged }: Omit<P
       <p className="mt-0.5 text-xs text-tinta">
         {METHOD_LABEL[sale.paymentMethod]}, {CHANNEL_LABEL[sale.channel]}, {hourFormat.format(new Date(sale.createdAt))}
         {pending && <span className="ml-2 font-bold text-tinta">Pago pendiente</span>}
+        {sale.reviewStatus === "pending" && (
+          <span className="ml-2 inline-block rounded-[6px] border border-agotado px-1.5 py-0.5 font-bold text-agotado">
+            Por aprobar
+          </span>
+        )}
       </p>
       <div className="mt-2">
         <Button

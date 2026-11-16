@@ -93,6 +93,8 @@ export interface DashboardData {
   salesCount: number;
   /** Ventas sin internet por aprobar en las tiendas del alcance (sin filtro de fecha). */
   pendingReviewCount: number;
+  /** Parte de `soldTotal` que está "Por aprobar" (ventas sin internet en revisión dentro del rango). */
+  pendingReviewTotal: number;
   byDay: { date: string; total: number; count: number }[];
   byLocation: { locationId: string; total: number }[];
   byChannel: { channel: SaleChannel; total: number }[];
@@ -121,6 +123,8 @@ export interface DashboardData {
     channel: SaleChannel;
     paymentMethod: PaymentMethod;
     createdAt: string;
+    /** `pending`: venta sin internet "Por aprobar". */
+    reviewStatus: SaleReviewStatus | null;
   }[];
   /** Las 50 filas con menos piezas. */
   lowStock: {

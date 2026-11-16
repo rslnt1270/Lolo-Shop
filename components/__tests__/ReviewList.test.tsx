@@ -54,6 +54,15 @@ describe("ReviewList", () => {
     expect(screen.getByText("Faltó stock: 2 piezas de Playera M")).toBeInTheDocument();
   });
 
+  it("sin renglón con faltante, insufficient_stock cae al texto general", () => {
+    const it2 = item({
+      reasons: ["insufficient_stock"],
+      lines: [{ variantId: "v1", productTitle: "Playera", size: "M", quantity: 1, shortfall: 0, unitPrice: 200 }],
+    });
+    render(<ReviewList items={[it2]} onChanged={() => {}} />);
+    expect(screen.getByText(REVIEW_REASON_TEXT.insufficient_stock)).toBeInTheDocument();
+  });
+
   it("lista vacía", () => {
     render(<ReviewList items={[]} onChanged={() => {}} />);
     expect(screen.getByText("No hay ventas sin internet por aprobar.")).toBeInTheDocument();
