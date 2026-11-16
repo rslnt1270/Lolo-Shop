@@ -28,7 +28,8 @@ export async function getDashboardAction(
   if (!user) return { error: "session_expired" };
   const query = scopeDashboardQuery(user, requested, businessDateMx(new Date()));
   const data = await getSalesSource().getDashboard(query);
-  return { query, data };
+  // Las ventas por aprobar son del dueño: a los demás roles no les llega el número.
+  return { query, data: user.role === "owner" ? data : { ...data, pendingReviewCount: 0 } };
 }
 
 /** `null`: la sesión terminó. */

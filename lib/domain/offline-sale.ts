@@ -18,9 +18,9 @@ export const PRICE_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
   insufficient_stock: "Faltó stock",
-  price_unverified: "Precio distinto al registrado",
-  inactive_product: "Prenda dada de baja",
-  clock_skew: "Fecha u hora del teléfono distinta",
+  price_unverified: "Precio distinto al registrado (no coincide con los precios de los últimos 7 días)",
+  inactive_product: "Prenda dada de baja (ya no está activa en el catálogo)",
+  clock_skew: "Fecha u hora del teléfono distinta (se envió otro día o la copia de precios era vieja)",
 };
 
 /** Instante ISO 8601 con zona (Z u offset). Única fuente: la usa también la firma de la copia. */

@@ -127,6 +127,20 @@ export default function VentasPage() {
 
         {loaded && threshold !== null && (
           <>
+            {role === "owner" && loaded.data.pendingReviewCount > 0 && (
+              <Link
+                href="/ventas/revision"
+                className="flex min-h-11 items-center justify-between gap-2 rounded-[14px] border border-agotado bg-white px-4 py-3 text-sm font-bold text-agotado focus-visible:outline focus-visible:outline-2 focus-visible:outline-turquesa-texto"
+              >
+                <span>
+                  {loaded.data.pendingReviewCount === 1
+                    ? "1 venta sin internet por aprobar"
+                    : `${loaded.data.pendingReviewCount} ventas sin internet por aprobar`}
+                </span>
+                <span aria-hidden="true">Revisar</span>
+              </Link>
+            )}
+
             <DashboardCards data={loaded.data} locationNames={locationNames} namesReady={namesReady} />
 
             <section aria-labelledby="pendientes-h">

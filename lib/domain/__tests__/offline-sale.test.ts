@@ -104,9 +104,9 @@ describe("textos y folio", () => {
     for (const r of REVIEW_REASONS) expect(REVIEW_REASON_TEXT[r]).toBeTruthy();
     expect(REVIEW_REASON_TEXT).toEqual({
       insufficient_stock: "Faltó stock",
-      price_unverified: "Precio distinto al registrado",
-      inactive_product: "Prenda dada de baja",
-      clock_skew: "Fecha u hora del teléfono distinta",
+      price_unverified: "Precio distinto al registrado (no coincide con los precios de los últimos 7 días)",
+      inactive_product: "Prenda dada de baja (ya no está activa en el catálogo)",
+      clock_skew: "Fecha u hora del teléfono distinta (se envió otro día o la copia de precios era vieja)",
     });
   });
   it("folio local", () => expect(offlineFolio(ID)).toBe("L-3f9a2c1b"));

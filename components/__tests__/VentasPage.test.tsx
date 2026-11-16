@@ -35,6 +35,7 @@ const threeHoursAgo = () => new Date(Date.now() - 3 * 3_600_000).toISOString();
 
 function dashboard() {
   return {
+    pendingReviewCount: 0,
     soldTotal: 1234.5,
     collectedTotal: 1000,
     salesCount: 7,
@@ -394,5 +395,37 @@ describe("VentasPage", () => {
     expect(await screen.findByTestId("card-vendido")).toHaveTextContent("$1,234.50");
     expect(screen.getByTestId("card-cobrado")).toHaveTextContent("$1,000");
     expect(screen.getByTestId("card-cobrado")).not.toHaveTextContent("$1,000.00");
+  });
+
+  describe("aviso de ventas sin internet por aprobar", () => {
+    const withCount = (n: number) =>
+      actions.getDashboardAction.mockImplementation(async () => ({
+        query: { from: "2026-11-06", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates" },
+        data: { ...dashboard(), pendingReviewCount: n },
+      }));
+    it("el owner con N > 0 ve el aviso con enlace", async () => {
+      withCount(3);
+      render(<VentasPage />);
+      const link = await screen.findByRole("link", { name: /3 ventas sin internet por aprobar/ });
+      expect(link).toHaveAttribute("href", "/ventas/revision");
+    });
+    it("singular", async () => {
+      withCount(1);
+      render(<VentasPage />);
+      expect(await screen.findByRole("link", { name: /1 venta sin internet por aprobar/ })).toBeInTheDocument();
+    });
+    it("el owner con 0 no ve el aviso", async () => {
+      withCount(0);
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByText(/sin internet por aprobar/)).toBeNull();
+    });
+    it.each(["manager", "collaborator"] as const)("%s no ve el aviso aunque llegue el número", async (role) => {
+      setRole(role, "l1");
+      withCount(3);
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByText(/sin internet por aprobar/)).toBeNull();
+    });
   });
 });
