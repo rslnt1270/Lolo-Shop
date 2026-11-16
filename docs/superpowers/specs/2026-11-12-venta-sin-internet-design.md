@@ -44,9 +44,11 @@
 **Qué se guarda** (proyección cerrada, `OfflineSnapshot`):
 
 ```
-{ locationId, generatedAt (ISO, reloj del servidor), variants: [
+{ locationId, generatedAt (ISO, reloj del servidor), snapshotToken, variants: [
   { variantId, productId, barcode | null, sku, productTitle, variantTitle, size, price, available } ] }
 ```
+
+`snapshotToken` es la firma del servidor sobre usuario, tienda y `generatedAt` (la devuelve `getOfflineSnapshotAction` junto a la copia y `submitOfflineSaleAction` la exige). Es una afirmación firmada, no una credencial: no da acceso por sí sola. Se guarda con la copia (no forma parte de la proyección `OfflineSnapshot` del servidor).
 
 - Solo la tienda pedida, solo variantes y productos activos (`isActive`, sin `mergedIntoId`) con fila `InventoryLevel` en esa tienda, **incluidas las de 0 piezas** (para decir "sin existencias" en lugar de "no encontrado").
 - **No** se guarda: stock de la otra tienda, `minStock`, `Movement`, usuarios, historial de precios, fotos (sin `imageUrl`; el carrito sin internet no muestra foto), datos de clientes.
@@ -65,6 +67,7 @@ Registro `QueuedSale`:
 { clientRequestId, userId, locationId, channel, paymentMethod, customerAlias?,
   lines: [{ variantId, quantity, unitPrice, sku, productTitle, variantTitle }],
   total, soldAt (ISO, reloj del teléfono), snapshotAt (generatedAt de la copia usada),
+  snapshotToken (el de esa copia, copiado en el momento de la venta),
   state: "pending" | "sending" | "synced" | "needs_attention",
   attempts, lastError?, saleNumber?, review?: boolean, syncedAt? }
 ```
