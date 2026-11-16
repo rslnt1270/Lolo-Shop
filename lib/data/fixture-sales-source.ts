@@ -2,7 +2,6 @@ import type { Product } from "@/lib/domain/types";
 import {
   businessDateMx,
   initialStatus,
-  isSameSaleRequest,
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
@@ -19,7 +18,8 @@ import {
   type OfflineMeta,
 } from "@/lib/domain/offline-sale";
 import { fixtureProducts } from "./fixtures";
-import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
+import { InsufficientStockError, SalesRuleError } from "./errors";
+import { replayOrConflict } from "./sale-replay";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   LOW_STOCK_LIMIT,
@@ -104,10 +104,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
     const sale = checked.value;
 
     const existing = this.byRequestId.get(sale.clientRequestId);
-    if (existing) {
-      if (!isSameSaleRequest(existing, sale)) throw new SaleRequestConflictError(existing.number);
-      return copy(existing);
-    }
+    if (existing) return copy(replayOrConflict(existing, sale, userId));
 
     const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : 1));
     for (const line of lines) {
@@ -162,10 +159,7 @@ export class FixtureSalesDataSource implements SalesDataSource {
     const { soldAt, snapshotAt, ...sale } = checked.value;
 
     const existing = this.byRequestId.get(sale.clientRequestId);
-    if (existing) {
-      if (!isSameSaleRequest(existing, sale)) throw new SaleRequestConflictError(existing.number);
-      return copy(existing);
-    }
+    if (existing) return copy(replayOrConflict(existing, sale, userId));
     if (sale.lines.some((l) => !this.variants.has(l.variantId))) {
       throw new SalesRuleError("Un producto de la venta ya no existe.");
     }

@@ -1,6 +1,7 @@
 import type { OfflineSaleResult } from "@/lib/sales/offline-actions";
 import type { QueuedSale } from "./db";
 import { readQueue, updateQueued } from "./queue-store";
+import { withTimeout } from "./timeout";
 
 /**
  * Motor de sincronización de la cola sin internet (spec §7). Corre en la página
@@ -26,9 +27,26 @@ export interface SyncDeps {
   userId: string;
   submit: (input: unknown) => Promise<OfflineSaleResult>;
   now: () => Date;
-  /** Usuario de la sesión real en este momento (next-auth `getSession()`); null sin sesión. */
+  /**
+   * Usuario de la sesión real en este momento (en la app, `fetchSessionUserId`
+   * contra `/api/auth/session`); `null` sin sesión; lanza si no hay red.
+   */
   sessionUserId: () => Promise<string | null>;
+  /** Plazo para confirmar la sesión (por omisión `SESSION_CHECK_TIMEOUT_MS`). */
+  sessionTimeoutMs?: number;
+  /** Plazo para la respuesta de cada envío (por omisión `SUBMIT_TIMEOUT_MS`). */
+  submitTimeoutMs?: number;
 }
+
+/** Sin respuesta de la sesión en este plazo, la vuelta se detiene como `network`. */
+export const SESSION_CHECK_TIMEOUT_MS = 8_000;
+/**
+ * Sin respuesta de un envío en este plazo, la venta vuelve a `pending` y la
+ * vuelta se detiene como `network`. El envío pudo terminar en el servidor de
+ * todos modos: reenviarlo es seguro porque el servidor hace replay por
+ * `clientRequestId`.
+ */
+export const SUBMIT_TIMEOUT_MS = 20_000;
 
 export const SYNC_LOCK_NAME = "loloshop-offline-sync";
 
@@ -77,7 +95,14 @@ export const DEFAULT_REJECTION_MESSAGE = "El servidor rechazó la venta. Revísa
  * después con el mismo id (replay); la vuelta se detiene como `storage` en
  * lugar de seguir mandando ventas cuyo resultado no se podría guardar.
  */
-async function drain({ userId, submit, now, sessionUserId }: SyncDeps): Promise<SyncSummary> {
+async function drain({
+  userId,
+  submit,
+  now,
+  sessionUserId,
+  sessionTimeoutMs = SESSION_CHECK_TIMEOUT_MS,
+  submitTimeoutMs = SUBMIT_TIMEOUT_MS,
+}: SyncDeps): Promise<SyncSummary> {
   const summary = emptySummary();
   const stop = (why: NonNullable<SyncSummary["stoppedBy"]>) => {
     summary.stoppedBy = why;
@@ -100,7 +125,7 @@ async function drain({ userId, submit, now, sessionUserId }: SyncDeps): Promise<
       // La pestaña pudo quedarse con un usuario viejo: manda la sesión real.
       let current: string | null;
       try {
-        current = await sessionUserId();
+        current = await withTimeout(sessionUserId(), sessionTimeoutMs, "Sesión");
       } catch {
         return stop("network");
       }
@@ -116,7 +141,7 @@ async function drain({ userId, submit, now, sessionUserId }: SyncDeps): Promise<
 
     let res: OfflineSaleResult | undefined;
     try {
-      res = await submit(toInput(next));
+      res = await withTimeout(submit(toInput(next)), submitTimeoutMs, "Envío");
     } catch {
       res = undefined;
     }

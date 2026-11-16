@@ -239,6 +239,38 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
       expect(await available(w.v1, w.storeB)).toBe(5);
     });
 
+    it("id de otro usuario con el mismo carrito: conflicto sin el folio y sin tocar stock", async () => {
+      await setStock(w.v1, w.storeB, 5);
+      const rid = randomUUID();
+      const input = sale(w.storeB, [one(w.v1, 1)], "cash", rid);
+      await ds.createSale(input, w.owner);
+
+      const err = await ds.createSale(input, w.collab).catch((e) => e);
+
+      expect(err).toBeInstanceOf(SaleRequestConflictError);
+      expect(err.saleNumber).toBeNull();
+      expect(err.message).not.toMatch(/#\d/);
+      expect(await testPrisma.sale.count()).toBe(1);
+      expect(await available(w.v1, w.storeB)).toBe(4);
+      await expectLedger(w.v1, w.storeB, 5);
+    });
+
+    it("carrera de dos usuarios con el mismo id y el mismo carrito: una venta y el otro recibe conflicto sin folio", async () => {
+      await setStock(w.v1, w.storeB, 5);
+      const input = sale(w.storeB, [one(w.v1, 1)], "cash", randomUUID());
+      const results = await Promise.allSettled([
+        dsA.createSale(input, w.owner),
+        dsB.createSale(input, w.collab),
+      ]);
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(failed).toHaveLength(1);
+      expect(failed[0].reason).toBeInstanceOf(SaleRequestConflictError);
+      expect(failed[0].reason.saleNumber).toBeNull();
+      expect(await testPrisma.sale.count()).toBe(1);
+      await expectLedger(w.v1, w.storeB, 5);
+    });
+
     it("carrera con el mismo id y carritos distintos: una venta y la otra recibe conflicto", async () => {
       await setStock(w.v1, w.storeA, 5);
       const rid = randomUUID();

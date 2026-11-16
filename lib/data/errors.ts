@@ -77,13 +77,19 @@ export class SalesRuleError extends Error {
 
 /**
  * Reintento con un `clientRequestId` ya usado pero con otros datos (tienda,
- * canal, método o renglones distintos): no es el mismo cobro. La venta
- * guardada no cambia; el cliente debe cobrar con un identificador nuevo.
+ * canal, método o renglones distintos) o por otro usuario: no es el mismo
+ * cobro. La venta guardada no cambia; el cliente debe cobrar con un
+ * identificador nuevo. `saleNumber` es `null` cuando la venta es de otro
+ * usuario: no se revela ningún dato de esa venta.
  */
 export class SaleRequestConflictError extends Error {
-  readonly saleNumber: number;
-  constructor(saleNumber: number) {
-    super(`La venta #${saleNumber} ya se registró con otros datos.`);
+  readonly saleNumber: number | null;
+  constructor(saleNumber: number | null) {
+    super(
+      saleNumber === null
+        ? "Este cobro ya se registró con otros datos."
+        : `La venta #${saleNumber} ya se registró con otros datos.`,
+    );
     this.name = "SaleRequestConflictError";
     this.saleNumber = saleNumber;
   }

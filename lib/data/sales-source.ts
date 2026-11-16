@@ -146,7 +146,9 @@ export interface SalesDataSource {
    * Registra la venta y descuenta stock en una sola transacción. Idempotente
    * por `clientRequestId`: un reintento con los mismos datos devuelve la venta
    * ya creada; con otra tienda, canal, método o renglones lanza
-   * `SaleRequestConflictError`. Si falta stock en algún renglón lanza
+   * `SaleRequestConflictError` con el folio. Si la venta guardada la registró
+   * otro usuario lanza `SaleRequestConflictError` sin folio (`saleNumber: null`)
+   * y no revela nada de esa venta. Si falta stock en algún renglón lanza
    * `InsufficientStockError` y no deja nada.
    *
    * Con `opts.offline` (venta cobrada sin internet) nunca lanza por stock:

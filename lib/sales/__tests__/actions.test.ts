@@ -207,6 +207,20 @@ describe("createSaleAction", () => {
   });
 });
 
+describe("createSaleAction: id de otro usuario", () => {
+  it("conflicto sin folio: INVALID request_conflict sin número de venta", async () => {
+    as("owner");
+    source.createSale.mockRejectedValue(new SaleRequestConflictError(null));
+    const r = await createSaleAction(input());
+    expect(r).toEqual({
+      ok: false,
+      code: "INVALID",
+      message: "Este cobro ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.",
+      reason: "request_conflict",
+    });
+  });
+});
+
 describe("confirmSalePaymentAction", () => {
   it("collaborator: FORBIDDEN", async () => {
     as("collaborator", "A");

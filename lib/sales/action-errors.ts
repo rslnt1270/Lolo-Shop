@@ -49,7 +49,9 @@ export function mapError(err: unknown, retryVerb: "cobrar" | "confirmar" | "anul
   if (err instanceof SaleRequestConflictError) {
     return fail(
       "INVALID",
-      `La venta #${err.saleNumber} ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.`,
+      err.saleNumber === null
+        ? "Este cobro ya se registró con otros datos. Revisa el carrito y vuelve a cobrar."
+        : `La venta #${err.saleNumber} ya se registró con otros datos. Revisa el carrito y vuelve a cobrar.`,
       { reason: "request_conflict" },
     );
   }

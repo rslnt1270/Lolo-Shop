@@ -17,7 +17,7 @@ vi.mock("../queue-store", async (importOriginal) => {
 });
 
 import { enqueueSale, listQueue, updateQueued } from "../queue-store";
-import { SYNC_LOCK_NAME, localFolio, nextDelayMs, runSync } from "../sync";
+import { SESSION_CHECK_TIMEOUT_MS, SUBMIT_TIMEOUT_MS, SYNC_LOCK_NAME, localFolio, nextDelayMs, runSync } from "../sync";
 
 const ID = (n: number) => `${String(n).repeat(8)}-0000-4000-8000-000000000000`;
 const NOW = new Date("2026-11-12T18:00:00.000Z");
@@ -57,6 +57,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   Object.defineProperty(navigator, "locks", { value: undefined, configurable: true });
 });
 
@@ -403,6 +404,79 @@ describe("runSync", () => {
       expect(submit).toHaveBeenCalledTimes(2);
       expect((await byId())[ID(1)].attempts).toBe(2);
     });
+  });
+});
+
+describe("plazos (lie-fi)", () => {
+  const hang = <T,>() => new Promise<T>(() => {});
+  /** Espera (con setImmediate real) a que el motor arme su temporizador de plazo. */
+  const untilTimerArmed = async () => {
+    for (let i = 0; i < 1_000 && vi.getTimerCount() === 0; i++) await new Promise((r) => setImmediate(r));
+    expect(vi.getTimerCount()).toBeGreaterThan(0);
+  };
+  let held = false;
+  const fakeLocks = () => {
+    held = false;
+    const request = vi.fn(async (name: string, _o: unknown, cb: (lock: unknown) => Promise<unknown>) => {
+      if (held) return cb(null);
+      held = true;
+      try { return await cb({ name }); } finally { held = false; }
+    });
+    Object.defineProperty(navigator, "locks", { value: { request }, configurable: true });
+  };
+
+  it("plazos por omisión: sesión 8 s, envío 20 s", () => {
+    expect(SESSION_CHECK_TIMEOUT_MS).toBe(8_000);
+    expect(SUBMIT_TIMEOUT_MS).toBe(20_000);
+  });
+
+  it("sesión que no responde: la vuelta termina en network sin enviar y suelta candado y bandera", async () => {
+    await enqueueSale(sale(1));
+    fakeLocks();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const submit = vi.fn(async () => okResult(1));
+    const p = runSync({ ...deps(submit, "u1", () => hang<string>()), sessionTimeoutMs: 1_000 });
+    await untilTimerArmed();
+    await vi.advanceTimersByTimeAsync(1_000);
+    const summary = await p;
+    expect(summary.stoppedBy).toBe("network");
+    expect(submit).not.toHaveBeenCalled();
+    expect(held).toBe(false);
+    expect((await byId())[ID(1)]).toMatchObject({ state: "pending", attempts: 0 });
+    // La bandera quedó libre: la siguiente vuelta sí corre.
+    vi.useRealTimers();
+    await runSync(deps(submit));
+    expect(ids(submit.mock.calls)).toEqual([ID(1)]);
+  });
+
+  it("envío que no responde: network, la venta sigue pending con attempts+1 y suelta candado y bandera", async () => {
+    await enqueueSale(sale(1));
+    await enqueueSale(sale(2));
+    fakeLocks();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const submit = vi.fn(() => hang<OfflineSaleResult>());
+    const p = runSync({ ...deps(submit), submitTimeoutMs: 2_000 });
+    await untilTimerArmed();
+    await vi.advanceTimersByTimeAsync(2_000);
+    const summary = await p;
+    expect(summary.stoppedBy).toBe("network");
+    expect(submit).toHaveBeenCalledTimes(1);
+    expect(held).toBe(false);
+    const q = await byId();
+    expect(q[ID(1)]).toMatchObject({ state: "pending", attempts: 1 });
+    expect(q[ID(2)]).toMatchObject({ state: "pending", attempts: 0 });
+    // Reenvío con el mismo id: si la primera sí entró, el servidor hace replay.
+    vi.useRealTimers();
+    const again = vi.fn(async () => okResult(120));
+    await runSync(deps(again));
+    expect(ids(again.mock.calls)).toEqual([ID(1), ID(2)]);
+  });
+
+  it("un envío que responde a tiempo no deja temporizadores", async () => {
+    await enqueueSale(sale(1));
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await runSync(deps(async () => okResult(1)));
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

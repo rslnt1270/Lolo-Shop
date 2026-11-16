@@ -44,6 +44,8 @@ const offline = () => { throw new TypeError("Failed to fetch"); };
 const expired = () => ({
   ok: false, code: "FORBIDDEN", message: "Tu sesión terminó.", reason: "session_expired",
 });
+// Esperas del temporizador de reintento (no los plazos de sesión ni de envío).
+const isBackoff = (ms: number | undefined) => [15_000, 30_000, 60_000, 120_000, 240_000, 300_000].includes(ms ?? 0);
 const sentIds = () => action.submit.mock.calls.map(([i]) => (i as { clientRequestId: string }).clientRequestId);
 
 function setVisibility(state: DocumentVisibilityState) {
@@ -125,7 +127,7 @@ describe("useOfflineSync", () => {
     const { result } = renderHook(() => useOfflineSync("u1"));
     await waitFor(() => expect(result.current.lastSummary?.stoppedBy).toBe("network"));
     await waitFor(() => expect(result.current.pendingCount).toBe(1));
-    const delays = () => spy.mock.calls.map(([, ms]) => ms).filter((ms) => (ms ?? 0) >= 15_000);
+    const delays = () => spy.mock.calls.map(([, ms]) => ms).filter((ms) => isBackoff(ms));
     await waitFor(() => expect(delays()).toEqual([15_000]));
     // Primera vuelta fallida → 15 s. Al vencer, otra falla → 30 s.
     const timer = spy.mock.calls.find(([, ms]) => ms === 15_000)![0] as () => void;
@@ -142,7 +144,7 @@ describe("useOfflineSync", () => {
     const { result } = renderHook(() => useOfflineSync("u1"));
     await waitFor(() => expect(result.current.lastSummary?.sent).toHaveLength(1));
     await waitFor(() => expect(result.current.syncing).toBe(false));
-    expect(spy.mock.calls.filter(([, ms]) => (ms ?? 0) >= 15_000)).toEqual([]);
+    expect(spy.mock.calls.filter(([, ms]) => isBackoff(ms))).toEqual([]);
   });
 
   it("session_expired pausa: online no reenvía, syncNow sí", async () => {
@@ -153,7 +155,7 @@ describe("useOfflineSync", () => {
     await waitFor(() => expect(result.current.lastSummary?.stoppedBy).toBe("session_expired"));
     await waitFor(() => expect(result.current.syncing).toBe(false));
     expect(result.current.pendingCount).toBe(1);
-    expect(spy.mock.calls.filter(([, ms]) => (ms ?? 0) >= 15_000)).toEqual([]);
+    expect(spy.mock.calls.filter(([, ms]) => isBackoff(ms))).toEqual([]);
     act(() => { window.dispatchEvent(new Event("online")); });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(action.submit).toHaveBeenCalledTimes(1);
@@ -228,7 +230,7 @@ describe("useOfflineSync", () => {
     const { result } = renderHook(() => useOfflineSync("u1"));
     await waitFor(() => expect(result.current.lastSummary?.stoppedBy).toBe("user_mismatch"));
     await waitFor(() => expect(result.current.syncing).toBe(false));
-    expect(spy.mock.calls.filter(([, ms]) => (ms ?? 0) >= 15_000)).toEqual([]);
+    expect(spy.mock.calls.filter(([, ms]) => isBackoff(ms))).toEqual([]);
     act(() => { window.dispatchEvent(new Event("online")); });
     await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
     expect(action.submit).toHaveBeenCalledTimes(1);

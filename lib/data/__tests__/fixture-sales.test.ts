@@ -74,6 +74,31 @@ describe("FixtureSalesDataSource", () => {
     });
   });
 
+  describe("idempotencia: la venta es de quien la cobró", () => {
+    it.each([
+      ["en línea", undefined],
+      ["sin internet", { offline: { soldAt: new Date().toISOString(), snapshotAt: new Date().toISOString() } }],
+    ])("%s: el id de otro usuario con el mismo carrito es conflicto sin datos de esa venta", async (_n, opts) => {
+      const ds = new FixtureSalesDataSource();
+      const rid = reqId();
+      const input = sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }], "cash", rid);
+      await ds.createSale(input, "u1");
+      const err = await ds.createSale(input, "u2", opts).catch((e) => e);
+      expect(err).toBeInstanceOf(SaleRequestConflictError);
+      expect(err.saleNumber).toBeNull();
+      expect(err.message).not.toMatch(/#\d/);
+      expect(ds.available("var-1", "loc-1")).toBe(2);
+    });
+
+    it("el mismo usuario sigue recibiendo el replay", async () => {
+      const ds = new FixtureSalesDataSource();
+      const input = sale([{ variantId: "var-1", quantity: 1, unitPrice: 450 }]);
+      const a = await ds.createSale(input, "u1");
+      const b = await ds.createSale(input, "u1");
+      expect(b.number).toBe(a.number);
+    });
+  });
+
   describe("estados", () => {
     it("spay_transfer nace pendiente y se confirma una sola vez", async () => {
       const ds = new FixtureSalesDataSource();

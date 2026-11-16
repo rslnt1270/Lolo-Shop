@@ -6,7 +6,7 @@ import { hasTestDb, testPrisma } from "../../../test/db/setup";
 import { getTestDatabaseUrl } from "../../../test/db/guard";
 import { resetDb } from "../../../test/db/reset";
 import { PrismaSalesDataSource } from "../prisma-sales-source";
-import { InsufficientStockError, SalesRuleError } from "../errors";
+import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "../errors";
 import { businessDateMx, type NewSaleInput } from "@/lib/domain/sale";
 import type { OfflineMeta } from "@/lib/domain/offline-sale";
 
@@ -183,6 +183,24 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource sin internet", () => {
       expect(await testPrisma.sale.count()).toBe(1);
       expect(await testPrisma.movement.count({ where: { saleId: first.id } })).toBe(1);
       expect(await available(w.v1, w.storeA)).toBe(1);
+    });
+
+    it.each([
+      ["en línea", false],
+      ["sin internet", true],
+    ])("id de otro usuario (venta original %s) con el mismo carrito: conflicto sin folio y sin tocar stock", async (_n, firstOffline) => {
+      await setStock(w.v1, w.storeA, 3);
+      const input = sale(w.storeA, [one(w.v1, 2)]);
+      await ds.createSale(input, w.owner, firstOffline ? { offline: meta() } : undefined);
+
+      const err = await ds.createSale(input, w.collab, { offline: meta() }).catch((e) => e);
+
+      expect(err).toBeInstanceOf(SaleRequestConflictError);
+      expect(err.saleNumber).toBeNull();
+      expect(err.message).not.toMatch(/#\d/);
+      expect(await testPrisma.sale.count()).toBe(1);
+      expect(await available(w.v1, w.storeA)).toBe(1);
+      await expectLedger(w.v1, w.storeA, 3);
     });
 
     it("replay sin internet simultáneo (dos pestañas): una sola venta y un Movement por renglón", async () => {
