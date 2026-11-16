@@ -1,10 +1,19 @@
 // Sin "use server": firma de la copia local (spec F §5). Solo servidor.
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { ISO_RE } from "@/lib/domain/offline-sale";
 
 /** Contexto fijo: separa esta llave de cualquier otro uso de NEXTAUTH_SECRET. */
 const CONTEXT = "loloshop-offline-snapshot-v1";
 const MAX_TOKEN_LENGTH = 1024;
-const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+/** HMAC-SHA256 (32 bytes) en base64url sin relleno. */
+const SIG_RE = /^[A-Za-z0-9_-]{43}$/;
+/** Sin firma no se puede dar una copia: el llamador responde "no disponible". */
+export class SnapshotSigningUnavailableError extends Error {
+  constructor() {
+    super("NEXTAUTH_SECRET no está configurado.");
+    this.name = "SnapshotSigningUnavailableError";
+  }
+}
 
 export interface SnapshotClaims {
   userId: string;
@@ -27,7 +36,7 @@ const mac = (k: Buffer, payload: string) => createHmac("sha256", k).update(paylo
  */
 export function signSnapshotToken(claims: SnapshotClaims): string {
   const k = key();
-  if (!k) throw new Error("NEXTAUTH_SECRET no está configurado.");
+  if (!k) throw new SnapshotSigningUnavailableError();
   const payload = Buffer.from(
     JSON.stringify({ userId: claims.userId, locationId: claims.locationId, generatedAt: claims.generatedAt }),
   ).toString("base64url");
@@ -46,6 +55,7 @@ export function verifySnapshotToken(
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payload, sig] = parts;
+  if (!SIG_RE.test(sig) || !/^[A-Za-z0-9_-]+$/.test(payload)) return null;
   const k = key();
   if (!k) return null;
   const want = mac(k, payload);

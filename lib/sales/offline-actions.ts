@@ -11,7 +11,7 @@ import {
 import type { SaleRecord } from "@/lib/data/sales-source";
 import { validateOfflineSale } from "@/lib/domain/offline-sale";
 import { fail, mapOfflineError, sessionExpired, type SaleActionResult } from "./action-errors";
-import { signSnapshotToken, verifySnapshotToken } from "./snapshot-token";
+import { SnapshotSigningUnavailableError, signSnapshotToken, verifySnapshotToken } from "./snapshot-token";
 
 export type OfflineSnapshotResult =
   /**
@@ -61,9 +61,17 @@ export async function getOfflineSnapshotAction(locationId: string): Promise<Offl
     throw err;
   }
   if (snapshot.variants.length > MAX_SNAPSHOT_VARIANTS) return { ok: false, reason: "too_large" };
+  let snapshotToken: string;
+  try {
+    snapshotToken = signSnapshotToken({ userId: user.id, locationId, generatedAt: snapshot.generatedAt });
+  } catch (err) {
+    // Nunca se entrega una copia sin firma.
+    if (err instanceof SnapshotSigningUnavailableError) return { ok: false, reason: "unavailable" };
+    throw err;
+  }
   return {
     ok: true,
-    snapshotToken: signSnapshotToken({ userId: user.id, locationId, generatedAt: snapshot.generatedAt }),
+    snapshotToken,
     snapshot: {
       locationId: snapshot.locationId,
       generatedAt: snapshot.generatedAt,
@@ -82,8 +90,9 @@ export async function getOfflineSnapshotAction(locationId: string): Promise<Offl
  *
  * La fecha de la copia sale solo del `snapshotToken` firmado (el `snapshotAt`
  * del cliente se ignora). Sin token válido para este usuario y esta tienda la
- * venta se acepta igual (ya se cobró), pero queda en revisión con
- * `price_unverified` y solo el precio vigente cuenta.
+ * venta se acepta igual (ya se cobró) y la copia no cuenta: para el colaborador
+ * solo cuadra el precio vigente (si no, `price_unverified`); owner y manager no
+ * se verifican por precio, como en línea.
  */
 export async function submitOfflineSaleAction(input: unknown): Promise<OfflineSaleResult> {
   const user = await currentUserOrNull();

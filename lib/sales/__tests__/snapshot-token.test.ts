@@ -70,3 +70,20 @@ describe("snapshot token", () => {
     expect(verifySnapshotToken(t, { userId: "u1", locationId: "B" })).toBeNull();
   });
 });
+
+describe("formato de la firma", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXTAUTH_SECRET", TEST_SECRET);
+  });
+  it("la firma es base64url de 43 caracteres", () => {
+    expect(signSnapshotToken(claims).split(".")[1]).toMatch(/^[A-Za-z0-9_-]{43}$/);
+  });
+  it.each([
+    ["con relleno", (sig: string) => `${sig}=`],
+    ["base64 estándar", (sig: string) => sig.slice(0, 42) + "+"],
+    ["corta", (sig: string) => sig.slice(0, 42)],
+  ])("firma %s → null", (_n, mangle) => {
+    const [payload, sig] = signSnapshotToken(claims).split(".");
+    expect(verifySnapshotToken(`${payload}.${mangle(sig)}`, { userId: "u1", locationId: "B" })).toBeNull();
+  });
+});

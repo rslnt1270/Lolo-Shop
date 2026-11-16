@@ -33,8 +33,10 @@ export interface CreateSaleOptions {
   /**
    * Solo con `offline`: la fecha de la copia no viene firmada por el servidor
    * (token ausente, alterado o de otro usuario o tienda). La venta se acepta
-   * pero queda en revisión con `price_unverified` (cualquier rol), la copia no
-   * cuenta para el precio ni el reloj y `offlineSnapshotAt` queda nulo.
+   * igual; la copia no cuenta para el precio ni el reloj, así que con
+   * `checkPrice` solo cuadra el precio vigente (si no, `price_unverified`). Sin
+   * `checkPrice` (owner y manager) no se marca nada por precio, como en línea.
+   * `offlineSnapshotAt` queda nulo.
    */
   snapshotUnverified?: boolean;
 }

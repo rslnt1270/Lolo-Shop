@@ -315,17 +315,27 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource sin internet", () => {
       expect(row.offlineSnapshotAt?.toISOString()).toBe(new Date(m.snapshotAt).toISOString());
     });
 
-    it("copia no verificada: price_unverified para cualquier rol y sin offlineSnapshotAt", async () => {
+    it("copia no verificada con precio vigente: sin revisión y sin offlineSnapshotAt", async () => {
       await setStock(w.v1, w.storeA, 5);
-      const rec = await ds.createSale(sale(w.storeA, [one(w.v1, 1, 300)]), w.owner, {
+      const rec = await ds.createSale(sale(w.storeA, [one(w.v1, 1, 300)]), w.collab, {
         offline: meta(),
+        checkPrice: true,
         snapshotUnverified: true,
       });
-      expect(rec.reviewStatus).toBe("pending");
-      expect(rec.reviewReasons).toEqual(["price_unverified"]);
+      expect(rec.reviewStatus).toBeNull();
+      expect(rec.reviewReasons).toEqual([]);
       expect(await available(w.v1, w.storeA)).toBe(4);
       const row = await testPrisma.sale.findUniqueOrThrow({ where: { id: rec.id } });
       expect(row.offlineSnapshotAt).toBeNull();
+    });
+
+    it("copia no verificada del dueño (sin checkPrice): nunca price_unverified", async () => {
+      await setStock(w.v1, w.storeA, 5);
+      const rec = await ds.createSale(sale(w.storeA, [one(w.v1, 1, 1)]), w.owner, {
+        offline: meta(),
+        snapshotUnverified: true,
+      });
+      expect(rec.reviewReasons).toEqual([]);
     });
 
     it("copia no verificada: una copia vieja inventada no habilita un oldPrice", async () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getCurrentUser = vi.fn();
 const sales = { hasClientRequest: vi.fn(), createSale: vi.fn() };
@@ -22,6 +22,7 @@ import { UnauthenticatedError } from "@/lib/auth/errors";
 import { revalidatePath } from "next/cache";
 import { signSnapshotToken, verifySnapshotToken } from "../snapshot-token";
 import { FixtureSalesDataSource } from "@/lib/data/fixture-sales-source";
+import { pinMexicoNoon } from "../../../test/mexico-noon";
 
 // Secreto solo de prueba (no es el de ningún ambiente).
 const TEST_SECRET = "test-only-snapshot-secret";
@@ -160,6 +161,11 @@ describe("getOfflineSnapshotAction", () => {
     });
     expect(verifySnapshotToken(r.snapshotToken, { userId: "u1", locationId: "A" })).toBeNull();
     expect(r.snapshotToken).not.toContain(TEST_SECRET);
+  });
+
+  it("sin NEXTAUTH_SECRET → unavailable (nunca una copia sin firma)", async () => {
+    vi.stubEnv("NEXTAUTH_SECRET", "");
+    await expect(getOfflineSnapshotAction("B")).resolves.toEqual({ ok: false, reason: "unavailable" });
   });
 
   it("más de 20 000 → too_large", async () => {
@@ -307,14 +313,8 @@ describe("submitOfflineSaleAction", () => {
 
   describe("de punta a punta con el doble en memoria", () => {
     const HOUR = 60 * 60 * 1000;
-    beforeEach(() => {
-      // Mediodía de México: "hace 1 h" es el mismo día de negocio.
-      vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
-      vi.setSystemTime(new Date("2026-11-12T18:00:00.000Z"));
-    });
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    // Mediodía de México: "hace 1 h" es el mismo día de negocio.
+    pinMexicoNoon();
 
     const e2e = (over: Record<string, unknown>) => {
       const ds = new FixtureSalesDataSource();
@@ -345,11 +345,26 @@ describe("submitOfflineSaleAction", () => {
       expect(r).toMatchObject({ ok: true, review: true, sale: { reviewStatus: "pending", reviewReasons: ["price_unverified"] } });
     });
 
-    it("dueño sin token: también queda en revisión con price_unverified", async () => {
-      as("owner");
-      const { run } = e2e({ soldAt: iso(HOUR), snapshotToken: undefined, lines: [{ variantId: "var-1", quantity: 1, unitPrice: 450 }] });
+    it.each([
+      ["alterado", () => forged()],
+      ["ausente", () => undefined],
+    ])("token %s con precio vigente (colaborador): aceptada sin revisión", async (_n, make) => {
+      as("collaborator", "loc-2");
+      const { run } = e2e({ soldAt: iso(HOUR), snapshotToken: make(), lines: [{ variantId: "var-1", quantity: 1, unitPrice: 450 }] });
       const r = await run();
-      expect(r).toMatchObject({ ok: true, review: true, sale: { reviewReasons: ["price_unverified"] } });
+      expect(r).toMatchObject({ ok: true, review: false, sale: { reviewReasons: [] } });
+    });
+
+    it.each([
+      ["owner", null],
+      ["manager", null],
+      ["manager", "loc-2"],
+    ])("%s (tienda %s) sin token y con precio viejo: nunca price_unverified", async (role, loc) => {
+      as(role, loc);
+      const { ds, run } = e2e({ lines: linesOld, soldAt: iso(HOUR), snapshotToken: undefined });
+      ds.recordPriceChange("var-1", 400, 450, new Date(Date.now() - 2 * HOUR));
+      const r = await run();
+      expect(r).toMatchObject({ ok: true, review: false, sale: { reviewReasons: [] } });
     });
 
     it("soldAt de ayer → revisión (clock_skew)", async () => {

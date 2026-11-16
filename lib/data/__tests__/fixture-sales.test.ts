@@ -199,14 +199,19 @@ describe("FixtureSalesDataSource sin internet", () => {
     expect(rec).toMatchObject({ reviewStatus: "pending", reviewReasons: ["clock_skew"] });
   });
 
-  it("copia no verificada: price_unverified para cualquier rol y un oldPrice reciente no lo limpia", async () => {
+  it("copia no verificada: con checkPrice solo cuadra el precio vigente; sin checkPrice no se marca", async () => {
     const ds = new FixtureSalesDataSource();
-    const at2 = (opts: Parameters<FixtureSalesDataSource["createSale"]>[2]) =>
-      ds.createSale({ ...sale([line(1, 400, "var-1")]), locationId: "loc-2" }, "u1", opts).then((r) => r.reviewReasons);
-    expect(await at2({ offline: meta(), snapshotUnverified: true })).toEqual(["price_unverified"]);
+    const at2 = (unitPrice: number, opts: Parameters<FixtureSalesDataSource["createSale"]>[2]) =>
+      ds.createSale({ ...sale([line(1, unitPrice, "var-1")]), locationId: "loc-2" }, "u1", opts).then((r) => r.reviewReasons);
     ds.recordPriceChange("var-1", 400, 450, new Date(Date.now() - HOUR / 2));
-    expect(await at2({ offline: meta(HOUR, HOUR), checkPrice: true })).toEqual([]);
-    expect(await at2({ offline: meta(HOUR, HOUR), checkPrice: true, snapshotUnverified: true })).toEqual(["price_unverified"]);
+    // Precio vigente (450): no se marca aunque la copia no esté firmada.
+    expect(await at2(450, { offline: meta(), checkPrice: true, snapshotUnverified: true })).toEqual([]);
+    // Precio viejo (400): cuadra con copia firmada, no sin firma.
+    expect(await at2(400, { offline: meta(HOUR, HOUR), checkPrice: true })).toEqual([]);
+    expect(await at2(400, { offline: meta(HOUR, HOUR), checkPrice: true, snapshotUnverified: true })).toEqual(["price_unverified"]);
+    // Owner y manager (sin checkPrice): nunca price_unverified, como en línea.
+    expect(await at2(400, { offline: meta(HOUR, HOUR), snapshotUnverified: true })).toEqual([]);
+    expect(await at2(1, { offline: meta(), snapshotUnverified: true })).toEqual([]);
   });
 
   it("checkPrice sin offline se ignora", async () => {

@@ -23,7 +23,8 @@ export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
   clock_skew: "Fecha u hora del teléfono distinta",
 };
 
-const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+/** Instante ISO 8601 con zona (Z u offset). Única fuente: la usa también la firma de la copia. */
+export const ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
 function parseIso(value: unknown): Date | null {
   if (typeof value !== "string" || !ISO_RE.test(value)) return null;

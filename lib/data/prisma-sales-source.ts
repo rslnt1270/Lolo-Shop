@@ -301,12 +301,11 @@ export class PrismaSalesDataSource implements SalesDataSource {
     }
 
     const now = new Date();
+    // Copia sin firma: no cuenta; con checkPrice solo cuadra el precio vigente (priceSince = now).
     const times = resolveOfflineTimes({ soldAt: rawSoldAt, snapshotAt: rawSnapshotAt }, now, {
       snapshotTrusted: !snapshotUnverified,
     });
     const reasons = new Set<ReviewReason>();
-    // Copia sin firma: el precio no se puede verificar contra lo que tenía el teléfono.
-    if (snapshotUnverified) reasons.add("price_unverified");
     // Inactiva o unida a otro producto: la prenda ya salió, se acepta.
     if (variants.some((v) => !v.isActive || !v.product.isActive || v.product.mergedIntoId)) {
       reasons.add("inactive_product");

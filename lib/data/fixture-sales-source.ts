@@ -173,7 +173,6 @@ export class FixtureSalesDataSource implements SalesDataSource {
     const now = new Date();
     const times = resolveOfflineTimes({ soldAt, snapshotAt }, now, { snapshotTrusted: !snapshotUnverified });
     const reasons = new Set<ReviewReason>();
-    if (snapshotUnverified) reasons.add("price_unverified");
     const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : 1));
     const planned = lines.map((l) => {
       const key = stockKey(l.variantId, sale.locationId);
