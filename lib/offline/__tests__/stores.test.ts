@@ -5,7 +5,7 @@ import { OFFLINE_DB_NAME, OfflineStorageError, onOfflineStorageError, openOfflin
 import {
   discardQueued, enqueueSale, listQueue, onQueueEnqueued, purgeSynced, resetStoragePersistRequest, updateQueued,
 } from "../queue-store";
-import { getSnapshot, localAvailable, saveSnapshot } from "../snapshot-store";
+import { getLatestSnapshot, getSnapshot, localAvailable, saveSnapshot } from "../snapshot-store";
 import { clearOnSignOut, getIdentity, saveIdentity } from "../identity-store";
 
 const sale = (id: string, over: Partial<Omit<QueuedSale, "state" | "attempts">> = {}): Omit<QueuedSale, "state" | "attempts"> => ({
@@ -216,6 +216,13 @@ describe("copia", () => {
     await saveSnapshot(snap());
     expect(await getSnapshot("loc-1")).toEqual(snap());
     expect(await getSnapshot("otra")).toBeNull();
+  });
+
+  it("getLatestSnapshot devuelve la copia más reciente de las guardadas", async () => {
+    expect(await getLatestSnapshot()).toBeNull();
+    await saveSnapshot({ ...snap(), locationId: "loc-2", generatedAt: "2026-11-10T11:00:00.000Z" });
+    await saveSnapshot(snap());
+    expect(await getLatestSnapshot()).toMatchObject({ locationId: "loc-2" });
   });
 
   it("localAvailable resta pending y sending, no synced ni otras tiendas", async () => {

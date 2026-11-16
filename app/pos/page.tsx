@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
@@ -18,6 +18,11 @@ import { formatPrice } from "@/lib/public/format";
 import { saleTotal } from "@/lib/domain/sale";
 import { StaffLoadState } from "@/components/layout/StaffLoadState";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
+import { listQueue } from "@/lib/offline/queue-store";
+import { lookupOffline, toDraftMatch } from "@/lib/offline/lookup";
+import {
+  OFFLINE_IDENTITY_EXPIRED_TEXT, OFFLINE_NOT_FOUND_TEXT, OFFLINE_SNAPSHOT_BLOCKED_TEXT, useOfflinePos, useOnline,
+} from "@/lib/offline/use-offline-pos";
 
 type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
@@ -72,10 +77,31 @@ export default function POSPage() {
     setLockState(v);
   }, []);
 
-  const role = session?.user?.role;
+  const online = useOnline();
+  const sessionId = session?.user?.id ?? null;
+  const sessionRole = session?.user?.role ?? null;
+  const sessionLocation = session?.user?.locationId ?? null;
+  const sessionUser = useMemo(
+    () => (sessionId && sessionRole ? { id: sessionId, role: sessionRole, locationId: sessionLocation } : null),
+    [sessionId, sessionRole, sessionLocation],
+  );
+  const offline = useOfflinePos({
+    online,
+    sessionUser,
+    locationId: sessionRole === "collaborator" ? (sessionLocation ?? "") : chosenLocation,
+  });
+  // Sin conexión next-auth no puede leer la sesión: manda la identidad local (≤ 12 h).
+  const user = online
+    ? sessionUser
+    : offline.identity && { id: offline.identity.userId, role: offline.identity.role, locationId: offline.identity.locationId };
+  const role = user?.role;
   const isCollaborator = role === "collaborator";
   const canEditPrice = role === "owner" || role === "manager";
-  const locationId = isCollaborator ? (session?.user?.locationId ?? "") : chosenLocation;
+  const locationId = offline.locationId;
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  const offlineRef = useRef(offline);
+  offlineRef.current = offline;
 
   useEffect(() => {
     if (status !== "authenticated" || isCollaborator) return;
@@ -246,9 +272,67 @@ export default function POSPage() {
     return noticeFor(outcomes, true);
   }, [applyFound, noticeFor, setPending]);
 
+  /** Resultado encontrado (del servidor o de la copia local): entra al carrito o espera al cobro en curso. */
+  const takeFound = useCallback(
+    (code: string, result: Extract<LookupCodeResult, { found: true }>) => {
+      const variant = result.product.variants.find((v) => v.id === result.variantId);
+      if (!variant) {
+        setPending(code, "rejected", NOT_FOUND_REASON);
+        notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
+      } else if (submittingRef.current || lockRef.current) {
+        // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
+        heldRef.current.set(code, result);
+        setPending(code, "queued");
+      } else {
+        const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
+        setPending(code, null);
+        const outcome = applyFound(result, pieces);
+        const next = noticeFor([outcome], pieces > 1);
+        if (next) notify(next);
+        if (outcome.rejected) setPending(code, "rejected", outcome.added === 0 ? outcome.rejected : outcome.shortReason);
+      }
+    },
+    [applyFound, noticeFor, notify, setPending],
+  );
+
+  /**
+   * Busca en la copia local de la tienda (spec §5). Devuelve false si no hay
+   * copia vigente y hay conexión: la página sigue con el aviso de red de siempre.
+   */
+  const lookupLocal = useCallback(
+    async (code: string, store: string): Promise<boolean> => {
+      const { snapshot, canSellOffline } = offlineRef.current;
+      if (!canSellOffline || !snapshot || snapshot.locationId !== store) {
+        if (onlineRef.current) return false;
+        setPending(code, "rejected", OFFLINE_SNAPSHOT_BLOCKED_TEXT);
+        notify({ kind: "error", text: OFFLINE_SNAPSHOT_BLOCKED_TEXT });
+        return true;
+      }
+      const queue = await listQueue();
+      if (store !== locationRef.current) {
+        setPending(code, null);
+        return true;
+      }
+      const hit = lookupOffline(code, snapshot, queue);
+      if (!hit.found) {
+        setPending(code, "rejected", OFFLINE_NOT_FOUND_TEXT);
+        notify({ kind: "error", text: OFFLINE_NOT_FOUND_TEXT });
+        return true;
+      }
+      const { product, variant } = toDraftMatch(hit.variant);
+      takeFound(code, { found: true, product, variantId: variant.id, stock: { available: hit.available, sold: false } });
+      return true;
+    },
+    [notify, setPending, takeFound],
+  );
+
   const runLookup = useCallback(
     async (code: string, store: string) => {
       setPending(code, "loading");
+      if (!onlineRef.current) {
+        await lookupLocal(code, store);
+        return;
+      }
       try {
         const result = await lookupCodeAction(code, store);
         // Cambió la tienda mientras llegaba la consulta: su resultado ya no corresponde.
@@ -260,22 +344,7 @@ export default function POSPage() {
           setPending(code, null);
           notify({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
-          const variant = result.product.variants.find((v) => v.id === result.variantId);
-          if (!variant) {
-            setPending(code, "rejected", NOT_FOUND_REASON);
-            notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
-          } else if (submittingRef.current || lockRef.current) {
-            // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
-            heldRef.current.set(code, result);
-            setPending(code, "queued");
-          } else {
-            const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
-            setPending(code, null);
-            const outcome = applyFound(result, pieces);
-            const next = noticeFor([outcome], pieces > 1);
-            if (next) notify(next);
-            if (outcome.rejected) setPending(code, "rejected", outcome.added === 0 ? outcome.rejected : outcome.shortReason);
-          }
+          takeFound(code, result);
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
           setPending(code, "error");
@@ -289,11 +358,13 @@ export default function POSPage() {
           setPending(code, null);
           return;
         }
+        // Falla de red con conexión aparente (wifi sin salida): la copia local responde si está vigente.
+        if (await lookupLocal(code, store)) return;
         setPending(code, "error");
         notify({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
       }
     },
-    [applyFound, noticeFor, notify, setPending],
+    [lookupLocal, notify, setPending, takeFound],
   );
 
   const handleScan = useCallback(
@@ -488,13 +559,22 @@ export default function POSPage() {
     setNotice(flushed);
   };
 
-  if (status === "loading") {
+  if (online ? status === "loading" : !offline.identityChecked) {
     return <StaffLoadState state="loading" retry={() => {}} />;
   }
-  if (!session?.user) {
+  if (!user && !online) {
+    return (
+      <main className="mx-auto flex min-h-[50vh] max-w-2xl flex-col items-center justify-center gap-3 p-6 text-center">
+        <p role="alert" className="text-base font-semibold text-tinta">
+          {OFFLINE_IDENTITY_EXPIRED_TEXT}
+        </p>
+      </main>
+    );
+  }
+  if (!user) {
     return <StaffLoadState state="session" retry={() => {}} />;
   }
-  if (isCollaborator && !session.user.locationId) {
+  if (isCollaborator && !user.locationId) {
     return (
       <main className="p-4 text-center">
         Tu usuario no tiene una tienda asignada. Pide al dueño que te la asigne.
@@ -515,6 +595,11 @@ export default function POSPage() {
       </header>
 
 <div aria-live="polite" className="sticky top-[calc(0.5rem+var(--safe-top))] z-30 space-y-2">
+            {!online && offline.blockReason && offline.snapshotChecked && (
+              <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado shadow-sm">
+                {OFFLINE_SNAPSHOT_BLOCKED_TEXT}
+              </p>
+            )}
             {notice && (
               <p
                 role={notice.kind === "error" ? "alert" : "status"}
@@ -542,13 +627,18 @@ export default function POSPage() {
               </label>
               <select
                 id="tienda"
-                value={chosenLocation}
-                disabled={lock !== null || submitting}
+                value={locationId}
+                disabled={lock !== null || submitting || !online}
                 onChange={(e) => chooseLocation(e.target.value)}
                 className="mt-1 block min-h-[44px] w-full rounded-lg border border-borde-control bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
               >
-                {locations.length === 0 && (
-                  <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
+                {!online && locationId && !locations.some((l) => l.id === locationId) ? (
+                  // Sin conexión no hay lista de tiendas: queda fija la de la copia.
+                  <option value={locationId}>Tienda guardada en este teléfono</option>
+                ) : (
+                  locations.length === 0 && (
+                    <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
+                  )
                 )}
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>

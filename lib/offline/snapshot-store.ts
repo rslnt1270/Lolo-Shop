@@ -16,6 +16,21 @@ export async function getSnapshot(locationId: string): Promise<StoredSnapshot | 
   return withDb(async (db) => (await db.get("snapshots", locationId)) ?? null, { value: null });
 }
 
+/**
+ * La copia más reciente guardada en este teléfono (mayor `generatedAt`). Sirve
+ * a owner y manager sin tienda que abren `/pos` sin conexión: la tienda queda
+ * fija a la de esa copia.
+ */
+export async function getLatestSnapshot(): Promise<StoredSnapshot | null> {
+  return withDb(async (db) => {
+    let latest: StoredSnapshot | null = null;
+    for (const s of await db.getAll("snapshots")) {
+      if (!latest || Date.parse(s.generatedAt) > Date.parse(latest.generatedAt)) latest = s;
+    }
+    return latest;
+  }, { value: null });
+}
+
 /** Existencias de la copia menos las piezas de ventas de esa tienda aún sin enviar (`pending`/`sending`). */
 export function localAvailable(snapshot: OfflineSnapshot, queue: QueuedSale[], variantId: string): number {
   const v = snapshot.variants.find((x) => x.variantId === variantId);
