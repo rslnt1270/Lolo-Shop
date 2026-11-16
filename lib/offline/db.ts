@@ -112,7 +112,8 @@ export async function withDb<T>(
     const wrapped = err instanceof OfflineStorageError
       ? err
       : new OfflineStorageError("unavailable", "Almacenamiento local no disponible", err);
-    reportStorageError(wrapped);
+    // `duplicate` es una respuesta de la cola, no una falla del almacenamiento.
+    if (wrapped.code === "unavailable") reportStorageError(wrapped);
     if (fallback) return fallback.value;
     throw wrapped;
   } finally {

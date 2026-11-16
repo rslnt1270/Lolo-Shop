@@ -1,29 +1,100 @@
-import { OfflineStorageError, withDb, type QueuedSale } from "./db";
+import { OfflineStorageError, withDb, type QueuedSale, type QueuedSaleLine } from "./db";
 
 const SYNCED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MUTABLE_KEYS = ["state", "attempts", "lastError", "saleNumber", "review", "syncedAt"] as const;
 
 export type QueuePatch = Pick<Partial<QueuedSale>, (typeof MUTABLE_KEYS)[number]>;
+export type NewQueuedSale = Omit<QueuedSale, "state" | "attempts" | (typeof MUTABLE_KEYS)[number]>;
+
+type EnqueuedListener = (clientRequestId: string) => void;
+const enqueuedListeners = new Set<EnqueuedListener>();
+
+/** El motor de sincronización se suscribe para enviar en cuanto se encola una venta. */
+export function onQueueEnqueued(fn: EnqueuedListener): () => void {
+  enqueuedListeners.add(fn);
+  return () => enqueuedListeners.delete(fn);
+}
+
+// Almacenamiento persistente: se pide sin esperar y se vuelve a pedir en el
+// siguiente encolado mientras no se haya concedido.
+let persistState: "idle" | "asking" | "granted" = "idle";
+
+/** Solo para pruebas: olvida si ya se concedió el almacenamiento persistente. */
+export function resetStoragePersistRequest(): void {
+  persistState = "idle";
+}
+
+function requestPersistentStorage(): void {
+  if (persistState !== "idle") return;
+  try {
+    const p = typeof navigator !== "undefined" ? navigator.storage?.persist?.() : undefined;
+    if (!p) return;
+    persistState = "asking";
+    p.then(
+      (granted) => { persistState = granted ? "granted" : "idle"; },
+      () => { persistState = "idle"; },
+    );
+  } catch {
+    persistState = "idle"; // mejor esfuerzo
+  }
+}
+
+const copyLine = (l: QueuedSaleLine): QueuedSaleLine => ({
+  variantId: l.variantId,
+  quantity: l.quantity,
+  unitPrice: l.unitPrice,
+  sku: l.sku,
+  productTitle: l.productTitle,
+  variantTitle: l.variantTitle,
+});
+
+/** Forma cerrada del registro (spec §6): lo que no esté aquí no se guarda. */
+function toRecord(sale: NewQueuedSale): QueuedSale {
+  const record: QueuedSale = {
+    clientRequestId: sale.clientRequestId,
+    userId: sale.userId,
+    locationId: sale.locationId,
+    channel: sale.channel,
+    paymentMethod: sale.paymentMethod,
+    lines: sale.lines.map(copyLine),
+    total: sale.total,
+    soldAt: sale.soldAt,
+    snapshotAt: sale.snapshotAt,
+    snapshotToken: sale.snapshotToken,
+    state: "pending",
+    attempts: 0,
+  };
+  if (sale.customerAlias !== undefined) record.customerAlias = sale.customerAlias;
+  return record;
+}
+
+const isConstraintError = (err: unknown) => (err as { name?: unknown } | null)?.name === "ConstraintError";
 
 /**
  * Guarda la venta. Falla si el id ya existe (`duplicate`) o si el
  * almacenamiento no responde (`unavailable`): el cajero debe saber que NO
- * quedó guardada. Pide almacenamiento persistente al encolar la primera.
+ * quedó guardada. Al terminar pide almacenamiento persistente sin esperarlo.
  */
-export async function enqueueSale(sale: Omit<QueuedSale, "state" | "attempts">): Promise<void> {
-  const wasEmpty = await withDb(async (db) => {
+export async function enqueueSale(sale: NewQueuedSale): Promise<void> {
+  const record = toRecord(sale);
+  await withDb(async (db) => {
     const tx = db.transaction("queue", "readwrite");
-    if (await tx.store.get(sale.clientRequestId)) {
+    if (await tx.store.get(record.clientRequestId)) {
       await tx.done; // sin escrituras: cierra limpio
       throw new OfflineStorageError("duplicate", "La venta ya está en la cola");
     }
-    const empty = (await tx.store.count()) === 0;
-    await tx.store.add({ ...sale, state: "pending", attempts: 0 });
-    await tx.done;
-    return empty;
+    try {
+      await tx.store.add(record);
+      await tx.done;
+    } catch (err) {
+      tx.done.catch(() => {}); // la transacción ya abortó; no dejar el rechazo suelto
+      if (isConstraintError(err)) throw new OfflineStorageError("duplicate", "La venta ya está en la cola", err);
+      throw err;
+    }
   });
-  if (wasEmpty) {
-    try { await navigator.storage?.persist?.(); } catch { /* mejor esfuerzo */ }
+  requestPersistentStorage();
+  for (const fn of enqueuedListeners) {
+    try { fn(record.clientRequestId); } catch { /* un oyente roto no deshace la venta guardada */ }
   }
 }
 
@@ -31,24 +102,46 @@ export async function listQueue(): Promise<QueuedSale[]> {
   return withDb((db) => db.getAllFromIndex("queue", "bySoldAt"), { value: [] });
 }
 
-/** Solo cambia los campos de estado; `lines`, `total` y `clientRequestId` no se pueden tocar. */
-export async function updateQueued(id: string, patch: QueuePatch): Promise<void> {
-  await withDb(async (db) => {
+/**
+ * Solo cambia los campos de estado; `lines`, `total` y `clientRequestId` no se
+ * pueden tocar. Devuelve `true` solo si el cambio quedó guardado (`false` si el
+ * id no existe o el almacenamiento falló).
+ */
+export async function updateQueued(id: string, patch: QueuePatch): Promise<boolean> {
+  return withDb(async (db) => {
     const tx = db.transaction("queue", "readwrite");
     const cur = await tx.store.get(id);
-    if (cur) {
-      const next: QueuedSale = { ...cur };
-      for (const k of MUTABLE_KEYS) {
-        if (k in patch) (next as unknown as Record<string, unknown>)[k] = patch[k];
-      }
-      await tx.store.put(next);
+    if (!cur) {
+      await tx.done;
+      return false;
     }
+    const next: QueuedSale = { ...cur };
+    for (const k of MUTABLE_KEYS) {
+      if (k in patch) (next as unknown as Record<string, unknown>)[k] = patch[k];
+    }
+    await tx.store.put(next);
     await tx.done;
-  }, { value: undefined });
+    return true;
+  }, { value: false });
 }
 
-export async function discardQueued(id: string): Promise<void> {
-  await withDb((db) => db.delete("queue", id), { value: undefined });
+/**
+ * Descarta en este teléfono una venta ya resuelta (`needs_attention` o
+ * `synced`). Una venta `pending` o `sending` aún no llega al servidor y nunca
+ * se borra. Devuelve `true` solo si se borró.
+ */
+export async function discardQueued(id: string): Promise<boolean> {
+  return withDb(async (db) => {
+    const tx = db.transaction("queue", "readwrite");
+    const cur = await tx.store.get(id);
+    if (!cur || (cur.state !== "needs_attention" && cur.state !== "synced")) {
+      await tx.done;
+      return false;
+    }
+    await tx.store.delete(id);
+    await tx.done;
+    return true;
+  }, { value: false });
 }
 
 /** Borra solo `synced` con más de 7 días; nunca `pending`, `sending` ni `needs_attention`. */

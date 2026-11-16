@@ -2,7 +2,9 @@ import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteDB } from "idb";
 import { OFFLINE_DB_NAME, OfflineStorageError, onOfflineStorageError, openOfflineDb, type QueuedSale } from "../db";
-import { discardQueued, enqueueSale, listQueue, purgeSynced, updateQueued } from "../queue-store";
+import {
+  discardQueued, enqueueSale, listQueue, onQueueEnqueued, purgeSynced, resetStoragePersistRequest, updateQueued,
+} from "../queue-store";
 import { getSnapshot, localAvailable, saveSnapshot } from "../snapshot-store";
 import { clearOnSignOut, getIdentity, saveIdentity } from "../identity-store";
 
@@ -32,6 +34,9 @@ const snap = (available = 5) => ({
 
 beforeEach(async () => {
   await deleteDB(OFFLINE_DB_NAME);
+  resetStoragePersistRequest();
+  Object.defineProperty(navigator, "storage", { value: undefined, configurable: true });
+  vi.restoreAllMocks();
 });
 
 describe("cola", () => {
@@ -47,18 +52,100 @@ describe("cola", () => {
     expect(q).toMatchObject({ state: "pending", attempts: 0, snapshotToken: "tok.sig" });
   });
 
-  it("pide almacenamiento persistente solo al encolar la primera", async () => {
+  it("pide almacenamiento persistente sin esperar y no vuelve a pedirlo si se concedió", async () => {
     const persist = vi.fn().mockResolvedValue(true);
     Object.defineProperty(navigator, "storage", { value: { persist }, configurable: true });
     await enqueueSale(sale("a"));
+    await Promise.resolve();
     await enqueueSale(sale("b"));
     expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("si no se concedió el almacenamiento persistente lo vuelve a pedir en la siguiente", async () => {
+    const persist = vi.fn().mockResolvedValue(false);
+    Object.defineProperty(navigator, "storage", { value: { persist }, configurable: true });
+    await enqueueSale(sale("a"));
+    await new Promise((r) => setTimeout(r, 0));
+    await enqueueSale(sale("b"));
+    expect(persist).toHaveBeenCalledTimes(2);
+  });
+
+  it("persist() que nunca responde no detiene el encolado", async () => {
+    const persist = vi.fn(() => new Promise<boolean>(() => {}));
+    Object.defineProperty(navigator, "storage", { value: { persist }, configurable: true });
+    await expect(enqueueSale(sale("a"))).resolves.toBeUndefined();
+    expect(await listQueue()).toHaveLength(1);
+  });
+
+  it("persist() que lanza no detiene el encolado", async () => {
+    const persist = vi.fn(() => { throw new Error("no"); });
+    Object.defineProperty(navigator, "storage", { value: { persist }, configurable: true });
+    await expect(enqueueSale(sale("a"))).resolves.toBeUndefined();
+    expect(await listQueue()).toHaveLength(1);
+  });
+
+  it("dos encolados simultáneos del mismo id: uno se guarda y el otro falla como duplicate", async () => {
+    const results = await Promise.allSettled([enqueueSale(sale("a")), enqueueSale(sale("a"))]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toMatchObject({ code: "duplicate" });
+    expect(await listQueue()).toHaveLength(1);
+  });
+
+  it("si add falla, enqueueSale rechaza como unavailable y no guarda nada", async () => {
+    vi.spyOn(IDBObjectStore.prototype, "add").mockImplementation(() => {
+      throw new DOMException("Sin espacio", "QuotaExceededError");
+    });
+    await expect(enqueueSale(sale("a"))).rejects.toMatchObject({ code: "unavailable" });
+    vi.restoreAllMocks();
+    expect(await listQueue()).toEqual([]);
+  });
+
+  it("solo copia las llaves conocidas del registro y de sus renglones", async () => {
+    await enqueueSale({
+      ...sale("a", { customerAlias: "Ana" }),
+      lines: [{ ...sale("a").lines[0], extra: "x" } as never],
+      jwt: "x", state: "synced", attempts: 9, saleNumber: 7,
+    } as never);
+    const [q] = await listQueue();
+    expect(Object.keys(q).sort()).toEqual([
+      "attempts", "channel", "clientRequestId", "customerAlias", "lines", "locationId", "paymentMethod",
+      "snapshotAt", "snapshotToken", "soldAt", "state", "total", "userId",
+    ]);
+    expect(q).toMatchObject({ state: "pending", attempts: 0, snapshotToken: "tok.sig", customerAlias: "Ana" });
+    expect(Object.keys(q.lines[0]).sort()).toEqual(["productTitle", "quantity", "sku", "unitPrice", "variantId", "variantTitle"]);
+  });
+
+  it("sin alias no guarda la llave customerAlias", async () => {
+    await enqueueSale(sale("a"));
+    const [q] = await listQueue();
+    expect("customerAlias" in q).toBe(false);
+  });
+
+  it("avisa a los oyentes después de encolar, no si falla", async () => {
+    const seen: string[] = [];
+    const off = onQueueEnqueued((id) => seen.push(id));
+    await enqueueSale(sale("a"));
+    await enqueueSale(sale("a")).catch(() => {});
+    off();
+    await enqueueSale(sale("b"));
+    expect(seen).toEqual(["a"]);
+  });
+
+  it("el duplicado no se reporta como falla del almacenamiento", async () => {
+    const seen: OfflineStorageError[] = [];
+    const off = onOfflineStorageError((e) => seen.push(e));
+    await enqueueSale(sale("a"));
+    await enqueueSale(sale("a")).catch(() => {});
+    off();
+    expect(seen).toEqual([]);
   });
 
   it("updateQueued no cambia lines, total ni clientRequestId", async () => {
     await enqueueSale(sale("a"));
     const evil = { state: "sending", attempts: 1, lines: [], total: 1, clientRequestId: "zzz", snapshotToken: "x" };
-    await updateQueued("a", evil as never);
+    expect(await updateQueued("a", evil as never)).toBe(true);
     const [q] = await listQueue();
     expect(q.state).toBe("sending");
     expect(q.attempts).toBe(1);
@@ -69,7 +156,7 @@ describe("cola", () => {
   });
 
   it("updateQueued de un id inexistente no crea registros", async () => {
-    await updateQueued("nada", { state: "synced" });
+    expect(await updateQueued("nada", { state: "synced" })).toBe(false);
     expect(await listQueue()).toEqual([]);
   });
 
@@ -80,10 +167,37 @@ describe("cola", () => {
     expect((await listQueue()).map((s) => s.clientRequestId)).toEqual(["a", "b", "c"]);
   });
 
-  it("discardQueued borra el registro", async () => {
+  it("discardQueued borra needs_attention y synced", async () => {
     await enqueueSale(sale("a"));
-    await discardQueued("a");
+    await enqueueSale(sale("b"));
+    await updateQueued("a", { state: "needs_attention", lastError: "x" });
+    await updateQueued("b", { state: "synced", syncedAt: "2026-11-10T00:00:00.000Z" });
+    expect(await discardQueued("a")).toBe(true);
+    expect(await discardQueued("b")).toBe(true);
     expect(await listQueue()).toEqual([]);
+  });
+
+  it("discardQueued rechaza pending y sending, y un id inexistente", async () => {
+    await enqueueSale(sale("a"));
+    await enqueueSale(sale("b"));
+    await updateQueued("b", { state: "sending" });
+    expect(await discardQueued("a")).toBe(false);
+    expect(await discardQueued("b")).toBe(false);
+    expect(await discardQueued("nada")).toBe(false);
+    expect((await listQueue()).map((s) => s.clientRequestId)).toEqual(["a", "b"]);
+  });
+
+  it("sin almacenamiento updateQueued y discardQueued devuelven false", async () => {
+    await enqueueSale(sale("a"));
+    await updateQueued("a", { state: "needs_attention" });
+    const real = globalThis.indexedDB;
+    Object.defineProperty(globalThis, "indexedDB", { value: undefined, configurable: true });
+    try {
+      expect(await updateQueued("a", { state: "synced" })).toBe(false);
+      expect(await discardQueued("a")).toBe(false);
+    } finally {
+      Object.defineProperty(globalThis, "indexedDB", { value: real, configurable: true });
+    }
   });
 
   it("purgeSynced borra synced de más de 7 días y nunca pending ni needs_attention", async () => {
