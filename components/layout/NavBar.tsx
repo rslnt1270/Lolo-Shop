@@ -2,6 +2,9 @@
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { clearOnSignOut } from "@/lib/offline/identity-store";
+import { listQueue } from "@/lib/offline/queue-store";
 import { Home, ScanLine, Tags, Package, Receipt, LogOut, ShoppingCart } from "lucide-react";
 
 const MOBILE_HEADER =
@@ -9,9 +12,35 @@ const MOBILE_HEADER =
 const BOTTOM_NAV =
   "md:hidden fixed bottom-0 left-0 right-0 z-50 h-[calc(var(--nav-h)+var(--safe-bottom))] border-t border-gray-100 bg-white/90 pb-[var(--safe-bottom)] pl-[max(0.375rem,var(--safe-left))] pr-[max(0.375rem,var(--safe-right))] shadow-[0_-4px_24px_rgba(0,0,0,0.02)] backdrop-blur-xl";
 
+/** Ventas aún no enviadas al servidor: pending, sending y needs_attention. */
+async function countUnsent(): Promise<number> {
+  try {
+    return (await listQueue()).filter((s) => s.state !== "synced").length;
+  } catch {
+    return 0;
+  }
+}
+
+async function leave() {
+  // La identidad sin conexión no debe impedir salir, pero el fallo se registra.
+  try {
+    await clearOnSignOut();
+  } catch (err) {
+    console.warn("No se pudo borrar la identidad local al salir", err);
+  }
+  await signOut({ callbackUrl: "/login" });
+}
+
 export function NavBar() {
   const pathname = usePathname();
   const { status } = useSession();
+  const [unsent, setUnsent] = useState<number | null>(null);
+
+  async function requestSignOut() {
+    const n = await countUnsent();
+    if (n > 0) setUnsent(n);
+    else await leave();
+  }
 
   // /pos es pantalla completa (tiene su propio "Volver al inicio"); se entra con "Vender".
   if (pathname.startsWith("/pos") || pathname.startsWith("/catalogo") || pathname === "/login") return null;
@@ -74,7 +103,7 @@ export function NavBar() {
             )
           })}
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={requestSignOut}
             title="Salir"
             className="ml-2 flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-md text-gray-600 lg:ml-4 transition-colors hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto"
           >
@@ -129,13 +158,45 @@ export function NavBar() {
           <button
             type="button"
             aria-label="Salir"
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={requestSignOut}
             className="relative flex h-12 min-w-11 flex-1 flex-col items-center justify-center rounded-lg text-gray-500 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-turquesa-texto"
           >
             <LogOut size={22} />
           </button>
         </div>
       </nav>
+
+      {unsent !== null && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="salir-aviso"
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+          >
+            <p id="salir-aviso" className="text-base text-tinta">
+              {`Hay ${unsent} ${unsent === 1 ? "venta" : "ventas"} sin enviar en este teléfono. Se enviarán cuando vuelvas a entrar.`}
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row-reverse">
+              <button
+                type="button"
+                onClick={() => { setUnsent(null); void leave(); }}
+                className="min-h-11 rounded-xl bg-red-600 px-4 font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto"
+              >
+                Salir de todos modos
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setUnsent(null)}
+                className="min-h-11 rounded-xl border border-gray-200 px-4 font-semibold text-tinta focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-turquesa-texto"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
