@@ -44,8 +44,11 @@ const failResult = (code: string, message: string, reason?: string): OfflineSale
 
 const ids = (calls: unknown[][]) => calls.map(([input]) => (input as { clientRequestId: string }).clientRequestId);
 const byId = async () => Object.fromEntries((await listQueue()).map((s) => [s.clientRequestId, s]));
-const deps = (submit: (input: unknown) => Promise<OfflineSaleResult>, userId = "u1") =>
-  ({ userId, submit, now: () => NOW });
+const deps = (
+  submit: (input: unknown) => Promise<OfflineSaleResult>,
+  userId = "u1",
+  sessionUserId: () => Promise<string | null> = async () => userId,
+) => ({ userId, submit, now: () => NOW, sessionUserId });
 
 beforeEach(async () => {
   await deleteDB(OFFLINE_DB_NAME);
@@ -94,6 +97,7 @@ describe("runSync", () => {
       soldAt: "2026-11-12T11:00:00.000Z",
       snapshotAt: "2026-11-12T09:00:00.000Z",
       snapshotToken: "tok.sig",
+      sellerUserId: "u1",
     });
     expect("customerAlias" in (submit.mock.calls[1][0] as object)).toBe(false);
   });
@@ -194,6 +198,75 @@ describe("runSync", () => {
     expect((await byId())[ID(1)]).toMatchObject({ state: "needs_attention", lastError: message });
   });
 
+  it("rechazo sin mensaje de texto deja needs_attention con un mensaje por omisión", async () => {
+    await enqueueSale(sale(1));
+    const summary = await runSync(deps(async () => ({ ok: false, code: "INVALID", message: undefined }) as never));
+    const msg = "El servidor rechazó la venta. Revísala con el dueño.";
+    expect((await byId())[ID(1)]).toMatchObject({ state: "needs_attention", lastError: msg });
+    expect(summary.failed).toEqual([{ folio: localFolio(ID(1)), message: msg }]);
+  });
+
+  it("USER_MISMATCH deja pending sin sumar intentos, detiene la vuelta y nunca pasa a needs_attention", async () => {
+    await enqueueSale(sale(1));
+    await enqueueSale(sale(2));
+    const submit = vi.fn(async () => ({
+      ok: false, code: "USER_MISMATCH", message: "Esta venta la cobró otro usuario.",
+    }) as OfflineSaleResult);
+    const summary = await runSync(deps(submit));
+    expect(submit).toHaveBeenCalledTimes(1);
+    const q = await byId();
+    expect(q[ID(1)]).toMatchObject({ state: "pending", attempts: 0 });
+    expect(q[ID(1)].lastError).toBeUndefined();
+    expect(q[ID(2)]).toMatchObject({ state: "pending", attempts: 0 });
+    expect(summary).toEqual({ sent: [], failed: [], stoppedBy: "user_mismatch" });
+    expect(await listQueue()).toHaveLength(2);
+  });
+
+  it("si la sesión actual es de otro usuario no envía nada (session_expired)", async () => {
+    await enqueueSale(sale(1));
+    const submit = vi.fn(async () => okResult(1));
+    const summary = await runSync(deps(submit, "u1", async () => "u2"));
+    expect(submit).not.toHaveBeenCalled();
+    expect(summary).toEqual({ sent: [], failed: [], stoppedBy: "session_expired" });
+    expect((await byId())[ID(1)]).toMatchObject({ state: "pending", attempts: 0 });
+  });
+
+  it("sin sesión no envía nada (session_expired)", async () => {
+    await enqueueSale(sale(1));
+    const submit = vi.fn(async () => okResult(1));
+    const summary = await runSync(deps(submit, "u1", async () => null));
+    expect(submit).not.toHaveBeenCalled();
+    expect(summary.stoppedBy).toBe("session_expired");
+  });
+
+  it("si no se puede confirmar la sesión (red) no envía nada y se detiene como network", async () => {
+    await enqueueSale(sale(1));
+    const submit = vi.fn(async () => okResult(1));
+    const summary = await runSync(deps(submit, "u1", async () => { throw new TypeError("Failed to fetch"); }));
+    expect(submit).not.toHaveBeenCalled();
+    expect(summary.stoppedBy).toBe("network");
+  });
+
+  it("con la cola vacía no consulta la sesión", async () => {
+    const sessionUserId = vi.fn(async () => "u1");
+    const summary = await runSync(deps(vi.fn(), "u1", sessionUserId));
+    expect(sessionUserId).not.toHaveBeenCalled();
+    expect(summary.stoppedBy).toBeNull();
+  });
+
+  it("cola ilegible (sin IndexedDB) se reporta como storage, no como vacía", async () => {
+    const real = globalThis.indexedDB;
+    Object.defineProperty(globalThis, "indexedDB", { value: undefined, configurable: true });
+    try {
+      const submit = vi.fn(async () => okResult(1));
+      const summary = await runSync(deps(submit));
+      expect(submit).not.toHaveBeenCalled();
+      expect(summary).toEqual({ sent: [], failed: [], stoppedBy: "storage" });
+    } finally {
+      Object.defineProperty(globalThis, "indexedDB", { value: real, configurable: true });
+    }
+  });
+
   it("needs_attention y synced no se vuelven a enviar", async () => {
     await enqueueSale(sale(1));
     await enqueueSale(sale(2));
@@ -241,7 +314,7 @@ describe("runSync", () => {
     const summary = await runSync(deps(submit));
     expect(submit).not.toHaveBeenCalled();
     expect((await byId())[ID(1)].state).toBe("pending");
-    expect(summary.stoppedBy).toBe("network");
+    expect(summary.stoppedBy).toBe("storage");
   });
 
   it("si no se puede marcar synced no la cuenta como enviada y la reenvía después con el mismo id", async () => {
@@ -251,7 +324,7 @@ describe("runSync", () => {
     const submit = vi.fn(async () => okResult(120));
     const first = await runSync(deps(submit));
     expect(first.sent).toEqual([]);
-    expect(first.stoppedBy).toBe("network");
+    expect(first.stoppedBy).toBe("storage");
     expect(ids(submit.mock.calls)).toEqual([ID(1)]);
     expect(["pending", "sending"]).toContain((await byId())[ID(1)].state);
     marks.fail = null;
@@ -265,7 +338,7 @@ describe("runSync", () => {
     marks.fail = (_id, state) => state === "needs_attention";
     const summary = await runSync(deps(async () => failResult("INVALID", "x")));
     expect(summary.failed).toEqual([]);
-    expect(summary.stoppedBy).toBe("network");
+    expect(summary.stoppedBy).toBe("storage");
     expect(await listQueue()).toHaveLength(1);
   });
 
@@ -286,7 +359,7 @@ describe("runSync", () => {
       expect(ids(submit.mock.calls)).toEqual([ID(1), ID(2)]);
     });
 
-    it("dos runSync simultáneos no envían el mismo registro dos veces (con navigator.locks simulado)", async () => {
+    it("con navigator.locks pide el candado loloshop-offline-sync con ifAvailable y no envía dos veces", async () => {
       let held = false;
       const request = vi.fn(async (_name: string, _opts: unknown, cb: (lock: unknown) => Promise<unknown>) => {
         if (held) return cb(null);

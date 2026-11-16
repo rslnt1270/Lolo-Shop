@@ -7,6 +7,9 @@ import type { SaleRecord } from "@/lib/data/sales-source";
 
 const action = vi.hoisted(() => ({ submit: vi.fn() }));
 vi.mock("@/lib/sales/offline-actions", () => ({ submitOfflineSaleAction: action.submit }));
+// Usuario de la sesión real (lo que respondería /api/auth/session).
+const session = vi.hoisted(() => ({ userId: "u1" as string | null }));
+vi.mock("../session-user", () => ({ fetchSessionUserId: async () => session.userId }));
 
 import { enqueueSale, listQueue } from "../queue-store";
 import { useOfflineSync } from "../use-offline-sync";
@@ -51,6 +54,7 @@ function setVisibility(state: DocumentVisibilityState) {
 beforeEach(async () => {
   await deleteDB(OFFLINE_DB_NAME);
   action.submit.mockReset();
+  session.userId = "u1";
   Object.defineProperty(navigator, "locks", { value: undefined, configurable: true });
   Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
 });
@@ -155,8 +159,8 @@ describe("useOfflineSync", () => {
     expect(action.submit).toHaveBeenCalledTimes(1);
     action.submit.mockImplementation(async () => ok(7));
     act(() => result.current.syncNow());
-    await waitFor(() => expect(result.current.pendingCount).toBe(0));
-    expect(action.submit).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(action.submit).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.lastSummary?.sent).toHaveLength(1));
   });
 
   it("session_expired se reanuda al iniciar sesión (cambia el usuario)", async () => {
@@ -169,8 +173,8 @@ describe("useOfflineSync", () => {
     rerender({ uid: null });
     action.submit.mockImplementation(async () => ok(9));
     rerender({ uid: "u1" });
-    await waitFor(() => expect(result.current.pendingCount).toBe(0));
-    expect(sentIds()).toEqual([ID(1), ID(1)]);
+    await waitFor(() => expect(sentIds()).toEqual([ID(1), ID(1)]));
+    await waitFor(() => expect((result.current.lastSummary?.sent ?? []).map((x) => x.number)).toEqual([9]));
   });
 
   it("syncNow durante un envío no corre dos vueltas en paralelo y vuelve a pasar al terminar", async () => {
@@ -193,6 +197,74 @@ describe("useOfflineSync", () => {
     await waitFor(() => expect(sentIds()).toEqual([ID(1), ID(2)]));
     await waitFor(() => expect(result.current.syncing).toBe(false));
     expect(maxInFlight).toBe(1);
+  });
+
+  it("en pausa, volver visible con la sesión de otro usuario no envía nada", async () => {
+    await seed(record(1));
+    action.submit.mockImplementation(async () => expired());
+    const { result } = renderHook(() => useOfflineSync("u1"));
+    await waitFor(() => expect(result.current.lastSummary?.stoppedBy).toBe("session_expired"));
+    await waitFor(() => expect(result.current.syncing).toBe(false));
+    // Otra persona inició sesión en otra pestaña; esta pestaña aún cree que es u1.
+    session.userId = "u2";
+    action.submit.mockImplementation(async () => ok(1));
+    act(() => setVisibility("hidden"));
+    act(() => setVisibility("visible"));
+    await waitFor(() => expect(result.current.syncing).toBe(false));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(action.submit).toHaveBeenCalledTimes(1);
+    expect((await listQueue())[0]).toMatchObject({ state: "pending", attempts: 0 });
+    // Vuelve a entrar u1: ahora sí se envía.
+    session.userId = "u1";
+    act(() => result.current.syncNow());
+    await waitFor(() => expect(action.submit).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.lastSummary?.sent).toHaveLength(1));
+  });
+
+  it("USER_MISMATCH del servidor deja pending, pausa y nunca pasa a needs_attention", async () => {
+    await seed(record(1));
+    action.submit.mockImplementation(async () => ({ ok: false, code: "USER_MISMATCH", message: "Otro usuario." }));
+    const spy = vi.spyOn(globalThis, "setTimeout");
+    const { result } = renderHook(() => useOfflineSync("u1"));
+    await waitFor(() => expect(result.current.lastSummary?.stoppedBy).toBe("user_mismatch"));
+    await waitFor(() => expect(result.current.syncing).toBe(false));
+    expect(spy.mock.calls.filter(([, ms]) => (ms ?? 0) >= 15_000)).toEqual([]);
+    act(() => { window.dispatchEvent(new Event("online")); });
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(action.submit).toHaveBeenCalledTimes(1);
+    expect(result.current.needsAttention).toEqual([]);
+    expect(result.current.pendingCount).toBe(1);
+    expect((await listQueue())[0]).toMatchObject({ state: "pending", attempts: 0 });
+  });
+
+  it("cola ilegible programa un reintento aunque no se vean pendientes", async () => {
+    const real = globalThis.indexedDB;
+    Object.defineProperty(globalThis, "indexedDB", { value: undefined, configurable: true });
+    const spy = vi.spyOn(globalThis, "setTimeout");
+    try {
+      const { result } = renderHook(() => useOfflineSync("u1"));
+      await waitFor(() => expect(result.current.lastSummary?.stoppedBy).toBe("storage"));
+      await waitFor(() => expect(spy.mock.calls.some(([, ms]) => ms === 15_000)).toBe(true));
+    } finally {
+      Object.defineProperty(globalThis, "indexedDB", { value: real, configurable: true });
+    }
+  });
+
+  it("syncNow durante una vuelta que termina en session_expired fuerza otra vuelta", async () => {
+    await seed(record(1));
+    let release!: () => void;
+    action.submit.mockImplementationOnce(async () => {
+      await new Promise<void>((r) => { release = r; });
+      return expired();
+    });
+    action.submit.mockImplementation(async () => ok(5));
+    const { result } = renderHook(() => useOfflineSync("u1"));
+    await waitFor(() => expect(action.submit).toHaveBeenCalledTimes(1));
+    act(() => result.current.syncNow()); // el cajero volvió a entrar y pulsa "Enviar ahora"
+    release();
+    await waitFor(() => expect(sentIds()).toEqual([ID(1), ID(1)]));
+    await waitFor(() => expect(result.current.syncing).toBe(false));
+    expect((await listQueue())[0]).toMatchObject({ state: "synced", saleNumber: 5 });
   });
 
   it("al desmontar deja de escuchar", async () => {

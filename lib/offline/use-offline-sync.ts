@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { submitOfflineSaleAction } from "@/lib/sales/offline-actions";
 import type { QueuedSale } from "./db";
 import { listQueue, onQueueEnqueued, purgeSynced } from "./queue-store";
+import { fetchSessionUserId } from "./session-user";
 import { nextDelayMs, runSync, type SyncSummary } from "./sync";
 
 export interface OfflineSyncState {
@@ -29,10 +30,16 @@ const isUnsent = (s: QueuedSale) => s.state === "pending" || s.state === "sendin
  * venta encolada, `syncNow` y un temporizador 15 s → 30 s → … 5 min mientras
  * queden ventas de este usuario por enviar.
  *
- * `session_expired` pausa los disparadores automáticos (`online`, temporizador,
- * encolado) hasta que vuelve a entrar un usuario (cambia `userId`), la página
- * vuelve a estar visible (pudo iniciar sesión en otra pestaña) o se pulsa
- * "Enviar ahora". Nada de esto borra ni marca como fallida una venta.
+ * `session_expired` y `user_mismatch` pausan los disparadores automáticos
+ * (`online`, temporizador, encolado) hasta que cambia `userId`, la página vuelve
+ * a estar visible (pudo iniciar sesión en otra pestaña) o se pulsa "Enviar
+ * ahora". Reanudar no basta para enviar: cada vuelta confirma antes con el
+ * servidor que la sesión real es la del usuario de las ventas, y el servidor
+ * vuelve a comprobarlo por venta (`USER_MISMATCH`). Un "Enviar ahora" que llega
+ * durante una vuelta que termina en pausa fuerza una vuelta más.
+ * `network` y `storage` reintentan con espera creciente; con `storage` se
+ * programa el reintento aunque la cola no se pueda leer.
+ * Nada de esto borra ni marca como fallida una venta.
  */
 export function useOfflineSync(userId: string | null): OfflineSyncState {
   const [pendingCount, setPendingCount] = useState(0);
@@ -45,6 +52,10 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
   const mountedRef = useRef(false);
   const runningRef = useRef(false);
   const rerunRef = useRef(false);
+  /** Un disparador que quita la pausa llegó durante la vuelta en curso. */
+  const resumeDuringRunRef = useRef(false);
+  /** La última vuelta se detuvo por red o almacenamiento: hay que reintentar. */
+  const retryRef = useRef(false);
   const pausedRef = useRef(false);
   const failStreakRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,6 +90,7 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
     }
     if (runningRef.current) {
       rerunRef.current = true; // la vuelta en curso pasa otra vez al terminar
+      if (kind === "resume") resumeDuringRunRef.current = true;
       return;
     }
     runningRef.current = true;
@@ -87,11 +99,22 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
     try {
       for (;;) {
         rerunRef.current = false;
+        resumeDuringRunRef.current = false;
         const current = userIdRef.current; // pudo cambiar (otra sesión) durante la vuelta anterior
         if (current === null || pausedRef.current) break;
-        const summary = await runSync({ userId: current, submit: submitOfflineSaleAction, now: () => new Date() });
-        if (summary.stoppedBy === "session_expired") pausedRef.current = true;
-        if (summary.stoppedBy === "network") failStreakRef.current += 1;
+        const summary = await runSync({
+          userId: current,
+          submit: submitOfflineSaleAction,
+          now: () => new Date(),
+          sessionUserId: fetchSessionUserId,
+        });
+        const stop = summary.stoppedBy;
+        if (stop === "session_expired" || stop === "user_mismatch") {
+          // "Enviar ahora" durante esta vuelta: el cajero pudo volver a entrar; una vuelta más.
+          pausedRef.current = !resumeDuringRunRef.current;
+        }
+        retryRef.current = stop === "network" || stop === "storage";
+        if (retryRef.current) failStreakRef.current += 1;
         else failStreakRef.current = 0;
         if (mountedRef.current && (summary.sent.length > 0 || summary.failed.length > 0 || summary.stoppedBy)) {
           setLastSummary(summary);
@@ -101,7 +124,9 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
       }
       await purgeSynced(new Date());
     } catch {
-      failStreakRef.current += 1; // inesperado: se reintenta con espera, la cola no se toca
+      // inesperado: se reintenta con espera, la cola no se toca
+      failStreakRef.current += 1;
+      retryRef.current = true;
     } finally {
       runningRef.current = false;
       if (mountedRef.current) setSyncing(false);
@@ -110,7 +135,7 @@ export function useOfflineSync(userId: string | null): OfflineSyncState {
     const own = await refresh();
     if (!mountedRef.current) return;
     clearTimer();
-    if (own > 0 && !pausedRef.current && userIdRef.current !== null) {
+    if ((own > 0 || retryRef.current) && !pausedRef.current && userIdRef.current !== null) {
       // Tras `failStreak` vueltas fallidas seguidas: 15 s, 30 s, 60 s… tope 5 min.
       const delay = nextDelayMs(Math.max(0, failStreakRef.current - 1));
       timerRef.current = globalThis.setTimeout(() => {

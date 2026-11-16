@@ -21,9 +21,23 @@ export type OfflineSnapshotResult =
   | { ok: true; snapshot: OfflineSnapshot; snapshotToken: string }
   | { ok: false; reason: "session_expired" | "forbidden" | "too_large" | "unavailable" };
 
+/**
+ * `USER_MISMATCH`: la venta se cobró con otro usuario (`sellerUserId`) que el de
+ * la sesión. No se crea nada; el teléfono la deja en espera hasta que entre
+ * quien la cobró.
+ */
+export type OfflineUserMismatch = { ok: false; code: "USER_MISMATCH"; message: string };
+
 export type OfflineSaleResult =
   | { ok: true; sale: SaleRecord; review: boolean }
-  | Extract<SaleActionResult, { ok: false }>;
+  | Extract<SaleActionResult, { ok: false }>
+  | OfflineUserMismatch;
+
+const userMismatch = (): OfflineUserMismatch => ({
+  ok: false,
+  code: "USER_MISMATCH",
+  message: "Esta venta la cobró otro usuario. Se enviará cuando esa persona inicie sesión.",
+});
 
 /** Forma cerrada (spec §5): lo que no esté aquí no llega al teléfono aunque el data source lo trajera. */
 const projectVariant = (v: OfflineSnapshotVariant): OfflineSnapshotVariant => ({
@@ -93,11 +107,16 @@ export async function getOfflineSnapshotAction(locationId: string): Promise<Offl
  * venta se acepta igual (ya se cobró) y la copia no cuenta: para el colaborador
  * solo cuadra el precio vigente (si no, `price_unverified`); owner y manager no
  * se verifican por precio, como en línea.
+ *
+ * `sellerUserId` es el usuario con el que el teléfono cobró la venta. Si no es
+ * el de la sesión (o falta) responde `USER_MISMATCH` antes de validar nada: una
+ * venta nunca queda registrada a nombre de alguien distinto de quien la cobró.
  */
 export async function submitOfflineSaleAction(input: unknown): Promise<OfflineSaleResult> {
   const user = await currentUserOrNull();
   if (!user) return sessionExpired();
   const raw = input && typeof input === "object" ? (input as Record<string, unknown>) : null;
+  if (raw && raw.sellerUserId !== user.id) return userMismatch();
   // La hora del servidor como fecha de copia provisional: solo para validar la forma.
   const parsed = validateOfflineSale(raw && { ...raw, snapshotAt: new Date().toISOString() });
   if (!parsed.ok) return fail("INVALID", parsed.message);

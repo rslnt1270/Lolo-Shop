@@ -1,6 +1,6 @@
 import type { OfflineSaleResult } from "@/lib/sales/offline-actions";
 import type { QueuedSale } from "./db";
-import { listQueue, updateQueued } from "./queue-store";
+import { readQueue, updateQueued } from "./queue-store";
 
 /**
  * Motor de sincronización de la cola sin internet (spec §7). Corre en la página
@@ -13,10 +13,12 @@ export interface SyncSummary {
   sent: { folio: string; number: number; review: boolean }[];
   failed: { folio: string; message: string }[];
   /**
-   * `network`: la red, el servidor (`UNAVAILABLE`) o el almacenamiento local no
-   * respondieron; se reintenta con espera. `session_expired`: hay que iniciar sesión.
+   * - `network`: la red o el servidor (`UNAVAILABLE`) no respondieron; se reintenta con espera.
+   * - `storage`: el almacenamiento del teléfono no se pudo leer o no guardó una marca; se reintenta con espera.
+   * - `session_expired`: no hay sesión o es de otro usuario; hay que iniciar sesión.
+   * - `user_mismatch`: el servidor dice que la venta la cobró otro usuario; espera a que entre.
    */
-  stoppedBy: null | "network" | "session_expired";
+  stoppedBy: null | "network" | "storage" | "session_expired" | "user_mismatch";
 }
 
 export interface SyncDeps {
@@ -24,6 +26,8 @@ export interface SyncDeps {
   userId: string;
   submit: (input: unknown) => Promise<OfflineSaleResult>;
   now: () => Date;
+  /** Usuario de la sesión real en este momento (next-auth `getSession()`); null sin sesión. */
+  sessionUserId: () => Promise<string | null>;
 }
 
 export const SYNC_LOCK_NAME = "loloshop-offline-sync";
@@ -54,6 +58,8 @@ function toInput(s: QueuedSale): Record<string, unknown> {
     soldAt: s.soldAt,
     snapshotAt: s.snapshotAt,
     snapshotToken: s.snapshotToken,
+    // El servidor rechaza (USER_MISMATCH) si no es el usuario de la sesión.
+    sellerUserId: s.userId,
   };
   if (s.customerAlias !== undefined) input.customerAlias = s.customerAlias;
   return input;
@@ -62,29 +68,51 @@ function toInput(s: QueuedSale): Record<string, unknown> {
 // `sending` huérfano (el teléfono se cerró a medio envío) cuenta como `pending`.
 const isUnsent = (s: QueuedSale) => s.state === "pending" || s.state === "sending";
 
+export const DEFAULT_REJECTION_MESSAGE = "El servidor rechazó la venta. Revísala con el dueño.";
+
 /**
- * Una vuelta por la cola. Una marca de estado que no se guarda nunca pierde la
- * venta: queda `pending`/`sending` y se reenvía después con el mismo id (replay).
- * Por eso, si una marca falla, la vuelta se detiene como `network` en lugar de
- * seguir mandando ventas cuyo resultado no se podría guardar.
+ * Una vuelta por la cola. Antes de la primera venta confirma que la sesión
+ * actual es la de `userId` (si no, no envía nada). Una marca de estado que no
+ * se guarda nunca pierde la venta: queda `pending`/`sending` y se reenvía
+ * después con el mismo id (replay); la vuelta se detiene como `storage` en
+ * lugar de seguir mandando ventas cuyo resultado no se podría guardar.
  */
-async function drain({ userId, submit, now }: SyncDeps): Promise<SyncSummary> {
+async function drain({ userId, submit, now, sessionUserId }: SyncDeps): Promise<SyncSummary> {
   const summary = emptySummary();
+  const stop = (why: NonNullable<SyncSummary["stoppedBy"]>) => {
+    summary.stoppedBy = why;
+    return summary;
+  };
   const tried = new Set<string>();
+  let sessionConfirmed = false;
   for (;;) {
     // Se relee en cada paso: una venta encolada durante el envío sale en esta vuelta.
-    const next = (await listQueue()).find(
-      (s) => s.userId === userId && isUnsent(s) && !tried.has(s.clientRequestId),
-    );
+    let queue: QueuedSale[];
+    try {
+      queue = await readQueue();
+    } catch {
+      return stop("storage"); // ilegible no es lo mismo que vacía
+    }
+    const next = queue.find((s) => s.userId === userId && isUnsent(s) && !tried.has(s.clientRequestId));
     if (!next) return summary;
+
+    if (!sessionConfirmed) {
+      // La pestaña pudo quedarse con un usuario viejo: manda la sesión real.
+      let current: string | null;
+      try {
+        current = await sessionUserId();
+      } catch {
+        return stop("network");
+      }
+      if (current !== userId) return stop("session_expired");
+      sessionConfirmed = true;
+    }
+
     const id = next.clientRequestId;
     const folio = localFolio(id);
     tried.add(id);
 
-    if (!(await updateQueued(id, { state: "sending" }))) {
-      summary.stoppedBy = "network";
-      return summary;
-    }
+    if (!(await updateQueued(id, { state: "sending" }))) return stop("storage");
 
     let res: OfflineSaleResult | undefined;
     try {
@@ -97,8 +125,7 @@ async function drain({ userId, submit, now }: SyncDeps): Promise<SyncSummary> {
       (res.ok === true && typeof (res.sale as { number?: unknown } | undefined)?.number !== "number");
     if (!res || malformed) {
       await updateQueued(id, { state: "pending", attempts: next.attempts + 1 });
-      summary.stoppedBy = "network";
-      return summary;
+      return stop("network");
     }
 
     if (res.ok) {
@@ -109,38 +136,39 @@ async function drain({ userId, submit, now }: SyncDeps): Promise<SyncSummary> {
         syncedAt: now().toISOString(),
         lastError: undefined,
       });
-      if (!saved) {
-        summary.stoppedBy = "network";
-        return summary;
-      }
+      if (!saved) return stop("storage");
       summary.sent.push({ folio, number: res.sale.number, review: res.review });
       continue;
     }
 
-    if (res.reason === "session_expired") {
+    if (res.code === "USER_MISMATCH") {
+      // La cobró otro usuario: espera intacta a que entre esa persona.
       await updateQueued(id, { state: "pending" });
-      summary.stoppedBy = "session_expired";
-      return summary;
+      return stop("user_mismatch");
+    }
+
+    if ("reason" in res && res.reason === "session_expired") {
+      await updateQueued(id, { state: "pending" });
+      return stop("session_expired");
     }
 
     if (res.code === "UNAVAILABLE") {
       await updateQueued(id, { state: "pending", attempts: next.attempts + 1 });
-      summary.stoppedBy = "network";
-      return summary;
+      return stop("network");
     }
 
     // Rechazo definitivo (INVALID, FORBIDDEN, NOT_FOUND, request_conflict…): se
     // queda a la vista con el mensaje del servidor; nunca se borra sola.
+    const message = typeof res.message === "string" && res.message.trim() !== ""
+      ? res.message
+      : DEFAULT_REJECTION_MESSAGE;
     const saved = await updateQueued(id, {
       state: "needs_attention",
       attempts: next.attempts + 1,
-      lastError: res.message,
+      lastError: message,
     });
-    if (!saved) {
-      summary.stoppedBy = "network";
-      return summary;
-    }
-    summary.failed.push({ folio, message: res.message });
+    if (!saved) return stop("storage");
+    summary.failed.push({ folio, message });
   }
 }
 

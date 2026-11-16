@@ -41,6 +41,7 @@ const input = (over: Record<string, unknown> = {}) => ({
   soldAt: SOLD_AT,
   snapshotAt: SNAP_AT,
   snapshotToken: token(),
+  sellerUserId: "u1",
   ...over,
 });
 const sale = (over: Record<string, unknown> = {}) => ({ id: "s1", locationId: "B", reviewStatus: null, ...over });
@@ -185,6 +186,46 @@ describe("getOfflineSnapshotAction", () => {
 });
 
 describe("submitOfflineSaleAction", () => {
+  const MISMATCH = {
+    ok: false,
+    code: "USER_MISMATCH",
+    message: "Esta venta la cobró otro usuario. Se enviará cuando esa persona inicie sesión.",
+  };
+
+  it.each([
+    ["de otro usuario", { sellerUserId: "u2" }],
+    ["ausente", { sellerUserId: undefined }],
+    ["que no es texto", { sellerUserId: 42 }],
+    ["vacío", { sellerUserId: "" }],
+  ])("sellerUserId %s → USER_MISMATCH sin crear la venta", async (_n, over) => {
+    const r = await submitOfflineSaleAction(input(over));
+    expect(r).toEqual(MISMATCH);
+    expect(sales.createSale).not.toHaveBeenCalled();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("USER_MISMATCH también con una venta inválida: no revela nada más", async () => {
+    const r = await submitOfflineSaleAction(input({ sellerUserId: "u2", lines: [] }));
+    expect(r).toEqual(MISMATCH);
+  });
+
+  it("sellerUserId igual al de la sesión: se registra con el usuario de la sesión", async () => {
+    const r = await submitOfflineSaleAction(input({ sellerUserId: "u1" }));
+    expect(r.ok).toBe(true);
+    const [sent, userId] = sales.createSale.mock.calls[0];
+    expect(userId).toBe("u1");
+    expect(sent).not.toHaveProperty("sellerUserId");
+  });
+
+  it("de punta a punta: USER_MISMATCH no descuenta stock ni crea venta", async () => {
+    const ds = new FixtureSalesDataSource();
+    salesImpl = ds;
+    const create = vi.spyOn(ds, "createSale");
+    const r = await submitOfflineSaleAction(input({ locationId: "loc-2", sellerUserId: "u2" }));
+    expect(r).toMatchObject({ ok: false, code: "USER_MISMATCH" });
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it("sin sesión → FORBIDDEN session_expired", async () => {
     getCurrentUser.mockRejectedValue(new UnauthenticatedError());
     await expect(submitOfflineSaleAction(input())).resolves.toEqual(SESSION);

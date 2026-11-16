@@ -103,6 +103,15 @@ export async function listQueue(): Promise<QueuedSale[]> {
 }
 
 /**
+ * Como `listQueue`, pero si el almacenamiento no responde rechaza con
+ * `OfflineStorageError("unavailable")` en lugar de devolver `[]`: el motor de
+ * sincronización distingue "cola vacía" de "cola ilegible".
+ */
+export async function readQueue(): Promise<QueuedSale[]> {
+  return withDb((db) => db.getAllFromIndex("queue", "bySoldAt"));
+}
+
+/**
  * Solo cambia los campos de estado; `lines`, `total` y `clientRequestId` no se
  * pueden tocar. Devuelve `true` solo si el cambio quedó guardado (`false` si el
  * id no existe o el almacenamiento falló).
