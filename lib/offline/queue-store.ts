@@ -134,16 +134,34 @@ export async function updateQueued(id: string, patch: QueuePatch): Promise<boole
   }, { value: false });
 }
 
+/** Quién descarta: sin esto solo se descartan ventas ya resueltas. */
+export interface DiscardActor {
+  currentUserId: string;
+  role: string;
+}
+
 /**
- * Descarta en este teléfono una venta ya resuelta (`needs_attention` o
- * `synced`). Una venta `pending` o `sending` aún no llega al servidor y nunca
- * se borra. Devuelve `true` solo si se borró.
+ * Descarta en este teléfono una venta (con confirmación en la UI):
+ * - `needs_attention` o `synced`: siempre (ya resueltas por el servidor).
+ * - `pending` de OTRO usuario: solo owner o manager (`actor`), spec §14 P4.
+ *   Las `pending` propias nunca: aún no llegan al servidor y se enviarán.
+ * - `sending`: nunca (puede estar entrando ahora mismo).
+ * Devuelve `true` solo si se borró.
  */
-export async function discardQueued(id: string): Promise<boolean> {
+export async function discardQueued(id: string, actor?: DiscardActor): Promise<boolean> {
   return withDb(async (db) => {
     const tx = db.transaction("queue", "readwrite");
     const cur = await tx.store.get(id);
-    if (!cur || (cur.state !== "needs_attention" && cur.state !== "synced")) {
+    const resolved = cur && (cur.state === "needs_attention" || cur.state === "synced");
+    const othersPending =
+      cur &&
+      cur.state === "pending" &&
+      actor !== undefined &&
+      (actor.role === "owner" || actor.role === "manager") &&
+      typeof actor.currentUserId === "string" &&
+      actor.currentUserId !== "" &&
+      cur.userId !== actor.currentUserId;
+    if (!resolved && !othersPending) {
       await tx.done;
       return false;
     }

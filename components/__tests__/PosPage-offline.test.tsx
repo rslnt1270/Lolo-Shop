@@ -512,6 +512,35 @@ describe("/pos cobro sin internet", () => {
     expect(screen.getByRole("button", { name: /^cobrar \$450/i })).toBeInTheDocument();
   });
 
+  it("duplicate: la venta ya está en la cola, se da por guardada y el carrito se limpia", async () => {
+    const { OfflineStorageError } = await import("@/lib/offline/db");
+    m.enqueueSale.mockRejectedValue(new OfflineStorageError("duplicate", "La venta ya está en la cola"));
+    await offlineWithLine();
+    cobrar();
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    const id = enqueued()[0].clientRequestId;
+    expect(await screen.findByText(savedText(id))).toBeInTheDocument();
+    expect(screen.getByText("Agrega al menos una prenda para cobrar.")).toBeInTheDocument();
+  });
+
+  it("red caída, cobro que lanza y cola que falla: queda incierto sin decir que no se registró", async () => {
+    const { OfflineStorageError } = await import("@/lib/offline/db");
+    await onlineWithLine();
+    m.enqueueSale.mockRejectedValue(new OfflineStorageError("unavailable", "Almacenamiento local no disponible"));
+    m.createSaleAction.mockImplementation(async () => {
+      online = false;
+      throw new TypeError("Failed to fetch");
+    });
+    cobrar();
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText("No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar cobro" })).toBeInTheDocument();
+    expect(screen.getByText("No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas.")).toBeInTheDocument();
+    expect(screen.queryByText(/No quedó registrada/)).toBeNull();
+  });
+
   it("el carrito sin internet no deja pasar del stock local", async () => {
     await offlineWithLine(stored("l1", H, [variant({ available: 1 })]));
     scan("7501234567890");
@@ -533,9 +562,10 @@ describe("/pos cobro sin internet", () => {
     cobrar();
     await waitFor(() => expect(m.enqueueSale).toHaveBeenCalled());
     scan("7501234567890");
-    // Lectura, revisión de stock al encolar y la segunda lectura (que espera al cobro).
-    await waitFor(() => expect(m.listQueue).toHaveBeenCalledTimes(3));
+    // La segunda lectura espera al cobro en curso: no entra al carrito que se está cobrando.
     await act(async () => {});
+    await act(async () => {});
+    expect(screen.queryByText(/×2/)).toBeNull();
     await act(async () => finish());
     const id = enqueued()[0].clientRequestId;
     expect(
@@ -688,8 +718,25 @@ describe("/pos avisos de la cola", () => {
     const sheet = await screen.findByRole("dialog");
     fireEvent.click(within(sheet).getByRole("button", { name: "Descartar L-badbad12" }));
     fireEvent.click(within(sheet).getByRole("button", { name: "Sí, descartar" }));
-    await waitFor(() => expect(m.discardQueued).toHaveBeenCalledWith(bad.clientRequestId));
+    await waitFor(() =>
+      expect(m.discardQueued).toHaveBeenCalledWith(bad.clientRequestId, { currentUserId: "u1", role: "owner" }),
+    );
     await waitFor(() => expect(m.sync.current.refresh).toHaveBeenCalled());
+  });
+
+  it("owner descarta en este teléfono una venta pendiente de otro usuario", async () => {
+    const other = { ...queued("v1", 1), clientRequestId: "0aaa4123-0000-4000-8000-000000000000", userId: "u2" };
+    m.sync.current = { ...m.sync.current, otherUserCount: 1, items: [other] };
+    ownerSession();
+    render(<POSPage />);
+    await screen.findByDisplayValue("Centro");
+    fireEvent.click(screen.getByRole("button", { name: "1 por enviar" }));
+    const sheet = await screen.findByRole("dialog");
+    fireEvent.click(within(sheet).getByRole("button", { name: "Descartar L-0aaa4123" }));
+    fireEvent.click(within(sheet).getByRole("button", { name: "Sí, descartar" }));
+    await waitFor(() =>
+      expect(m.discardQueued).toHaveBeenCalledWith(other.clientRequestId, { currentUserId: "u1", role: "owner" }),
+    );
   });
 
   it("colaborador no puede descartar", async () => {

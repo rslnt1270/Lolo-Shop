@@ -188,6 +188,25 @@ describe("cola", () => {
     expect((await listQueue()).map((s) => s.clientRequestId)).toEqual(["a", "b"]);
   });
 
+  it("owner o manager descartan pending de OTRO usuario; nunca el propio, ni sending, ni un colaborador", async () => {
+    await enqueueSale(sale("a", { userId: "u2" }));
+    await enqueueSale(sale("b", { userId: "u1" }));
+    await enqueueSale(sale("c", { userId: "u2" }));
+    await updateQueued("c", { state: "sending" });
+    await enqueueSale(sale("d", { userId: "u2" }));
+    // Sin quién descarta: pending nunca.
+    expect(await discardQueued("a")).toBe(false);
+    // Colaborador: no.
+    expect(await discardQueued("a", { currentUserId: "u1", role: "collaborator" })).toBe(false);
+    // Propia: no.
+    expect(await discardQueued("b", { currentUserId: "u1", role: "owner" })).toBe(false);
+    // sending: no, aunque sea de otro.
+    expect(await discardQueued("c", { currentUserId: "u1", role: "owner" })).toBe(false);
+    expect(await discardQueued("a", { currentUserId: "u1", role: "owner" })).toBe(true);
+    expect(await discardQueued("d", { currentUserId: "u1", role: "manager" })).toBe(true);
+    expect((await listQueue()).map((s) => s.clientRequestId)).toEqual(["b", "c"]);
+  });
+
   it("sin almacenamiento updateQueued y discardQueued devuelven false", async () => {
     await enqueueSale(sale("a"));
     await updateQueued("a", { state: "needs_attention" });

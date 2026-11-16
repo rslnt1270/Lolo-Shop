@@ -82,3 +82,35 @@ describe("OfflineQueueSheet", () => {
     expect(screen.getByText("No hay ventas guardadas en este teléfono.")).toBeInTheDocument();
   });
 });
+
+describe("OfflineQueueSheet: ventas de otro usuario", () => {
+  const mine = sale("a", { userId: "u1" });
+  const other = sale("f", { userId: "u2" });
+  const otherSending = sale("g", { userId: "u2", state: "sending" });
+
+  it("owner o manager descartan pending de otro usuario con confirmación; la propia y sending no", async () => {
+    const onDiscard = vi.fn().mockResolvedValue(true);
+    render(
+      <OfflineQueueSheet items={[mine, other, otherSending]} canDiscard currentUserId="u1" onDiscard={onDiscard} onSyncNow={vi.fn()} />,
+    );
+    expect(within(row("a")).queryByRole("button", { name: /Descartar/ })).toBeNull();
+    expect(within(row("g")).queryByRole("button", { name: /Descartar/ })).toBeNull();
+    fireEvent.click(within(row("f")).getByRole("button", { name: "Descartar L-ffffffff" }));
+    expect(within(row("f")).getByText(/otro usuario/i)).toBeInTheDocument();
+    expect(onDiscard).not.toHaveBeenCalled();
+    fireEvent.click(within(row("f")).getByRole("button", { name: "Sí, descartar" }));
+    await waitFor(() => expect(onDiscard).toHaveBeenCalledWith(ID("f")));
+  });
+
+  it("colaborador no descarta pending de otro usuario", () => {
+    render(
+      <OfflineQueueSheet items={[mine, other]} canDiscard={false} currentUserId="u1" onDiscard={vi.fn()} onSyncNow={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: /Descartar/ })).toBeNull();
+  });
+
+  it("sin usuario actual conocido no ofrece descartar pending", () => {
+    render(<OfflineQueueSheet items={[other]} canDiscard onDiscard={vi.fn()} onSyncNow={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Descartar/ })).toBeNull();
+  });
+});

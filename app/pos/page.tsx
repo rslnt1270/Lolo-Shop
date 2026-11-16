@@ -48,7 +48,9 @@ function combineNotices(first: Notice, second: Notice): Notice {
 
 const NOT_FOUND_REASON = "No encontramos el código. Revisa que esté dado de alta.";
 const OFFLINE_SAVE_FAILED_TEXT = "No se pudo guardar la venta en este teléfono. No quedó registrada: intenta de nuevo.";
-const OFFLINE_DUPLICATE_TEXT = "Esta venta ya está guardada en este teléfono. Revisa las ventas por enviar.";
+/** Cobro en línea incierto que tampoco se pudo guardar en la cola: no afirma ningún resultado. */
+const UNCERTAIN_NOT_QUEUED_TEXT =
+  "No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas.";
 const OFFLINE_STORAGE_TEXT =
   "Este teléfono no pudo guardar datos sin internet (modo privado o sin espacio). Las ventas sin internet podrían no guardarse.";
 
@@ -582,8 +584,11 @@ export default function POSPage() {
         snapshotToken: snapshot.snapshotToken,
       });
     } catch (err) {
-      const duplicate = err instanceof OfflineStorageError && err.code === "duplicate";
-      return { ok: false, text: duplicate ? OFFLINE_DUPLICATE_TEXT : OFFLINE_SAVE_FAILED_TEXT };
+      // `duplicate`: este mismo id ya está en la cola (el id es del borrador): la venta ya quedó guardada.
+      if (err instanceof OfflineStorageError && err.code === "duplicate") {
+        return { ok: true, folio: localFolio(clientRequestId) };
+      }
+      return { ok: false, text: OFFLINE_SAVE_FAILED_TEXT };
     }
     return { ok: true, folio: localFolio(clientRequestId) };
   };
@@ -719,11 +724,9 @@ export default function POSPage() {
           finishSale();
           return;
         }
+        // La petición pudo llegar al servidor: el resultado sigue incierto, no se afirma nada.
         lockUncertain();
-        say({
-          kind: "error",
-          text: `No se pudo registrar la venta. ${saved.text}`,
-        });
+        say({ kind: "error", text: UNCERTAIN_NOT_QUEUED_TEXT });
         return;
       }
       lockUncertain();
@@ -812,7 +815,7 @@ export default function POSPage() {
       : null;
   const canDiscard = role === "owner" || role === "manager";
   const discardSale = async (id: string) => {
-    const ok = await discardQueued(id);
+    const ok = user ? await discardQueued(id, { currentUserId: user.id, role: user.role }) : false;
     await sync.refresh();
     return ok;
   };
@@ -902,6 +905,7 @@ export default function POSPage() {
         <OfflineQueueSheet
           items={sync.items}
           canDiscard={canDiscard}
+          currentUserId={user.id}
           onDiscard={discardSale}
           onSyncNow={syncNow}
           onClose={() => setQueueOpen(false)}

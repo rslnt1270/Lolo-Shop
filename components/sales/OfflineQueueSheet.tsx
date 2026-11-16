@@ -8,8 +8,13 @@ import { formatPrice } from "@/lib/public/format";
 interface OfflineQueueSheetProps {
   /** Ventas guardadas en este teléfono (cola sin internet), en el orden en que se cobraron. */
   items: QueuedSale[];
-  /** Solo owner y manager descartan, y solo ventas que necesitan atención. */
+  /**
+   * Solo owner y manager descartan: ventas que necesitan atención y, con
+   * `currentUserId`, ventas por enviar de OTRO usuario (spec §14 P4).
+   */
   canDiscard: boolean;
+  /** Usuario actual: sus ventas por enviar nunca se descartan. */
+  currentUserId?: string | null;
   /** Borra la venta de este teléfono; `false` si no se pudo. */
   onDiscard(clientRequestId: string): Promise<boolean>;
   onSyncNow(): void;
@@ -42,7 +47,15 @@ const hour = (iso: string) => {
  * estado. "Enviar ahora" fuerza un envío; owner y manager pueden descartar,
  * con confirmación, una venta que el servidor rechazó.
  */
-export function OfflineQueueSheet({ items, canDiscard, onDiscard, onSyncNow, onClose, syncing = false }: OfflineQueueSheetProps) {
+export function OfflineQueueSheet({
+  items,
+  canDiscard,
+  currentUserId = null,
+  onDiscard,
+  onSyncNow,
+  onClose,
+  syncing = false,
+}: OfflineQueueSheetProps) {
   const titleId = useId();
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -71,7 +84,13 @@ export function OfflineQueueSheet({ items, canDiscard, onDiscard, onSyncNow, onC
       ) : (
         <ul className="divide-y divide-borde-control/30">
           {items.map((s) => (
-            <QueueRow key={s.clientRequestId} sale={s} canDiscard={canDiscard} onDiscard={onDiscard} />
+            <QueueRow
+              key={s.clientRequestId}
+              sale={s}
+              canDiscard={canDiscard}
+              othersPending={s.state === "pending" && !!currentUserId && s.userId !== currentUserId}
+              onDiscard={onDiscard}
+            />
           ))}
         </ul>
       )}
@@ -85,10 +104,12 @@ export function OfflineQueueSheet({ items, canDiscard, onDiscard, onSyncNow, onC
 function QueueRow({
   sale,
   canDiscard,
+  othersPending,
   onDiscard,
 }: {
   sale: QueuedSale;
   canDiscard: boolean;
+  othersPending: boolean;
   onDiscard(id: string): Promise<boolean>;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -129,11 +150,13 @@ function QueueRow({
           No se pudo descartar. Intenta de nuevo.
         </p>
       )}
-      {canDiscard && attention && (
+      {canDiscard && (attention || othersPending) && (
         confirming ? (
           <div className="space-y-2">
             <p className="text-sm text-tinta">
-              ¿Descartar {folio} de este teléfono? No se enviará. Revísala antes con el dueño.
+              {othersPending
+                ? `${folio} es una venta de otro usuario que aún no se envía. Si la descartas de este teléfono, no llegará a Ventas. ¿Descartarla?`
+                : `¿Descartar ${folio} de este teléfono? No se enviará. Revísala antes con el dueño.`}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" loading={busy} onClick={() => void discard()}>
