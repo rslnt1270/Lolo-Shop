@@ -47,6 +47,7 @@ function combineNotices(first: Notice, second: Notice): Notice {
 }
 
 const NOT_FOUND_REASON = "No encontramos el código. Revisa que esté dado de alta.";
+/** Solo sin bloqueo incierto: ningún intento anterior pudo registrar esta venta. */
 const OFFLINE_SAVE_FAILED_TEXT = "No se pudo guardar la venta en este teléfono. No quedó registrada: intenta de nuevo.";
 /** Cobro en línea incierto que tampoco se pudo guardar en la cola: no afirma ningún resultado. */
 const UNCERTAIN_NOT_QUEUED_TEXT =
@@ -588,7 +589,9 @@ export default function POSPage() {
       if (err instanceof OfflineStorageError && err.code === "duplicate") {
         return { ok: true, folio: localFolio(clientRequestId) };
       }
-      return { ok: false, text: OFFLINE_SAVE_FAILED_TEXT };
+      // Con el carrito en bloqueo incierto, el cobro en línea anterior pudo registrarse:
+      // no se afirma que "no quedó registrada" (riesgo de cobrar dos veces).
+      return { ok: false, text: lockRef.current === "uncertain" ? UNCERTAIN_NOT_QUEUED_TEXT : OFFLINE_SAVE_FAILED_TEXT };
     }
     return { ok: true, folio: localFolio(clientRequestId) };
   };

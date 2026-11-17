@@ -541,6 +541,39 @@ describe("/pos cobro sin internet", () => {
     expect(screen.queryByText(/No quedó registrada/)).toBeNull();
   });
 
+  it("bloqueo incierto: Guardar sin internet con la cola fallando no dice que no se registró", async () => {
+    const { OfflineStorageError } = await import("@/lib/offline/db");
+    await onlineWithLine();
+    m.createSaleAction.mockRejectedValue(new TypeError("Failed to fetch"));
+    m.enqueueSale.mockRejectedValue(new OfflineStorageError("unavailable", "Almacenamiento local no disponible"));
+    cobrar();
+    fireEvent.click(await screen.findByRole("button", { name: "Guardar sin internet" }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText("No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No quedó registrada/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Reintentar cobro" })).toBeInTheDocument();
+  });
+
+  it("bloqueo incierto: Reintentar cobro sin red con la cola fallando no dice que no se registró", async () => {
+    const { OfflineStorageError } = await import("@/lib/offline/db");
+    await onlineWithLine();
+    m.createSaleAction.mockRejectedValue(new TypeError("Failed to fetch"));
+    m.enqueueSale.mockRejectedValue(new OfflineStorageError("unavailable", "Almacenamiento local no disponible"));
+    cobrar();
+    await screen.findByRole("button", { name: "Reintentar cobro" });
+    goOffline();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar cobro" }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect(m.createSaleAction).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText("No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No quedó registrada/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Reintentar cobro" })).toBeInTheDocument();
+  });
+
   it("el carrito sin internet no deja pasar del stock local", async () => {
     await offlineWithLine(stored("l1", H, [variant({ available: 1 })]));
     scan("7501234567890");
