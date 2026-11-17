@@ -35,6 +35,8 @@ const threeHoursAgo = () => new Date(Date.now() - 3 * 3_600_000).toISOString();
 
 function dashboard() {
   return {
+    pendingReviewCount: 0,
+    pendingReviewTotal: 0,
     soldTotal: 1234.5,
     collectedTotal: 1000,
     salesCount: 7,
@@ -243,8 +245,8 @@ describe("VentasPage", () => {
 
   describe("Ventas de hoy", () => {
     const recentSales = [
-      { saleId: "r2", number: 31, total: 450, locationId: "l1", status: "pending_payment", channel: "whatsapp", paymentMethod: "spay_transfer", createdAt: threeHoursAgo() },
-      { saleId: "r1", number: 30, total: 1299.9, locationId: "l1", status: "paid", channel: "store", paymentMethod: "cash", createdAt: threeHoursAgo() },
+      { saleId: "r2", number: 31, total: 450, locationId: "l1", status: "pending_payment", channel: "whatsapp", paymentMethod: "spay_transfer", createdAt: threeHoursAgo(), reviewStatus: null },
+      { saleId: "r1", number: 30, total: 1299.9, locationId: "l1", status: "paid", channel: "store", paymentMethod: "cash", createdAt: threeHoursAgo(), reviewStatus: "pending" },
     ];
     const withRecent = () => ({
       query: { from: "2026-11-06", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates", recentSalesDate: "2026-11-06" },
@@ -394,5 +396,59 @@ describe("VentasPage", () => {
     expect(await screen.findByTestId("card-vendido")).toHaveTextContent("$1,234.50");
     expect(screen.getByTestId("card-cobrado")).toHaveTextContent("$1,000");
     expect(screen.getByTestId("card-cobrado")).not.toHaveTextContent("$1,000.00");
+  });
+
+  describe("Por aprobar en totales y filas", () => {
+    it("el owner ve la parte Por aprobar del vendido y la insignia en la fila pendiente", async () => {
+      const row = (saleId: string, number: number, reviewStatus: "pending" | null) => ({
+        saleId, number, total: 450, locationId: "l1", status: "paid", channel: "store", paymentMethod: "cash",
+        createdAt: new Date().toISOString(), reviewStatus,
+      });
+      actions.getDashboardAction.mockResolvedValue({
+        query: { from: "2026-11-06", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates", recentSalesDate: "2026-11-06" },
+        data: { ...dashboard(), pendingPayments: [], recentSales: [row("a", 1, "pending"), row("b", 2, null)], pendingReviewTotal: 500 },
+      });
+      render(<VentasPage />);
+      expect(await screen.findByTestId("card-vendido-nota")).toHaveTextContent(/De los cuales \$500 Por aprobar/);
+      const section = await screen.findByRole("region", { name: "Ventas de hoy" });
+      expect(within(section).getAllByText("Por aprobar")).toHaveLength(1);
+    });
+    it("sin importe por aprobar no hay sub-línea", async () => {
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByTestId("card-vendido-nota")).toBeNull();
+    });
+  });
+
+  describe("aviso de ventas sin internet por aprobar", () => {
+    const withCount = (n: number) =>
+      actions.getDashboardAction.mockImplementation(async () => ({
+        query: { from: "2026-11-06", to: "2026-11-06", locationIds: "all", pendingScope: "all_dates" },
+        data: { ...dashboard(), pendingReviewCount: n },
+      }));
+    it("el owner con N > 0 ve el aviso con enlace", async () => {
+      withCount(3);
+      render(<VentasPage />);
+      const link = await screen.findByRole("link", { name: /3 ventas sin internet por aprobar/ });
+      expect(link).toHaveAttribute("href", "/ventas/revision");
+    });
+    it("singular", async () => {
+      withCount(1);
+      render(<VentasPage />);
+      expect(await screen.findByRole("link", { name: /1 venta sin internet por aprobar/ })).toBeInTheDocument();
+    });
+    it("el owner con 0 no ve el aviso", async () => {
+      withCount(0);
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByText(/sin internet por aprobar/)).toBeNull();
+    });
+    it.each(["manager", "collaborator"] as const)("%s no ve el aviso aunque llegue el número", async (role) => {
+      setRole(role, "l1");
+      withCount(3);
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByText(/sin internet por aprobar/)).toBeNull();
+    });
   });
 });

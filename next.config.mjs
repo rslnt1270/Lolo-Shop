@@ -1,7 +1,9 @@
 import withPWAInit from "next-pwa";
+import { runtimeCaching } from "./lib/pwa/runtime-caching.mjs";
 
 const withPWA = withPWAInit({
   dest: "public",
+  runtimeCaching,
   disable: process.env.NODE_ENV === "development",
 });
 

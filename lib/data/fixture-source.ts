@@ -1,6 +1,6 @@
 import type { Location, Product, Variant } from "@/lib/domain/types";
 import {
-  MAX_SEARCH_RESULTS,
+  MAX_SEARCH_RESULTS, MAX_SNAPSHOT_VARIANTS, type OfflineSnapshot,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
@@ -132,6 +132,34 @@ export class FixtureDataSource implements InventoryDataSource {
     const match = await this.getProductByVariantId(variantId);
     const level = match?.variant.inventory.find((l) => l.locationId === locationId);
     return { available: level?.available ?? 0, sold: false };
+  }
+
+  async getOfflineSnapshot(locationId: string): Promise<OfflineSnapshot> {
+    const generatedAt = new Date().toISOString();
+    const variants = this.products
+      .filter((p) => p.isActive !== false && !p.mergedIntoId)
+      .flatMap((p) =>
+        p.variants
+          .filter((v) => v.isActive !== false)
+          .flatMap((v) => {
+            const level = v.inventory.find((l) => l.locationId === locationId);
+            if (!level) return [];
+            return [{
+              variantId: v.id,
+              productId: p.id,
+              barcode: v.barcode,
+              sku: v.sku,
+              productTitle: p.title,
+              variantTitle: v.title,
+              size: v.size,
+              price: v.price,
+              available: level.available,
+            }];
+          }),
+      )
+      .sort((a, b) => (a.variantId < b.variantId ? -1 : a.variantId > b.variantId ? 1 : 0))
+      .slice(0, MAX_SNAPSHOT_VARIANTS + 1);
+    return { locationId, generatedAt, variants };
   }
 
   async listVariantStockAt(productId: string, locationId: string): Promise<VariantStockRow[]> {

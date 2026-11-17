@@ -239,6 +239,38 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
       expect(await available(w.v1, w.storeB)).toBe(5);
     });
 
+    it("id de otro usuario con el mismo carrito: conflicto sin el folio y sin tocar stock", async () => {
+      await setStock(w.v1, w.storeB, 5);
+      const rid = randomUUID();
+      const input = sale(w.storeB, [one(w.v1, 1)], "cash", rid);
+      await ds.createSale(input, w.owner);
+
+      const err = await ds.createSale(input, w.collab).catch((e) => e);
+
+      expect(err).toBeInstanceOf(SaleRequestConflictError);
+      expect(err.saleNumber).toBeNull();
+      expect(err.message).not.toMatch(/#\d/);
+      expect(await testPrisma.sale.count()).toBe(1);
+      expect(await available(w.v1, w.storeB)).toBe(4);
+      await expectLedger(w.v1, w.storeB, 5);
+    });
+
+    it("carrera de dos usuarios con el mismo id y el mismo carrito: una venta y el otro recibe conflicto sin folio", async () => {
+      await setStock(w.v1, w.storeB, 5);
+      const input = sale(w.storeB, [one(w.v1, 1)], "cash", randomUUID());
+      const results = await Promise.allSettled([
+        dsA.createSale(input, w.owner),
+        dsB.createSale(input, w.collab),
+      ]);
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(failed).toHaveLength(1);
+      expect(failed[0].reason).toBeInstanceOf(SaleRequestConflictError);
+      expect(failed[0].reason.saleNumber).toBeNull();
+      expect(await testPrisma.sale.count()).toBe(1);
+      await expectLedger(w.v1, w.storeB, 5);
+    });
+
     it("carrera con el mismo id y carritos distintos: una venta y la otra recibe conflicto", async () => {
       await setStock(w.v1, w.storeA, 5);
       const rid = randomUUID();
@@ -258,6 +290,16 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
   });
 
   describe("createSale", () => {
+    it("venta en línea nace origin online, sin revisión y shortfall 0", async () => {
+      await setStock(w.v1, w.storeA, 3);
+      const rec = await ds.createSale(sale(w.storeA, [one(w.v1)]), w.owner);
+      expect(rec.origin).toBe("online");
+      expect(rec.soldAt).toBeNull();
+      expect(rec.reviewStatus).toBeNull();
+      expect(rec.reviewReasons).toEqual([]);
+      expect(rec.lines.every((l) => l.shortfall === 0)).toBe(true);
+    });
+
     it("variante sin fila de InventoryLevel en la tienda: InsufficientStockError con available 0 y sin filas nuevas", async () => {
       const err = await ds.createSale(sale(w.storeA, [one(w.v1, 2)]), w.owner).catch((e) => e);
 
@@ -292,7 +334,7 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
 
       expect(rec.status).toBe("paid");
       expect(rec.total).toBe(898.5);
-      expect(rec.lines).toEqual([{ variantId: w.v1, quantity: 3, unitPrice: 299.5 }]);
+      expect(rec.lines).toEqual([{ variantId: w.v1, quantity: 3, unitPrice: 299.5, shortfall: 0 }]);
       expect(rec.createdById).toBe(w.collab);
       expect(rec.businessDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       const row = await testPrisma.sale.findUniqueOrThrow({ where: { id: rec.id } });
@@ -502,7 +544,7 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
 
       const rec = await ds.createSale(sale(w.storeA, [one(m.variantId, 2, m.price)]), w.owner);
 
-      expect(rec.lines).toEqual([{ variantId: w.v1, quantity: 2, unitPrice: 300 }]);
+      expect(rec.lines).toEqual([{ variantId: w.v1, quantity: 2, unitPrice: 300, shortfall: 0 }]);
       expect(await available(w.v1, w.storeA)).toBe(1);
       expect(await available(w.v2, w.storeA)).toBe(2);
       await expectLedger(w.v1, w.storeA, 3);

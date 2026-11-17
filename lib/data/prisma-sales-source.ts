@@ -4,22 +4,36 @@ import prisma from "../prisma";
 import {
   businessDateMx,
   initialStatus,
-  isSameSaleRequest,
   saleTotal,
   validateNewSale,
   MAX_REFERENCE_LENGTH,
+  MAX_CANCEL_REASON_LENGTH,
+  REVIEW_REASONS,
+  type ReviewReason,
   type NewSaleInput,
   type SaleStatus,
 } from "../domain/sale";
-import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "./errors";
+import {
+  isPriceKnown,
+  planOfflineLine,
+  resolveOfflineTimes,
+  validateOfflineSale,
+  type OfflineMeta,
+} from "../domain/offline-sale";
+import { InsufficientStockError, SalesRuleError } from "./errors";
+import { replayOrConflict } from "./sale-replay";
 import {
   DEFAULT_LOW_STOCK_THRESHOLD,
   LOW_STOCK_LIMIT,
   LOW_STOCK_THRESHOLD_KEY,
   RECENT_SALES_LIMIT,
+  REVIEW_LIST_LIMIT,
+  MAX_REVIEW_NOTE_LENGTH,
   isValidLowStockThreshold,
   type DashboardData,
   type DashboardQuery,
+  type CreateSaleOptions,
+  type ReviewItem,
   type SaleRecord,
   type SalesDataSource,
 } from "./sales-source";
@@ -56,19 +70,52 @@ function toRecord(s: SaleWithLines): SaleRecord {
     locationId: s.locationId,
     createdById: s.createdById,
     createdAt: s.createdAt.toISOString(),
+    origin: s.origin,
+    soldAt: s.soldAt ? s.soldAt.toISOString() : null,
+    reviewStatus: s.reviewStatus,
+    reviewReasons: s.reviewReasons.filter((r): r is ReviewReason =>
+      (REVIEW_REASONS as readonly string[]).includes(r),
+    ),
     lines: s.lines.map((l) => ({
       variantId: l.variantId,
       quantity: l.quantity,
       unitPrice: Number(l.unitPrice),
+      shortfall: l.shortfall,
     })),
   };
 }
 
-/** Mismo `clientRequestId`: idempotente si es el mismo cobro; si no, conflicto. */
-function replayOrConflict(existing: SaleRecord, request: NewSaleInput): SaleRecord {
-  if (!isSameSaleRequest(existing, request)) throw new SaleRequestConflictError(existing.number);
-  return existing;
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Reingresa a la tienda de la venta, por renglón y en orden de variantId,
+ * solo lo que sí se descontó (`quantity − returnedQuantity − shortfall`), con
+ * `Movement RETURN`. Llamar solo tras ganar el cambio condicional de estado.
+ */
+async function restock(tx: Tx, s: SaleWithLines, userId: string, now: Date): Promise<void> {
+  for (const line of s.lines) {
+    const qty = line.quantity - line.returnedQuantity - line.shortfall;
+    if (qty <= 0) continue;
+    await tx.inventoryLevel.upsert({
+      where: { variantId_locationId: { variantId: line.variantId, locationId: s.locationId } },
+      update: { available: { increment: qty } },
+      create: { variantId: line.variantId, locationId: s.locationId, available: qty },
+    });
+    await tx.movement.create({
+      data: {
+        variantId: line.variantId,
+        locationId: s.locationId,
+        userId,
+        delta: qty,
+        type: "RETURN",
+        saleId: s.id,
+        timestamp: now,
+      },
+    });
+  }
 }
+
+const NOT_PENDING_REVIEW = "Esta venta ya no está por aprobar.";
 
 function isClientRequestIdRace(err: unknown): boolean {
   if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== "P2002") return false;
@@ -88,14 +135,19 @@ export class PrismaSalesDataSource implements SalesDataSource {
     return (await this.db.sale.count({ where: { clientRequestId } })) > 0;
   }
 
-  async createSale(input: NewSaleInput, userId: string): Promise<SaleRecord> {
+  async createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord> {
+    // Venta cobrada sin internet: camino aparte (spec F §8.3); el de abajo no cambia.
+    if (opts?.offline) {
+      return this.createOfflineSale(input, userId, opts.offline, opts.checkPrice === true, opts.snapshotUnverified === true);
+    }
+
     // Paso 1 (ER §3.1): validación fuera de la transacción.
     const checked = validateNewSale(input);
     if (!checked.ok) throw new SalesRuleError(checked.message);
     const sale = checked.value;
 
     const existing = await this.findByClientRequestId(sale.clientRequestId);
-    if (existing) return replayOrConflict(existing, sale);
+    if (existing) return replayOrConflict(existing, sale, userId);
 
     const variants = await this.db.variant.findMany({
       where: { id: { in: sale.lines.map((l) => l.variantId) } },
@@ -190,7 +242,178 @@ export class PrismaSalesDataSource implements SalesDataSource {
       // Carrera del mismo reintento: la otra transacción ya registró la venta.
       if (isClientRequestIdRace(err)) {
         const winner = await this.findByClientRequestId(sale.clientRequestId);
-        if (winner) return replayOrConflict(winner, sale);
+        if (winner) return replayOrConflict(winner, sale, userId);
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Spec F §8.3: misma idempotencia y orden de bloqueo que en línea, pero nunca
+   * lanza por stock. Por renglón bloquea la fila (`FOR UPDATE`), descuenta
+   * `min(available, quantity)` y guarda el resto en `shortfall`. Movement solo
+   * por lo descontado. Cualquier razón deja la venta en revisión del dueño.
+   */
+  private async createOfflineSale(
+    input: NewSaleInput,
+    userId: string,
+    offline: OfflineMeta,
+    checkPrice: boolean,
+    snapshotUnverified: boolean,
+  ): Promise<SaleRecord> {
+    const checked = validateOfflineSale({ ...input, ...offline });
+    if (!checked.ok) throw new SalesRuleError(checked.message);
+    const { soldAt: rawSoldAt, snapshotAt: rawSnapshotAt, ...sale } = checked.value;
+
+    // 1. Replay o conflicto, antes de todo.
+    const existing = await this.findByClientRequestId(sale.clientRequestId);
+    if (existing) return replayOrConflict(existing, sale, userId);
+
+    const variants = await this.db.variant.findMany({
+      where: { id: { in: sale.lines.map((l) => l.variantId) } },
+      select: {
+        id: true,
+        isActive: true,
+        price: true,
+        product: {
+          select: {
+            id: true,
+            isActive: true,
+            mergedIntoId: true,
+            brandId: true,
+            departmentId: true,
+            productTypeId: true,
+            category: true,
+          },
+        },
+      },
+    });
+    const byId = new Map(variants.map((v) => [v.id, v]));
+    // 2. Variante inexistente: no hay a qué registrar la venta.
+    if (sale.lines.some((l) => !byId.has(l.variantId))) {
+      throw new SalesRuleError("Un producto de la venta ya no existe.");
+    }
+
+    const now = new Date();
+    // Copia sin firma: no cuenta; con checkPrice solo cuadra el precio vigente (priceSince = now).
+    const times = resolveOfflineTimes({ soldAt: rawSoldAt, snapshotAt: rawSnapshotAt }, now, {
+      snapshotTrusted: !snapshotUnverified,
+    });
+    const reasons = new Set<ReviewReason>();
+    // Inactiva o unida a otro producto: la prenda ya salió, se acepta.
+    if (variants.some((v) => !v.isActive || !v.product.isActive || v.product.mergedIntoId)) {
+      reasons.add("inactive_product");
+    }
+    // 5. Precio: el vigente o un oldPrice/newPrice de cambios desde la copia (≤ 7 días).
+    if (checkPrice) {
+      const changes = await this.db.priceChange.findMany({
+        where: { variantId: { in: [...byId.keys()] }, createdAt: { gte: times.priceSince } },
+        select: { variantId: true, oldPrice: true, newPrice: true },
+      });
+      for (const line of sale.lines) {
+        const recent = changes
+          .filter((c) => c.variantId === line.variantId)
+          .map((c) => ({ oldPrice: Number(c.oldPrice), newPrice: Number(c.newPrice) }));
+        if (!isPriceKnown(line.unitPrice, Number(byId.get(line.variantId)!.price), recent)) {
+          reasons.add("price_unverified");
+        }
+      }
+    }
+    // 6. Reloj del teléfono o copia fuera de vigencia.
+    if (times.skewed) reasons.add("clock_skew");
+
+    const lines = [...sale.lines].sort((a, b) => (a.variantId < b.variantId ? -1 : a.variantId > b.variantId ? 1 : 0));
+
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const created = await tx.sale.create({
+          data: {
+            clientRequestId: sale.clientRequestId,
+            channel: sale.channel,
+            paymentMethod: sale.paymentMethod,
+            status: initialStatus(sale.paymentMethod),
+            locationId: sale.locationId,
+            total: saleTotal(lines),
+            // 7. Día de negocio de la venta en el teléfono; createdAt es la llegada.
+            businessDate: new Date(`${businessDateMx(times.soldAt)}T00:00:00.000Z`),
+            stockCommittedAt: now,
+            createdAt: now,
+            createdById: userId,
+            paymentReference: sale.paymentReference ?? null,
+            customerAlias: sale.customerAlias ?? null,
+            origin: "offline",
+            soldAt: times.soldAt,
+            offlineSnapshotAt: snapshotUnverified ? null : new Date(rawSnapshotAt),
+          },
+        });
+
+        // 3. Por renglón en orden de variantId: bloquear, descontar hasta 0.
+        const planned: { variantId: string; quantity: number; unitPrice: number; taken: number; shortfall: number }[] = [];
+        for (const line of lines) {
+          const rows = await tx.$queryRaw<{ available: number }[]>(Prisma.sql`
+            SELECT "available" FROM "InventoryLevel"
+            WHERE "variantId" = ${line.variantId} AND "locationId" = ${sale.locationId}
+            FOR UPDATE`);
+          const { taken, shortfall } = planOfflineLine(rows[0]?.available ?? null, line.quantity);
+          if (taken > 0) {
+            // Condicional aunque la fila ya está bloqueada: nunca negativo.
+            const { count } = await tx.inventoryLevel.updateMany({
+              where: { variantId: line.variantId, locationId: sale.locationId, available: { gte: taken } },
+              data: { available: { decrement: taken } },
+            });
+            if (count !== 1) throw new Error("El stock cambió con la fila bloqueada.");
+          }
+          if (shortfall > 0) reasons.add("insufficient_stock");
+          planned.push({ ...line, taken, shortfall });
+        }
+
+        await tx.saleLine.createMany({
+          data: planned.map((line) => {
+            const product = byId.get(line.variantId)!.product;
+            return {
+              saleId: created.id,
+              variantId: line.variantId,
+              productId: product.id,
+              brandId: product.brandId,
+              departmentId: product.departmentId,
+              productTypeId: product.productTypeId,
+              category: product.category,
+              quantity: line.quantity,
+              unitPrice: line.unitPrice,
+              shortfall: line.shortfall,
+            };
+          }),
+        });
+        // 4. Movement solo por lo descontado: la suma sigue cuadrando con available.
+        const movements = planned.filter((l) => l.taken > 0);
+        if (movements.length > 0) {
+          await tx.movement.createMany({
+            data: movements.map((line) => ({
+              variantId: line.variantId,
+              locationId: sale.locationId,
+              userId,
+              delta: -line.taken,
+              type: "SALE" as const,
+              saleId: created.id,
+              timestamp: now,
+            })),
+          });
+        }
+
+        // 8. Revisión del dueño si hay alguna razón (orden fijo).
+        if (reasons.size > 0) {
+          await tx.sale.update({
+            where: { id: created.id },
+            data: { reviewStatus: "pending", reviewReasons: REVIEW_REASONS.filter((r) => reasons.has(r)) },
+          });
+        }
+
+        return toRecord(await tx.sale.findUniqueOrThrow({ where: { id: created.id }, include: saleWithLines }));
+      }, SALE_TX_OPTIONS);
+    } catch (err) {
+      if (isClientRequestIdRace(err)) {
+        const winner = await this.findByClientRequestId(sale.clientRequestId);
+        if (winner) return replayOrConflict(winner, sale, userId);
       }
       throw err;
     }
@@ -228,33 +451,97 @@ export class PrismaSalesDataSource implements SalesDataSource {
         where: { id: saleId, status: { in: ["pending_payment", "paid"] } },
         data: { status: "cancelled", cancelReason, cancelledById: userId, cancelledAt: now },
       });
+      // Anular una venta en revisión es rechazarla (spec F §9).
+      if (count > 0) {
+        await tx.sale.updateMany({
+          where: { id: saleId, reviewStatus: "pending" },
+          data: { reviewStatus: "rejected", reviewedById: userId, reviewedAt: now },
+        });
+      }
       const s = await tx.sale.findUnique({ where: { id: saleId }, include: saleWithLines });
       if (!s) throw new SalesRuleError("La venta no existe.");
       if (count === 0) throw new SalesRuleError("Esta venta ya no se puede anular.");
 
-      if (itemsReturned) {
-        // Mismo orden por variantId que al vender; las líneas ya vienen ordenadas.
-        for (const line of s.lines) {
-          const qty = line.quantity - line.returnedQuantity;
-          if (qty <= 0) continue;
-          await tx.inventoryLevel.upsert({
-            where: { variantId_locationId: { variantId: line.variantId, locationId: s.locationId } },
-            update: { available: { increment: qty } },
-            create: { variantId: line.variantId, locationId: s.locationId, available: qty },
-          });
-          await tx.movement.create({
-            data: {
-              variantId: line.variantId,
-              locationId: s.locationId,
-              userId,
-              delta: qty,
-              type: "RETURN",
-              saleId: s.id,
-              timestamp: now,
-            },
-          });
-        }
-      }
+      if (itemsReturned) await restock(tx, s, userId, now);
+      return toRecord(s);
+    }, SALE_TX_OPTIONS);
+  }
+
+  async listSalesForReview(): Promise<ReviewItem[]> {
+    const rows = await this.db.sale.findMany({
+      where: { reviewStatus: "pending" },
+      orderBy: [{ createdAt: "asc" }, { number: "asc" }],
+      take: REVIEW_LIST_LIMIT,
+      include: {
+        location: { select: { name: true } },
+        createdBy: { select: { name: true, username: true } },
+        lines: {
+          orderBy: { variantId: "asc" },
+          include: { variant: { select: { size: true, product: { select: { title: true } } } } },
+        },
+      },
+    });
+    return rows.map((s) => ({
+      saleId: s.id,
+      number: s.number,
+      locationId: s.locationId,
+      locationName: s.location.name,
+      cashierName: s.createdBy.name || s.createdBy.username,
+      soldAt: s.soldAt ? s.soldAt.toISOString() : null,
+      createdAt: s.createdAt.toISOString(),
+      total: Number(s.total),
+      paymentMethod: s.paymentMethod,
+      reasons: s.reviewReasons.filter((r): r is ReviewReason => (REVIEW_REASONS as readonly string[]).includes(r)),
+      lines: s.lines.map((l) => ({
+        variantId: l.variantId,
+        productTitle: l.variant.product.title,
+        size: l.variant.size,
+        quantity: l.quantity,
+        shortfall: l.shortfall,
+        unitPrice: Number(l.unitPrice),
+      })),
+    }));
+  }
+
+  async approveReview(saleId: string, userId: string, note?: string): Promise<SaleRecord> {
+    const cleanNote = note?.trim() || undefined;
+    if (cleanNote && cleanNote.length > MAX_REVIEW_NOTE_LENGTH) {
+      throw new SalesRuleError(`La nota no puede pasar de ${MAX_REVIEW_NOTE_LENGTH} caracteres.`);
+    }
+    // Cambio condicional: de dos aprobaciones o rechazos simultáneos, gana uno.
+    const { count } = await this.db.sale.updateMany({
+      where: { id: saleId, reviewStatus: "pending" },
+      data: { reviewStatus: "approved", reviewedById: userId, reviewedAt: new Date(), reviewNote: cleanNote ?? null },
+    });
+    if (count === 0) throw new SalesRuleError(NOT_PENDING_REVIEW);
+    return toRecord(await this.db.sale.findUniqueOrThrow({ where: { id: saleId }, include: saleWithLines }));
+  }
+
+  async rejectReview(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord> {
+    const cancelReason = reason.trim();
+    if (!cancelReason) throw new SalesRuleError("Escribe el motivo del rechazo.");
+    if (cancelReason.length > MAX_CANCEL_REASON_LENGTH) {
+      throw new SalesRuleError(`El motivo no puede pasar de ${MAX_CANCEL_REASON_LENGTH} caracteres.`);
+    }
+    return this.db.$transaction(async (tx) => {
+      const now = new Date();
+      // El UPDATE condicional bloquea la fila: solo una transacción pasa de pending a rejected.
+      const { count } = await tx.sale.updateMany({
+        where: { id: saleId, reviewStatus: "pending", status: { in: ["pending_payment", "paid"] } },
+        data: {
+          reviewStatus: "rejected",
+          reviewedById: userId,
+          reviewedAt: now,
+          reviewNote: cancelReason,
+          status: "cancelled",
+          cancelReason,
+          cancelledById: userId,
+          cancelledAt: now,
+        },
+      });
+      if (count === 0) throw new SalesRuleError(NOT_PENDING_REVIEW);
+      const s = await tx.sale.findUniqueOrThrow({ where: { id: saleId }, include: saleWithLines });
+      if (itemsReturned) await restock(tx, s, userId, now);
       return toRecord(s);
     }, SALE_TX_OPTIONS);
   }
@@ -268,8 +555,10 @@ export class PrismaSalesDataSource implements SalesDataSource {
       AND s."status" IN ('paid'::"SaleStatus", 'pending_payment'::"SaleStatus") ${locSql}`;
     const threshold = await this.getLowStockThreshold();
 
-    const [sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
+    const [pendingReviewCount, reviewSold, sold, collected, byDay, byLocation, byChannel, byMethod, brands, depts, pending, levels, recent] =
       await Promise.all([
+        this.db.sale.count({ where: { reviewStatus: "pending", ...locFilter } }),
+        this.db.sale.aggregate({ where: { ...valid, reviewStatus: "pending" }, _sum: { total: true } }),
         this.db.sale.aggregate({ where: valid, _sum: { total: true }, _count: true }),
         this.db.sale.aggregate({ where: { ...valid, status: "paid" }, _sum: { total: true } }),
         this.db.sale.groupBy({ by: ["businessDate"], where: valid, _sum: { total: true }, _count: true, orderBy: { businessDate: "asc" } }),
@@ -337,6 +626,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
                 channel: true,
                 paymentMethod: true,
                 createdAt: true,
+                reviewStatus: true,
               },
             })
           : null,
@@ -346,6 +636,8 @@ export class PrismaSalesDataSource implements SalesDataSource {
       soldTotal: pesos(sold._sum.total),
       collectedTotal: pesos(collected._sum.total),
       salesCount: sold._count,
+      pendingReviewCount,
+      pendingReviewTotal: pesos(reviewSold._sum.total),
       byDay: byDay.map((r) => ({ date: r.businessDate.toISOString().slice(0, 10), total: pesos(r._sum.total), count: r._count })),
       byLocation: byLocation.map((r) => ({ locationId: r.locationId, total: pesos(r._sum.total) })),
       byChannel: byChannel.map((r) => ({ channel: r.channel, total: pesos(r._sum.total) })),
@@ -371,6 +663,7 @@ export class PrismaSalesDataSource implements SalesDataSource {
               channel: r.channel,
               paymentMethod: r.paymentMethod,
               createdAt: r.createdAt.toISOString(),
+              reviewStatus: r.reviewStatus,
             })),
           }
         : {}),

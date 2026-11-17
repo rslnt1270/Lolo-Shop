@@ -60,6 +60,7 @@ model User {
   salesCreated          Sale[]        @relation("SaleCreatedBy")
   salesPaymentConfirmed Sale[]        @relation("SalePaymentConfirmedBy")
   salesCancelled        Sale[]        @relation("SaleCancelledBy")
+  salesReviewed         Sale[]        @relation("SaleReviewedBy")
   appSettingsUpdated    AppSetting[]
   priceChanges          PriceChange[]
   colorOptions          ColorOption[]
@@ -236,38 +237,59 @@ model Movement {
 }
 
 model Sale {
-  id                   String        @id @default(uuid())
-  number               Int           @unique @default(autoincrement())
-  clientRequestId      String        @unique
+  id                   String            @id @default(uuid())
+  number               Int               @unique @default(autoincrement())
+  clientRequestId      String            @unique
   channel              SaleChannel
   status               SaleStatus
   paymentMethod        PaymentMethod
   locationId           String
-  location             Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  total                Decimal       @db.Decimal(10, 2)
-  businessDate         DateTime      @db.Date
+  location             Location          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  total                Decimal           @db.Decimal(10, 2)
+  businessDate         DateTime          @db.Date
   stockCommittedAt     DateTime?
   createdById          String
-  createdBy            User          @relation("SaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy            User              @relation("SaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   paymentConfirmedById String?
-  paymentConfirmedBy   User?         @relation("SalePaymentConfirmedBy", fields: [paymentConfirmedById], references: [id], onDelete: Restrict)
+  paymentConfirmedBy   User?             @relation("SalePaymentConfirmedBy", fields: [paymentConfirmedById], references: [id], onDelete: Restrict)
   paymentConfirmedAt   DateTime?
   paymentReference     String?
-  customerAlias        String?       @db.VarChar(40)
+  customerAlias        String?           @db.VarChar(40)
   cancelledById        String?
-  cancelledBy          User?         @relation("SaleCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
+  cancelledBy          User?             @relation("SaleCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
   cancelledAt          DateTime?
   cancelReason         String?
   notes                String?
+  origin               SaleOrigin        @default(online)
+  soldAt               DateTime?
+  offlineSnapshotAt    DateTime?
+  reviewStatus         SaleReviewStatus?
+  reviewReasons        String[]          @default([])
+  reviewedById         String?
+  reviewedBy           User?             @relation("SaleReviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict)
+  reviewedAt           DateTime?
+  reviewNote           String?           @db.VarChar(200)
   lines                SaleLine[]
   movements            Movement[]
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @default(now()) @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @default(now()) @updatedAt
 
   @@index([businessDate])
   @@index([locationId, businessDate])
   @@index([channel, businessDate])
   @@index([status, createdAt])
+  @@index([reviewStatus, createdAt])
+}
+
+enum SaleOrigin {
+  online
+  offline
+}
+
+enum SaleReviewStatus {
+  pending
+  approved
+  rejected
 }
 
 model SaleLine {
@@ -284,6 +306,7 @@ model SaleLine {
   quantity         Int
   unitPrice        Decimal @db.Decimal(10, 2)
   returnedQuantity Int     @default(0)
+  shortfall        Int     @default(0)
 
   @@unique([saleId, variantId])
   @@index([saleId])

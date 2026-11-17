@@ -1,4 +1,5 @@
-import type { NewSaleInput, PaymentMethod, SaleChannel, SaleStatus } from "@/lib/domain/sale";
+import type { OfflineMeta } from "@/lib/domain/offline-sale";
+import type { NewSaleInput, PaymentMethod, ReviewReason, SaleChannel, SaleOrigin, SaleReviewStatus, SaleStatus } from "@/lib/domain/sale";
 
 export interface SaleRecord {
   id: string;
@@ -14,9 +15,53 @@ export interface SaleRecord {
   createdById: string;
   /** ISO 8601. */
   createdAt: string;
-  /** Ordenados por variantId. */
-  lines: { variantId: string; quantity: number; unitPrice: number }[];
+  origin: SaleOrigin;
+  /** ISO 8601 de la venta sin internet en el teléfono; null si es en línea. */
+  soldAt: string | null;
+  reviewStatus: SaleReviewStatus | null;
+  reviewReasons: ReviewReason[];
+  /** Ordenados por variantId. `shortfall`: piezas vendidas sin existencia (sin internet). */
+  lines: { variantId: string; quantity: number; unitPrice: number; shortfall: number }[];
 }
+
+/** Opciones de `createSale`. Sin `offline` el camino en línea no cambia. */
+export interface CreateSaleOptions {
+  /** Venta cobrada sin internet: descuenta hasta 0 y registra el faltante (spec F §8.3). */
+  offline?: OfflineMeta;
+  /** Solo con `offline`: verifica el precio contra `PriceChange` (la acción lo pide para colaborador). */
+  checkPrice?: boolean;
+  /**
+   * Solo con `offline`: la fecha de la copia no viene firmada por el servidor
+   * (token ausente, alterado o de otro usuario o tienda). La venta se acepta
+   * igual; la copia no cuenta para el precio ni el reloj, así que con
+   * `checkPrice` solo cuadra el precio vigente (si no, `price_unverified`). Sin
+   * `checkPrice` (owner y manager) no se marca nada por precio, como en línea.
+   * `offlineSnapshotAt` queda nulo.
+   */
+  snapshotUnverified?: boolean;
+}
+
+/** Una venta sin internet por aprobar (spec F §9). */
+export interface ReviewItem {
+  saleId: string;
+  number: number;
+  locationId: string;
+  locationName: string;
+  cashierName: string;
+  /** Hora de la venta en el teléfono (ISO 8601). */
+  soldAt: string | null;
+  /** Hora de llegada al servidor (ISO 8601). */
+  createdAt: string;
+  total: number;
+  paymentMethod: PaymentMethod;
+  reasons: ReviewReason[];
+  lines: { variantId: string; productTitle: string; size: string; quantity: number; shortfall: number; unitPrice: number }[];
+}
+
+/** Máximo de ventas en la lista de revisión. */
+export const REVIEW_LIST_LIMIT = 100;
+/** Máximo de caracteres de la nota de aprobación. */
+export const MAX_REVIEW_NOTE_LENGTH = 200;
 
 /** Fechas de negocio `YYYY-MM-DD`, inclusivas. */
 export interface DashboardQuery {
@@ -46,6 +91,10 @@ export interface DashboardData {
   /** Cobrado: solo paid. */
   collectedTotal: number;
   salesCount: number;
+  /** Ventas sin internet por aprobar en las tiendas del alcance (sin filtro de fecha). */
+  pendingReviewCount: number;
+  /** Parte de `soldTotal` que está "Por aprobar" (ventas sin internet en revisión dentro del rango). */
+  pendingReviewTotal: number;
   byDay: { date: string; total: number; count: number }[];
   byLocation: { locationId: string; total: number }[];
   byChannel: { channel: SaleChannel; total: number }[];
@@ -74,6 +123,8 @@ export interface DashboardData {
     channel: SaleChannel;
     paymentMethod: PaymentMethod;
     createdAt: string;
+    /** `pending`: venta sin internet "Por aprobar". */
+    reviewStatus: SaleReviewStatus | null;
   }[];
   /** Las 50 filas con menos piezas. */
   lowStock: {
@@ -95,10 +146,18 @@ export interface SalesDataSource {
    * Registra la venta y descuenta stock en una sola transacción. Idempotente
    * por `clientRequestId`: un reintento con los mismos datos devuelve la venta
    * ya creada; con otra tienda, canal, método o renglones lanza
-   * `SaleRequestConflictError`. Si falta stock en algún renglón lanza
+   * `SaleRequestConflictError` con el folio. Si la venta guardada la registró
+   * otro usuario lanza `SaleRequestConflictError` sin folio (`saleNumber: null`)
+   * y no revela nada de esa venta. Si falta stock en algún renglón lanza
    * `InsufficientStockError` y no deja nada.
+   *
+   * Con `opts.offline` (venta cobrada sin internet) nunca lanza por stock:
+   * descuenta `min(available, quantity)` por renglón, guarda el resto en
+   * `shortfall` y, si hay faltante, producto inactivo, precio no verificado o
+   * reloj raro, deja la venta con `reviewStatus = "pending"`. Variante
+   * inexistente: `SalesRuleError`. `checkPrice` sin `offline` se ignora.
    */
-  createSale(input: NewSaleInput, userId: string): Promise<SaleRecord>;
+  createSale(input: NewSaleInput, userId: string, opts?: CreateSaleOptions): Promise<SaleRecord>;
   /**
    * ¿Ya hay una venta con este `clientRequestId`? Sirve para no evaluar reglas
    * previas (p. ej. el cambio de precio) en un reintento: lo resuelve `createSale`.
@@ -108,9 +167,26 @@ export interface SalesDataSource {
   confirmPayment(saleId: string, userId: string, reference?: string): Promise<SaleRecord>;
   /**
    * Anula una venta `pending_payment` o `paid`. `reason` obligatorio. Si
-   * `itemsReturned`, reingresa el stock a la tienda de la venta con `Movement RETURN`.
+   * `itemsReturned`, reingresa a la tienda de la venta, por renglón,
+   * `quantity − returnedQuantity − shortfall` (solo lo que sí se descontó) con
+   * `Movement RETURN`. Si la venta estaba en revisión (`pending`), queda `rejected`.
    */
   cancelSale(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord>;
+  /** Ventas con `reviewStatus = pending`, la más vieja primero (máx. 100). */
+  listSalesForReview(): Promise<ReviewItem[]>;
+  /**
+   * Aprueba una venta en revisión: `approved` + auditoría + nota opcional (≤ 200).
+   * El stock no cambia. Si ya no está pendiente lanza
+   * `SalesRuleError("Esta venta ya no está por aprobar.")`. Solo la gana una
+   * de dos llamadas simultáneas.
+   */
+  approveReview(saleId: string, userId: string, note?: string): Promise<SaleRecord>;
+  /**
+   * Rechaza una venta en revisión (motivo obligatorio ≤ 200): `rejected` +
+   * `cancelled` en una transacción. Si `itemsReturned`, reingresa por renglón
+   * `quantity − returnedQuantity − shortfall` con `Movement RETURN`.
+   */
+  rejectReview(saleId: string, userId: string, reason: string, itemsReturned: boolean): Promise<SaleRecord>;
   getDashboard(q: DashboardQuery): Promise<DashboardData>;
   /** Umbral global de stock bajo (AppSetting `lowStockThreshold`), entero 0–99. */
   getLowStockThreshold(): Promise<number>;

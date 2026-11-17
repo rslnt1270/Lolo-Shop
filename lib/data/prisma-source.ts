@@ -1,5 +1,5 @@
 import {
-  MAX_SEARCH_RESULTS,
+  MAX_SEARCH_RESULTS, MAX_SNAPSHOT_VARIANTS, type OfflineSnapshot,
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
@@ -190,6 +190,49 @@ export class PrismaDataSource implements InventoryDataSource {
     }));
     const order = sortSizes(rows.map((r) => r.size));
     return rows.sort((a, b) => order.indexOf(a.size) - order.indexOf(b.size));
+  }
+
+  async getOfflineSnapshot(locationId: string): Promise<OfflineSnapshot> {
+    // Antes de leer: la copia nunca parece más nueva que sus datos.
+    const generatedAt = new Date().toISOString();
+    const rows = await this.db.inventoryLevel.findMany({
+      where: {
+        locationId,
+        variant: { isActive: true, product: { isActive: true, mergedIntoId: null } },
+      },
+      select: {
+        available: true,
+        variant: {
+          select: {
+            id: true,
+            productId: true,
+            barcode: true,
+            sku: true,
+            title: true,
+            size: true,
+            price: true,
+            product: { select: { title: true } },
+          },
+        },
+      },
+      orderBy: { variantId: "asc" },
+      take: MAX_SNAPSHOT_VARIANTS + 1,
+    });
+    return {
+      locationId,
+      generatedAt,
+      variants: rows.map((r) => ({
+        variantId: r.variant.id,
+        productId: r.variant.productId,
+        barcode: r.variant.barcode,
+        sku: r.variant.sku,
+        productTitle: r.variant.product.title,
+        variantTitle: r.variant.title,
+        size: r.variant.size,
+        price: Number(r.variant.price),
+        available: r.available,
+      })),
+    };
   }
 
   async getProductByBarcode(code: string): Promise<VariantMatch | null> {

@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Scanner } from "@/components/inventory/Scanner";
@@ -15,9 +15,21 @@ import type { VariantMatch } from "@/lib/data/source";
 import type { PaymentMethod, SaleChannel } from "@/lib/domain/sale";
 import { useSaleDraft } from "@/lib/sales/use-sale-draft";
 import { formatPrice } from "@/lib/public/format";
-import { saleTotal } from "@/lib/domain/sale";
+import { saleTotal, validateNewSale } from "@/lib/domain/sale";
 import { StaffLoadState } from "@/components/layout/StaffLoadState";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
+import { discardQueued, enqueueSale, listQueue } from "@/lib/offline/queue-store";
+import { lookupOffline, toDraftMatch } from "@/lib/offline/lookup";
+import { OfflineStorageError, onOfflineStorageError } from "@/lib/offline/db";
+import { localAvailable } from "@/lib/offline/snapshot-store";
+import { localFolio, type SyncSummary } from "@/lib/offline/sync";
+import { useOfflineSync } from "@/lib/offline/use-offline-sync";
+import { OfflineBanner } from "@/components/sales/OfflineBanner";
+import { OfflineQueueSheet } from "@/components/sales/OfflineQueueSheet";
+import {
+  OFFLINE_IDENTITY_EXPIRED_TEXT, OFFLINE_NOT_FOUND_TEXT, OFFLINE_SNAPSHOT_BLOCKED_TEXT, OFFLINE_SNAPSHOT_TOO_LARGE_TEXT,
+  useOfflinePos, useOnline, useRevalidatedSession,
+} from "@/lib/offline/use-offline-pos";
 
 type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
@@ -35,6 +47,52 @@ function combineNotices(first: Notice, second: Notice): Notice {
 }
 
 const NOT_FOUND_REASON = "No encontramos el código. Revisa que esté dado de alta.";
+/** Solo sin bloqueo incierto: ningún intento anterior pudo registrar esta venta. */
+const OFFLINE_SAVE_FAILED_TEXT = "No se pudo guardar la venta en este teléfono. No quedó registrada: intenta de nuevo.";
+/** Cobro en línea incierto que tampoco se pudo guardar en la cola: no afirma ningún resultado. */
+const UNCERTAIN_NOT_QUEUED_TEXT =
+  "No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas.";
+const OFFLINE_STORAGE_TEXT =
+  "Este teléfono no pudo guardar datos sin internet (modo privado o sin espacio). Las ventas sin internet podrían no guardarse.";
+
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+/**
+ * Aviso de la última vuelta de envío (spec §10 y §7). `pendingCount` son las
+ * ventas de este teléfono aún sin enviar; sin ellas, una pausa no se avisa.
+ */
+function syncNoticeFor(summary: SyncSummary, pendingCount: number, online: boolean): Notice | null {
+  const parts: string[] = [];
+  let kind: Notice["kind"] = "ok";
+  let login = false;
+  const { sent, failed, stoppedBy } = summary;
+  if (sent.length) {
+    const nums = sent.map((s) => `#${s.number}`).join(", ");
+    parts.push(`${sent.length} ${plural(sent.length, "venta enviada", "ventas enviadas")} (${nums}).`);
+    const review = sent.filter((s) => s.review).length;
+    if (review) parts.push(`${review} ${plural(review, "quedó", "quedaron")} por aprobar del dueño.`);
+  }
+  if (failed.length) {
+    kind = "error";
+    parts.push(`${failed.length} ${plural(failed.length, "venta necesita", "ventas necesitan")} atención. Avisa al dueño.`);
+  }
+  if (stoppedBy === "session_expired" && pendingCount > 0) {
+    kind = "error";
+    login = true;
+    parts.push(`Inicia sesión para enviar ${pendingCount} ${plural(pendingCount, "venta", "ventas")}.`);
+  } else if (stoppedBy === "user_mismatch") {
+    kind = "error";
+    parts.push("Hay ventas de otro usuario en este teléfono. Se enviarán cuando esa persona inicie sesión.");
+  } else if (stoppedBy === "network" && online && pendingCount > 0) {
+    kind = "error";
+    parts.push("No se pudieron enviar las ventas guardadas. Se reintentará sola.");
+  } else if (stoppedBy === "storage" && pendingCount > 0) {
+    kind = "error";
+    parts.push("No se pudo leer o guardar la cola de este teléfono. Se reintentará sola.");
+  }
+  if (!parts.length) return null;
+  return { kind, text: parts.join(" "), ...(login ? { login: true } : {}) };
+}
 const LOCATION_KEY = "loloshop:pos:location";
 
 export default function POSPage() {
@@ -67,18 +125,58 @@ export default function POSPage() {
   const lockRef = useRef<"uncertain" | "conflict" | null>(null);
   const [confirmingNew, setConfirmingNew] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [storageFailed, setStorageFailed] = useState(false);
+  const [dismissedSummary, setDismissedSummary] = useState<SyncSummary | null>(null);
+  // Usuario que hizo el cobro en línea que quedó incierto: si se guarda sin internet, la venta es suya.
+  const lockUserRef = useRef<string | null>(null);
   const setLock = useCallback((v: "uncertain" | "conflict" | null) => {
     lockRef.current = v;
     setLockState(v);
   }, []);
 
-  const role = session?.user?.role;
+  const online = useOnline();
+  const sessionId = session?.user?.id ?? null;
+  const sessionRole = session?.user?.role ?? null;
+  const sessionLocation = session?.user?.locationId ?? null;
+  const sessionUser = useMemo(
+    () => (sessionId && sessionRole ? { id: sessionId, role: sessionRole, locationId: sessionLocation } : null),
+    [sessionId, sessionRole, sessionLocation],
+  );
+  // next-auth no recupera una sesión que quedó en null sin red: al volver la conexión se pregunta al servidor.
+  const revalidated = useRevalidatedSession({ online, status, sessionUser });
+  const serverUser = sessionUser ?? revalidated.user;
+  const offline = useOfflinePos({
+    online,
+    sessionUser: serverUser,
+    locationId: serverUser?.role === "collaborator" ? (serverUser.locationId ?? "") : chosenLocation,
+  });
+  // Sin conexión (o mientras se confirma la sesión al volver) manda la identidad local (≤ 12 h).
+  const localUser =
+    offline.identity && { id: offline.identity.userId, role: offline.identity.role, locationId: offline.identity.locationId };
+  const user = online ? (serverUser ?? (revalidated.pending ? localUser : null)) : localUser;
+  const hasServerSession = serverUser !== null;
+  const role = user?.role;
   const isCollaborator = role === "collaborator";
   const canEditPrice = role === "owner" || role === "manager";
-  const locationId = isCollaborator ? (session?.user?.locationId ?? "") : chosenLocation;
+  const locationId = offline.locationId;
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
+  const offlineRef = useRef(offline);
+  offlineRef.current = offline;
+  const sync = useOfflineSync(user?.id ?? null);
+  const { syncNow } = sync;
+
+  // Almacenamiento del teléfono no disponible (modo privado, cuota): se avisa sin tumbar /pos.
+  useEffect(() => onOfflineStorageError(() => setStorageFailed(true)), []);
+
+  // Después de enviar ventas, la copia se vuelve a pedir (spec §5).
+  useEffect(() => {
+    if (sync.lastSummary && sync.lastSummary.sent.length > 0) offlineRef.current.refreshSnapshot();
+  }, [sync.lastSummary]);
 
   useEffect(() => {
-    if (status !== "authenticated" || isCollaborator) return;
+    if (!hasServerSession || isCollaborator) return;
     let cancelled = false;
     setLocationsFailed(false);
     fetchLocationsAction()
@@ -108,7 +206,7 @@ export default function POSPage() {
     return () => {
       cancelled = true;
     };
-  }, [status, isCollaborator, locationsAttempt]);
+  }, [hasServerSession, isCollaborator, locationsAttempt]);
 
   const chooseLocation = (id: string) => {
     setChosenLocation(id);
@@ -246,9 +344,68 @@ export default function POSPage() {
     return noticeFor(outcomes, true);
   }, [applyFound, noticeFor, setPending]);
 
+  /** Resultado encontrado (del servidor o de la copia local): entra al carrito o espera al cobro en curso. */
+  const takeFound = useCallback(
+    (code: string, result: Extract<LookupCodeResult, { found: true }>) => {
+      const variant = result.product.variants.find((v) => v.id === result.variantId);
+      if (!variant) {
+        setPending(code, "rejected", NOT_FOUND_REASON);
+        notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
+      } else if (submittingRef.current || lockRef.current) {
+        // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
+        heldRef.current.set(code, result);
+        setPending(code, "queued");
+      } else {
+        const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
+        setPending(code, null);
+        const outcome = applyFound(result, pieces);
+        const next = noticeFor([outcome], pieces > 1);
+        if (next) notify(next);
+        if (outcome.rejected) setPending(code, "rejected", outcome.added === 0 ? outcome.rejected : outcome.shortReason);
+      }
+    },
+    [applyFound, noticeFor, notify, setPending],
+  );
+
+  /**
+   * Busca en la copia local de la tienda (spec §5). Devuelve false si no hay
+   * copia vigente y hay conexión: la página sigue con el aviso de red de siempre.
+   */
+  const lookupLocal = useCallback(
+    async (code: string, store: string): Promise<boolean> => {
+      const { snapshot, canSellOffline, blockReason } = offlineRef.current;
+      if (!canSellOffline || !snapshot || snapshot.locationId !== store) {
+        if (onlineRef.current) return false;
+        const text = blockReason === "too_large" ? OFFLINE_SNAPSHOT_TOO_LARGE_TEXT : OFFLINE_SNAPSHOT_BLOCKED_TEXT;
+        setPending(code, "rejected", text);
+        notify({ kind: "error", text });
+        return true;
+      }
+      const queue = await listQueue();
+      if (store !== locationRef.current) {
+        setPending(code, null);
+        return true;
+      }
+      const hit = lookupOffline(code, snapshot, queue);
+      if (!hit.found) {
+        setPending(code, "rejected", OFFLINE_NOT_FOUND_TEXT);
+        notify({ kind: "error", text: OFFLINE_NOT_FOUND_TEXT });
+        return true;
+      }
+      const { product, variant } = toDraftMatch(hit.variant);
+      takeFound(code, { found: true, product, variantId: variant.id, stock: { available: hit.available, sold: false } });
+      return true;
+    },
+    [notify, setPending, takeFound],
+  );
+
   const runLookup = useCallback(
     async (code: string, store: string) => {
       setPending(code, "loading");
+      if (!onlineRef.current) {
+        await lookupLocal(code, store);
+        return;
+      }
       try {
         const result = await lookupCodeAction(code, store);
         // Cambió la tienda mientras llegaba la consulta: su resultado ya no corresponde.
@@ -260,22 +417,7 @@ export default function POSPage() {
           setPending(code, null);
           notify({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
         } else if (result.found) {
-          const variant = result.product.variants.find((v) => v.id === result.variantId);
-          if (!variant) {
-            setPending(code, "rejected", NOT_FOUND_REASON);
-            notify({ kind: "error", text: `No encontramos el código ${code}. Revisa que esté dado de alta.` });
-          } else if (submittingRef.current || lockRef.current) {
-            // Con un cobro en curso (o con resultado incierto) el carrito no se toca: espera.
-            heldRef.current.set(code, result);
-            setPending(code, "queued");
-          } else {
-            const pieces = 1 + (pendingRef.current.get(code)?.extra ?? 0);
-            setPending(code, null);
-            const outcome = applyFound(result, pieces);
-            const next = noticeFor([outcome], pieces > 1);
-            if (next) notify(next);
-            if (outcome.rejected) setPending(code, "rejected", outcome.added === 0 ? outcome.rejected : outcome.shortReason);
-          }
+          takeFound(code, result);
         } else if (result.error) {
           // Falla de la consulta: la fila queda para reintentar, sin perder ni duplicar la lectura.
           setPending(code, "error");
@@ -289,11 +431,13 @@ export default function POSPage() {
           setPending(code, null);
           return;
         }
+        // Falla de red con conexión aparente (wifi sin salida): la copia local responde si está vigente.
+        if (await lookupLocal(code, store)) return;
         setPending(code, "error");
         notify({ kind: "error", text: "No se pudo buscar el código. Revisa tu conexión e intenta de nuevo." });
       }
     },
-    [applyFound, noticeFor, notify, setPending],
+    [lookupLocal, notify, setPending, takeFound],
   );
 
   const handleScan = useCallback(
@@ -366,12 +510,118 @@ export default function POSPage() {
       .map((l) => `${l.variantId}:${l.quantity}:${Math.round(l.unitPrice * 100)}`),
   ].join("|");
 
+  /** Lecturas que fallaron durante el cobro: no pasan a la venta siguiente, se avisan. */
+  const lostCodesText = () => {
+    const failedCodes = Array.from(pendingRef.current)
+      .filter(([, p]) => p.status === "error" || p.status === "rejected")
+      .map(([c, p]) => (p.status === "rejected" ? `${c} (${p.reason})` : p.extra ? `${c} (×${1 + p.extra})` : c));
+    return failedCodes.length
+      ? ` No se agregaron: ${failedCodes.join(", ")}. Escanéalos de nuevo si van en otra venta.`
+      : "";
+  };
+
+  /** La venta quedó registrada (en el servidor o en la cola): el carrito empieza de cero. */
+  const finishSale = () => {
+    setAlias("");
+    setLock(null);
+    lockUserRef.current = null;
+    clearErrorRows();
+    draft.reset();
+  };
+
+  /**
+   * Guarda el carrito en la cola sin internet con `clientRequestId` (spec §6).
+   * Valida con `validateNewSale`, vuelve a revisar el stock local con la cola y
+   * usa la copia del cajero actual (su `snapshotToken`). Si `enqueueSale`
+   * rechaza, la venta NO quedó guardada.
+   */
+  const queueSale = async (
+    clientRequestId: string,
+    sellerId: string,
+  ): Promise<{ ok: true; folio: string } | { ok: false; text: string }> => {
+    const { snapshot, canSellOffline, blockReason } = offlineRef.current;
+    if (!canSellOffline || !snapshot || snapshot.locationId !== locationId) {
+      return { ok: false, text: blockReason === "too_large" ? OFFLINE_SNAPSHOT_TOO_LARGE_TEXT : OFFLINE_SNAPSHOT_BLOCKED_TEXT };
+    }
+    const trimmedAlias = alias.trim();
+    const checked = validateNewSale({
+      clientRequestId,
+      locationId,
+      channel,
+      paymentMethod: method,
+      ...(channel === "whatsapp" && method === "spay_transfer" && trimmedAlias ? { customerAlias: trimmedAlias } : {}),
+      lines: lines.map((l) => ({ variantId: l.variantId, quantity: l.quantity, unitPrice: l.unitPrice })),
+    });
+    if (!checked.ok) return { ok: false, text: checked.message };
+    const sale = checked.value;
+    const queue = await listQueue();
+    for (const l of lines) {
+      if (localAvailable(snapshot, queue, l.variantId) < l.quantity) {
+        return {
+          ok: false,
+          text: `No alcanzan las piezas de ${l.productTitle} (${l.variantTitle}) en la copia de esta tienda. Revisa las cantidades.`,
+        };
+      }
+    }
+    try {
+      await enqueueSale({
+        clientRequestId: sale.clientRequestId,
+        userId: sellerId,
+        locationId: sale.locationId,
+        channel: sale.channel,
+        paymentMethod: sale.paymentMethod,
+        ...(sale.customerAlias !== undefined ? { customerAlias: sale.customerAlias } : {}),
+        lines: lines.map((l) => ({
+          variantId: l.variantId,
+          quantity: l.quantity,
+          unitPrice: l.unitPrice,
+          sku: l.sku,
+          productTitle: l.productTitle,
+          variantTitle: l.variantTitle,
+        })),
+        total: saleTotal(sale.lines),
+        soldAt: new Date().toISOString(),
+        snapshotAt: snapshot.generatedAt,
+        snapshotToken: snapshot.snapshotToken,
+      });
+    } catch (err) {
+      // `duplicate`: este mismo id ya está en la cola (el id es del borrador): la venta ya quedó guardada.
+      if (err instanceof OfflineStorageError && err.code === "duplicate") {
+        return { ok: true, folio: localFolio(clientRequestId) };
+      }
+      // Con el carrito en bloqueo incierto, el cobro en línea anterior pudo registrarse:
+      // no se afirma que "no quedó registrada" (riesgo de cobrar dos veces).
+      return { ok: false, text: lockRef.current === "uncertain" ? UNCERTAIN_NOT_QUEUED_TEXT : OFFLINE_SAVE_FAILED_TEXT };
+    }
+    return { ok: true, folio: localFolio(clientRequestId) };
+  };
+
+  const savedOfflineNotice = (folio: string): Notice => ({
+    kind: "ok",
+    text: `Venta guardada sin internet (${folio}). Se enviará sola.${lostCodesText()}`,
+  });
+
+  /** Después de cobrar o encolar: las lecturas en espera entran y el aviso del cobro queda primero. */
+  const afterCharge = (outcome: Notice | null) => {
+    submittingRef.current = false;
+    setSubmitting(false);
+    // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
+    // El aviso del cobro va primero y no se pisa con el de las lecturas en espera.
+    const flushed = flushHeld();
+    const shown = outcome && flushed ? combineNotices(outcome, flushed) : (outcome ?? flushed);
+    if (flushed && shown) setNotice(shown);
+    // Lo que llegue después (una consulta que seguía en curso) se agrega a este aviso.
+    lastOutcomeRef.current = shown;
+  };
+
   const charge = async () => {
     if (submittingRef.current || lines.length === 0) return;
     if (!locationId) {
       setNotice({ kind: "error", text: "Elige la tienda de la venta." });
       return;
     }
+    const chargeUserId = user?.id ?? null;
+    if (!chargeUserId) return;
     submittingRef.current = true;
     setSubmitting(true);
     lastOutcomeRef.current = null;
@@ -382,10 +632,29 @@ export default function POSPage() {
       setNotice(n);
     };
     setStockError(null);
+    const clientRequestId = draft.requestIdFor(requestSignature);
+    // Un cobro en línea incierto que se reintenta sin red sigue siendo de quien lo cobró.
+    const sellerId = (lockRef.current === "uncertain" && lockUserRef.current) || chargeUserId;
+    const lockUncertain = () => {
+      if (lockRef.current !== "uncertain") lockUserRef.current = chargeUserId;
+      draft.markUncertain();
+      setLock("uncertain");
+    };
     try {
+      if (!onlineRef.current) {
+        // Sin conexión: la venta se guarda en este teléfono y se envía sola (spec §6).
+        const saved = await queueSale(clientRequestId, sellerId);
+        if (saved.ok) {
+          say(savedOfflineNotice(saved.folio));
+          finishSale();
+        } else {
+          say({ kind: "error", text: saved.text });
+        }
+        return;
+      }
       const trimmedAlias = alias.trim();
       const result = await createSaleAction({
-        clientRequestId: draft.requestIdFor(requestSignature),
+        clientRequestId,
         locationId,
         channel,
         paymentMethod: method,
@@ -398,26 +667,19 @@ export default function POSPage() {
         // Con la sesión vencida el middleware redirige y Next resuelve la acción con undefined.
         say({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
       } else if (result.ok) {
-        // Las lecturas que fallaron durante el cobro no pasan a la venta siguiente: se avisan, no se borran en silencio.
-        const failedCodes = Array.from(pendingRef.current)
-          .filter(([, p]) => p.status === "error" || p.status === "rejected")
-          .map(([c, p]) => (p.status === "rejected" ? `${c} (${p.reason})` : p.extra ? `${c} (×${1 + p.extra})` : c));
-        const lost = failedCodes.length
-          ? ` No se agregaron: ${failedCodes.join(", ")}. Escanéalos de nuevo si van en otra venta.`
-          : "";
+        const lost = lostCodesText();
         say({
           kind: "ok",
           text:
             result.sale.status === "pending_payment"
               ? `Venta #${result.sale.number} registrada. Pago por confirmar.${lost}`
-              : failedCodes.length
+              : lost
                 ? `Venta #${result.sale.number} registrada.${lost}`
                 : `Venta #${result.sale.number} registrada`,
         });
-        setAlias("");
-        setLock(null);
-        clearErrorRows();
-        draft.reset();
+        finishSale();
+        // Hay red y sesión: buen momento para enviar lo que quedó en la cola.
+        syncNow();
       } else if (result.code === "PRICE_CHANGED" && result.lines?.length) {
         // El precio cambió con el carrito abierto: se cobra al vigente. El carrito cambió, así que es otro cobro.
         const notes: string[] = [];
@@ -440,9 +702,8 @@ export default function POSPage() {
       } else if (result.reason === "session_expired") {
         say({ kind: "error", text: result.message, login: true });
       } else if (result.code === "UNAVAILABLE") {
-        // Resultado incierto: se reintenta con el mismo identificador.
-        draft.markUncertain();
-        setLock("uncertain");
+        // Resultado incierto (el servidor respondió y deshizo): se reintenta con el mismo identificador.
+        lockUncertain();
         say({ kind: "error", text: result.message });
       } else {
         draft.markRejected(requestSignature);
@@ -457,28 +718,58 @@ export default function POSPage() {
       }
     } catch {
       draft.markUncertain();
-      setLock("uncertain");
+      // Falla de red y el teléfono dice que no hay conexión: es una venta sin internet con el mismo id
+      // (spec §11). Si la petición sí llegó, el envío posterior hace replay.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        const saved = await queueSale(clientRequestId, sellerId);
+        if (saved.ok) {
+          say(savedOfflineNotice(saved.folio));
+          finishSale();
+          return;
+        }
+        // La petición pudo llegar al servidor: el resultado sigue incierto, no se afirma nada.
+        lockUncertain();
+        say({ kind: "error", text: UNCERTAIN_NOT_QUEUED_TEXT });
+        return;
+      }
+      lockUncertain();
       say({
         kind: "error",
         text: "No se pudo registrar la venta. Revisa tu conexión y vuelve a pulsar Cobrar: no se duplicará.",
       });
     } finally {
-      submittingRef.current = false;
-      setSubmitting(false);
-      // Éxito o rechazo definitivo: las lecturas en espera entran al carrito vigente. Si quedó incierto, siguen esperando.
-      // El aviso del cobro va primero y no se pisa con el de las lecturas en espera.
-      const flushed = flushHeld();
-      const first = outcome as Notice | null;
-      const shown = first && flushed ? combineNotices(first, flushed) : (first ?? flushed);
-      if (flushed && shown) setNotice(shown);
-      // Lo que llegue después (una consulta que seguía en curso) se agrega a este aviso.
-      lastOutcomeRef.current = shown;
+      afterCharge(outcome);
+    }
+  };
+
+  /** "Guardar sin internet" del bloqueo incierto: encola el carrito bloqueado con su mismo id (spec §11). */
+  const saveLockedOffline = async () => {
+    if (submittingRef.current || lockRef.current !== "uncertain" || lines.length === 0) return;
+    const sellerId = lockUserRef.current ?? user?.id ?? null;
+    if (!sellerId) return;
+    submittingRef.current = true;
+    setSubmitting(true);
+    lastOutcomeRef.current = null;
+    setNotice(null);
+    let outcome: Notice | null = null;
+    try {
+      const saved = await queueSale(draft.requestIdFor(requestSignature), sellerId);
+      if (saved.ok) {
+        outcome = savedOfflineNotice(saved.folio);
+        finishSale();
+      } else {
+        outcome = { kind: "error", text: saved.text };
+      }
+      setNotice(outcome);
+    } finally {
+      afterCharge(outcome);
     }
   };
 
   const startNewSale = () => {
     setConfirmingNew(false);
     setLock(null);
+    lockUserRef.current = null;
     clearErrorRows();
     setStockError(null);
     setAlias("");
@@ -488,13 +779,22 @@ export default function POSPage() {
     setNotice(flushed);
   };
 
-  if (status === "loading") {
+  if (online ? status === "loading" || (!user && revalidated.checking) : !offline.identityChecked) {
     return <StaffLoadState state="loading" retry={() => {}} />;
   }
-  if (!session?.user) {
+  if (!user && !online) {
+    return (
+      <main className="mx-auto flex min-h-[50vh] max-w-2xl flex-col items-center justify-center gap-3 p-6 text-center">
+        <p role="alert" className="text-base font-semibold text-tinta">
+          {OFFLINE_IDENTITY_EXPIRED_TEXT}
+        </p>
+      </main>
+    );
+  }
+  if (!user) {
     return <StaffLoadState state="session" retry={() => {}} />;
   }
-  if (isCollaborator && !session.user.locationId) {
+  if (isCollaborator && !user.locationId) {
     return (
       <main className="p-4 text-center">
         Tu usuario no tiene una tienda asignada. Pide al dueño que te la asigne.
@@ -502,10 +802,43 @@ export default function POSPage() {
     );
   }
 
+  const queueCount = sync.pendingCount + sync.otherUserCount;
+  const attentionCount = sync.needsAttention.length;
+  // Contador de la cola: "N por enviar" (sin red va en la banda) y las que necesitan atención.
+  const queueLabel =
+    [
+      online && queueCount > 0 ? `${queueCount} por enviar` : "",
+      attentionCount > 0 ? `${attentionCount} ${plural(attentionCount, "necesita", "necesitan")} atención` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || (sync.items.length > 0 && (online || queueCount === 0) ? "Ventas sin internet" : "");
+  const syncNotice =
+    sync.lastSummary && sync.lastSummary !== dismissedSummary
+      ? syncNoticeFor(sync.lastSummary, sync.pendingCount, online)
+      : null;
+  const canDiscard = role === "owner" || role === "manager";
+  const discardSale = async (id: string) => {
+    const ok = user ? await discardQueued(id, { currentUserId: user.id, role: user.role }) : false;
+    await sync.refresh();
+    return ok;
+  };
+
   return (
     <main className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-bold text-tinta">Nueva venta</h1>
+        {queueLabel && (
+          <button
+            type="button"
+            onClick={() => setQueueOpen((open) => !open)}
+            aria-expanded={queueOpen}
+            className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto ${
+              attentionCount > 0 ? "border-agotado bg-white text-agotado" : "border-borde-control bg-niebla text-tinta"
+            }`}
+          >
+            {queueLabel}
+          </button>
+        )}
         <Link
           href="/"
           className="inline-flex min-h-[44px] items-center rounded-lg px-3 text-sm font-semibold text-turquesa-texto underline-offset-4 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
@@ -515,6 +848,44 @@ export default function POSPage() {
       </header>
 
 <div aria-live="polite" className="sticky top-[calc(0.5rem+var(--safe-top))] z-30 space-y-2">
+            {!online && (
+              <OfflineBanner
+                snapshotAgeMs={offline.snapshotAgeMs}
+                pendingCount={queueCount}
+                onOpenQueue={() => setQueueOpen(true)}
+              />
+            )}
+            {!online && storageFailed && (
+              <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado shadow-sm">
+                {OFFLINE_STORAGE_TEXT}
+              </p>
+            )}
+            {syncNotice && (
+              <div className="flex items-start justify-between gap-2 rounded-lg bg-white shadow-sm">
+                <p
+                  role={syncNotice.kind === "error" ? "alert" : "status"}
+                  className={`flex-1 rounded-lg p-3 text-sm font-semibold ${
+                    syncNotice.kind === "error" ? "border border-agotado text-agotado" : "bg-niebla text-tinta"
+                  }`}
+                >
+                  {syncNotice.text}
+                  {syncNotice.login && (
+                    <>
+                      {" "}
+                      <LoginLink />
+                    </>
+                  )}
+                </p>
+                <Button variant="outline" onClick={() => setDismissedSummary(sync.lastSummary)} aria-label="Cerrar aviso de envío">
+                  Cerrar
+                </Button>
+              </div>
+            )}
+            {!online && offline.blockReason && offline.snapshotChecked && (
+              <p role="alert" className="rounded-lg border border-agotado bg-white p-3 text-sm font-semibold text-agotado shadow-sm">
+                {offline.blockReason === "too_large" ? OFFLINE_SNAPSHOT_TOO_LARGE_TEXT : OFFLINE_SNAPSHOT_BLOCKED_TEXT}
+              </p>
+            )}
             {notice && (
               <p
                 role={notice.kind === "error" ? "alert" : "status"}
@@ -533,6 +904,18 @@ export default function POSPage() {
             )}
           </div>
 
+      {queueOpen && (
+        <OfflineQueueSheet
+          items={sync.items}
+          canDiscard={canDiscard}
+          currentUserId={user.id}
+          onDiscard={discardSale}
+          onSyncNow={syncNow}
+          onClose={() => setQueueOpen(false)}
+          syncing={sync.syncing}
+        />
+      )}
+
       <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
         <section aria-label="Agregar prendas" className="space-y-4 rounded-2xl border border-borde-control/40 bg-white p-4">
           {!isCollaborator && (
@@ -542,13 +925,18 @@ export default function POSPage() {
               </label>
               <select
                 id="tienda"
-                value={chosenLocation}
-                disabled={lock !== null || submitting}
+                value={locationId}
+                disabled={lock !== null || submitting || !online}
                 onChange={(e) => chooseLocation(e.target.value)}
                 className="mt-1 block min-h-[44px] w-full rounded-lg border border-borde-control bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
               >
-                {locations.length === 0 && (
-                  <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
+                {!online && locationId && !locations.some((l) => l.id === locationId) ? (
+                  // Sin conexión no hay lista de tiendas: queda fija la de la copia.
+                  <option value={locationId}>Tienda guardada en este teléfono</option>
+                ) : (
+                  locations.length === 0 && (
+                    <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
+                  )
                 )}
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -584,6 +972,15 @@ export default function POSPage() {
               locationId={locationId}
               disabled={lock !== null || submitting}
               onAdd={addFromSearch}
+              offline={
+                online
+                  ? undefined
+                  : {
+                      snapshot: offline.canSellOffline && offline.snapshot?.locationId === locationId ? offline.snapshot : null,
+                      blockedText:
+                        offline.blockReason === "too_large" ? OFFLINE_SNAPSHOT_TOO_LARGE_TEXT : OFFLINE_SNAPSHOT_BLOCKED_TEXT,
+                    }
+              }
             />
           )}
         </section>
@@ -602,6 +999,14 @@ export default function POSPage() {
                   ? "No sabemos si la venta se registró. Reintenta el cobro o verifica en Ventas."
                   : "Esta venta quedó bloqueada: verifica en Ventas antes de empezar otra."}
               </p>
+              {lock === "uncertain" && !confirmingNew && (
+                <div className="space-y-1">
+                  <Button variant="outline" disabled={submitting} onClick={() => void saveLockedOffline()}>
+                    Guardar sin internet
+                  </Button>
+                  <p className="text-sm">Se guarda en este teléfono con el mismo cobro y se envía sola: no se duplica.</p>
+                </div>
+              )}
               {confirmingNew ? (
                 <div className="space-y-3">
                   <p className="text-sm">Si la venta sí se registró, no la vuelvas a cobrar.</p>

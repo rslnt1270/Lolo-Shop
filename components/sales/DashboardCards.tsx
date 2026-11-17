@@ -9,12 +9,14 @@ function Stat({
   value,
   testId,
   tone,
+  note,
   className = "",
 }: {
   label: string;
   value: string;
   testId: string;
   tone?: "teal";
+  note?: string;
   className?: string;
 }) {
   return (
@@ -26,6 +28,11 @@ function Stat({
       >
         {value}
       </p>
+      {note && (
+        <p data-testid={`${testId}-nota`} className="mt-1 text-xs font-bold text-tinta">
+          {note}
+        </p>
+      )}
     </div>
   );
 }
@@ -103,7 +110,12 @@ export function DashboardCards({ data, locationNames, namesReady = true }: Props
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2.5">
-        <Stat label="Vendido" value={formatPrice(data.soldTotal)} testId="card-vendido" tone="teal" className="col-span-2" />
+        <Stat
+          label="Vendido"
+          value={formatPrice(data.soldTotal)} testId="card-vendido" tone="teal"
+          className="col-span-2"
+          note={data.pendingReviewTotal > 0 ? `De los cuales ${formatPrice(data.pendingReviewTotal)} Por aprobar` : undefined}
+        />
         <Stat label="Cobrado" value={formatPrice(data.collectedTotal)} testId="card-cobrado" />
         <Stat label="Ventas" value={String(data.salesCount)} testId="card-ventas" />
       </div>
