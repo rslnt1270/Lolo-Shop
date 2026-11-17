@@ -141,8 +141,12 @@ Un colaborador con sesión puede llamar `submitOfflineSaleAction` estando en lí
 ## 9. Pantalla del dueño: `/ventas/revision`
 
 - **Solo owner** (decisión 1.2), verificado en cada acción con `getCurrentUser` (relee el rol; la acción mueve stock).
-- Aviso en `/ventas` para el dueño: "N ventas sin internet por aprobar" con enlace.
-- Lista (más vieja primero): folio, tienda, cajero (nombre), hora de venta (`soldAt`) y de llegada (`createdAt`), total, método, razones en palabras ("Faltó stock: 1 pieza de Playera M", "Precio distinto al registrado", "Prenda dada de baja", "Hora del teléfono incorrecta"), renglones con `quantity`, `shortfall` y precio.
+- Aviso en `/ventas` para el dueño: "1 venta sin internet por aprobar" / "N ventas sin internet por aprobar" con enlace "Revisar". La pantalla se titula "Ventas sin internet por aprobar"; vacía: "No hay ventas sin internet por aprobar.". Otro rol: "Solo el dueño aprueba ventas sin internet.". Doble clic o venta ya resuelta: "Esta venta ya no está por aprobar.". Tablero: nota "De los cuales $X Por aprobar" y etiqueta "Por aprobar" en ventas recientes.
+- Lista (más vieja primero): folio, tienda, cajero (nombre), hora de venta (`soldAt`) y de llegada (`createdAt`), total, método, razones en palabras, renglones con `quantity`, `shortfall` y precio. Textos de las razones (`REVIEW_REASON_TEXT` en `lib/domain/offline-sale.ts`; la lista de la pantalla los usa tal cual):
+  - `insufficient_stock`: por renglón con faltante, "Faltó stock: N pieza(s) de {producto} {talla}" (p. ej. "Faltó stock: 1 pieza de Playera M"); sin renglón identificable, "Faltó stock".
+  - `price_unverified`: "Precio distinto al registrado (no coincide con los precios de los últimos 7 días)".
+  - `inactive_product`: "Prenda dada de baja (ya no está activa en el catálogo)".
+  - `clock_skew`: "Fecha u hora del teléfono distinta (se envió otro día o la copia de precios era vieja)".
 - **Aprobar:** `reviewStatus = approved`, `reviewedById`, `reviewedAt`, nota opcional. **El stock no cambia**: ya está en 0 y el faltante queda registrado como "el sistema tenía menos piezas de las reales".
 - **Rechazar:** motivo obligatorio (≤ 200) y "¿La prenda regresó a la tienda?". En una transacción: `reviewStatus = rejected` + anulación (`status = cancelled`, `cancelReason`). Si regresó, se reingresa por renglón **`quantity − returnedQuantity − shortfall`** (solo lo que sí se descontó) con `Movement RETURN`.
 - `cancelSale` se corrige en general para devolver `quantity − returnedQuantity − shortfall`, y si la venta estaba `pending` en revisión la marca `rejected` (anularla es rechazarla).
@@ -156,7 +160,46 @@ Un colaborador con sesión puede llamar `submitOfflineSaleAction` estando en lí
 - **Al cobrar sin internet:** "Venta guardada sin internet (L-3f9a2c1b). Se enviará sola." El carrito se limpia; no hay bloqueo.
 - **Al sincronizar:** "3 ventas enviadas (#120, #121, #122). 1 quedó por aprobar del dueño." Si alguna falla: aviso en rojo con "Avisa al dueño".
 - **Lecturas sin internet:** igual que en línea, pero con la copia local. Código no encontrado: "No está en la copia de esta tienda. Si es nueva, se vende cuando vuelva la conexión."
-- Owner y manager sin tienda: el selector de tienda queda fijo a la tienda de la copia mientras no haya conexión.
+- Owner y manager sin tienda: el selector de tienda queda fijo a la tienda de la copia mientras no haya conexión. Si la tienda no está en la lista cargada, la opción dice "Tienda guardada en este teléfono".
+
+### 10.1 Textos completos al cajero (copiados del código)
+
+"N" es un número; singular/plural entre barras.
+
+**Copia, identidad y búsqueda** (`lib/offline/use-offline-pos.ts`)
+- "Conéctate para actualizar precios y existencias" (sin copia, o copia de otro usuario o de más de 24 h).
+- "Conéctate e inicia sesión para seguir vendiendo" (identidad de más de 12 h o sin identidad).
+- "Esta tienda tiene demasiadas prendas para vender sin internet. Avisa al dueño." (`too_large`, más de 20 000 variantes; ruling T9).
+- "No está en la copia de esta tienda. Si es nueva, se vende cuando vuelva la conexión." (código no encontrado y "Sin código" sin resultados).
+- Edad de la copia en la banda: "Precios y existencias de hace menos de 1 min" / "… de hace N min" / "… de hace N h".
+
+**Cobro, cola y bloqueo** (`app/pos/page.tsx`)
+- "Venta guardada sin internet (L-xxxxxxxx). Se enviará sola." (también si la cola ya tenía ese mismo id: `duplicate` = ya guardada).
+- "No se pudo guardar la venta en este teléfono. No quedó registrada: intenta de nuevo." (solo sin bloqueo incierto: ningún intento anterior pudo registrarla).
+- "No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas." (con bloqueo incierto o cobro en línea que falló por red: no afirma resultado).
+- "Este teléfono no pudo guardar datos sin internet (modo privado o sin espacio). Las ventas sin internet podrían no guardarse." (falla del almacenamiento local, visible sin conexión).
+- "No alcanzan las piezas de {título} ({talla}) en la copia de esta tienda. Revisa las cantidades." (revisión del stock local al cobrar).
+- Panel del bloqueo incierto: botón "Guardar sin internet" + "Se guarda en este teléfono con el mismo cobro y se envía sola: no se duplica."
+
+**Avisos de sincronización** (`app/pos/page.tsx`, `lib/offline/sync.ts`, `lib/sales/*`)
+- "1 venta enviada (#120)." / "N ventas enviadas (#120, #121, #122)."; "1 quedó por aprobar del dueño." / "N quedaron por aprobar del dueño."
+- "1 venta necesita atención. Avisa al dueño." / "N ventas necesitan atención. Avisa al dueño." (en rojo).
+- "Inicia sesión para enviar 1 venta." / "Inicia sesión para enviar N ventas." (con enlace "Iniciar sesión").
+- "Hay ventas de otro usuario en este teléfono. Se enviarán cuando esa persona inicie sesión."
+- "No se pudieron enviar las ventas guardadas. Se reintentará sola." (con red y ventas por enviar).
+- "No se pudo leer o guardar la cola de este teléfono. Se reintentará sola." (con ventas por enviar).
+- Mensajes del servidor que pueden quedar en `lastError`: "Esta venta la cobró otro usuario. Se enviará cuando esa persona inicie sesión." (`USER_MISMATCH`), "No se pudo registrar la venta sin internet. Avisa al dueño." (falla del camino sin internet), "El servidor rechazó la venta. Revísala con el dueño." (rechazo sin mensaje).
+- Botón para cerrar el aviso: "Cerrar".
+
+**Cabecera, banda y hoja de ventas** (`app/pos/page.tsx`, `components/sales/OfflineBanner.tsx`, `components/sales/OfflineQueueSheet.tsx`)
+- Contadores: "N por enviar" (con red en la cabecera; sin red en la banda), "1 necesita atención" / "N necesitan atención", y "Ventas sin internet" cuando la cola solo tiene historial.
+- Hoja: título "Ventas guardadas en este teléfono"; vacía: "No hay ventas guardadas en este teléfono."; botones "Enviar ahora", "Cerrar", "Descartar", "Sí, descartar", "Cancelar"; estado sin mensaje: "Necesita atención: revísala con el dueño."; "Folio #N" bajo "Enviada, por aprobar".
+- Confirmación al descartar una venta que necesita atención: "¿Descartar L-… de este teléfono? No se enviará. Revísala antes con el dueño."
+- Confirmación al descartar una venta por enviar de otro usuario (solo owner o manager, §14 P4): "L-… es una venta de otro usuario que aún no se envía. Si la descartas de este teléfono, no llegará a Ventas. ¿Descartarla?"
+- "No se pudo descartar. Intenta de nuevo."
+
+**Cerrar sesión** (`components/layout/NavBar.tsx`, §4)
+- "Hay 1 venta sin enviar en este teléfono. Se enviarán cuando vuelvas a entrar." / "Hay N ventas sin enviar en este teléfono. Se enviarán cuando vuelvas a entrar." con botones "Salir de todos modos" y "Cancelar".
 
 ## 11. Relación con el bloqueo por cobro incierto
 
