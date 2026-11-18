@@ -1,6 +1,6 @@
 "use client";
 import { formatPrice } from "@/lib/public/format";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
@@ -15,18 +15,13 @@ import { AddSizeForm } from "@/components/products/AddSizeForm";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
 import { sortSizes } from "@/lib/domain/sizes";
 import { SavedCheck } from "@/components/products/SavedCheck";
-import {
-  lookupCodeAction,
-  fetchLocationsAction,
-  type LookupCodeResult,
-} from "@/lib/actions";
+import { lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
+import { useWorkLocation } from "@/lib/client/use-work-location";
+import { WorkLocationPicker } from "@/components/layout/WorkLocationPicker";
+import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
 import { isValidGtin } from "@/lib/domain/barcode";
 
 type Found = Extract<LookupCodeResult, { found: true }>;
-type LocationOption = { id: string; name: string };
-
-const LOCATION_KEY = "loloshop:escanear:location";
-
 /** Tallas activas del producto (para "Agregar talla" desde la tarjeta). */
 function toSearchHit(product: Product): ProductSearchHit {
   const sizes = product.variants.filter((v) => v.isActive !== false).map((v) => v.size || v.title);
@@ -71,52 +66,12 @@ export default function EscanearPage() {
   const [createdCount, setCreatedCount] = useState(0);
   const [lastCreated, setLastCreated] = useState<CreatedInfo | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [locations, setLocations] = useState<LocationOption[]>([]);
-  const [chosenLocation, setChosenLocation] = useState("");
-
-  const role = session?.user?.role;
-  // Misma regla que el servidor (`isStoreBound`): colaborador, o manager con tienda.
-  const storeBound = role === "collaborator" || (role === "manager" && !!session?.user?.locationId);
-  const locationId = storeBound ? (session?.user?.locationId ?? "") : chosenLocation;
-
-  useEffect(() => {
-    if (status !== "authenticated") return;
-    let cancelled = false;
-    fetchLocationsAction()
-      .then((res) => {
-        if (cancelled) return;
-        const list = res ?? [];
-        setLocations(list.map((l) => ({ id: l.id, name: l.name })));
-        // Con tienda fija solo se necesita el nombre para "Registrando en".
-        if (storeBound) return;
-        let saved = "";
-        try {
-          saved = sessionStorage.getItem(LOCATION_KEY) ?? "";
-        } catch {
-          /* sin storage */
-        }
-        const pick = list.find((l) => l.id === saved) ?? list[0];
-        if (pick) setChosenLocation(pick.id);
-      })
-      .catch(() => {
-        if (!cancelled && !storeBound) {
-          setIsError(true);
-          setMessage("No se pudieron cargar las tiendas. Recarga la página.");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status, storeBound]);
-
-  const chooseLocation = (id: string) => {
-    setChosenLocation(id);
-    try {
-      sessionStorage.setItem(LOCATION_KEY, id);
-    } catch {
-      /* sin storage */
-    }
-  };
+  // Todos los roles eligen en qué tienda están (la asignada solo es la sugerencia inicial).
+  const work = useWorkLocation({
+    assigned: session?.user?.locationId ?? null,
+    enabled: status === "authenticated",
+  });
+  const { locations, locationId } = work;
 
   const reset = () => {
     setScannedCode(null);
@@ -162,10 +117,6 @@ export default function EscanearPage() {
     return <main className="p-4 text-center">Inicia sesión para escanear productos.</main>;
   }
 
-  if (role === "collaborator" && !session.user.locationId) {
-    return <main className="p-4 text-center">Tu usuario no tiene una tienda asignada. Pide al dueño que te la asigne.</main>;
-  }
-
   const variant = found?.product.variants.find((v) => v.id === found.variantId) ?? found?.product.variants[0];
   const stockHere = variant ? (variant.inventory.find((l) => l.locationId === locationId)?.available ?? 0) : null;
   const showScanner = !scannedCode && newCode === undefined;
@@ -185,26 +136,27 @@ export default function EscanearPage() {
         )}
       </div>
 
-      {!storeBound && (
-        <div>
-          <label htmlFor="tienda" className="block text-sm font-medium text-gray-700">
-            Tienda
-          </label>
-          <select
-            id="tienda"
-            value={chosenLocation}
-            onChange={(e) => chooseLocation(e.target.value)}
-            className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
-          >
-            {locations.length === 0 && <option value="">Cargando tiendas…</option>}
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div>
+        <WorkLocationPicker
+          value={locationId}
+          locations={locations}
+          onChange={work.choose}
+          disabled={work.status !== "ready"}
+        />
+        {work.status === "error" && (
+          <div role="alert" className="mt-2 space-y-2 text-sm text-agotado">
+            <p>No se pudieron cargar las tiendas.</p>
+            <Button variant="outline" onClick={work.retry}>
+              Reintentar
+            </Button>
+          </div>
+        )}
+        {work.status === "session" && (
+          <p role="alert" className="mt-2 text-sm text-agotado">
+            {SESSION_EXPIRED_TEXT} <LoginLink />
+          </p>
+        )}
+      </div>
 
       {showScanner && (
         <>
@@ -369,7 +321,7 @@ export default function EscanearPage() {
             <NewProductForm
               scannedCode={newCode}
               locationId={locationId}
-              locationName={locations.find((l) => l.id === locationId)?.name}
+              locationName={work.locationName ?? undefined}
               initialMode={entryMode}
               onModeChange={setEntryMode}
               onSuccess={(info) => {

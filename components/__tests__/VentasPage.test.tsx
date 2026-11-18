@@ -69,6 +69,7 @@ beforeEach(() => {
   }));
   actions.getLowStockThresholdAction.mockResolvedValue(2);
   actions.fetchLocationsAction.mockResolvedValue([{ id: "l1", name: "Centro" }]);
+  sessionStorage.clear();
 });
 
 describe("VentasPage", () => {
@@ -96,6 +97,41 @@ describe("VentasPage", () => {
     expect(screen.getByText(/hoy/i)).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: /rango/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "7 días" })).not.toBeInTheDocument();
+  });
+
+  describe("tienda de trabajo del colaborador", () => {
+    it("pide el día de la tienda elegida y cambiarla vuelve a pedir", async () => {
+      setRole("collaborator", "l1");
+      actions.fetchLocationsAction.mockResolvedValue([{ id: "l1", name: "Centro" }, { id: "l2", name: "Lomas" }]);
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.getByText("Estás en: Centro")).toBeInTheDocument();
+      expect(actions.getDashboardAction).toHaveBeenCalledWith(expect.objectContaining({ locationIds: ["l1"] }));
+      const calls = actions.getDashboardAction.mock.calls.length;
+      fireEvent.change(screen.getByLabelText("Cambiar tienda"), { target: { value: "l2" } });
+      await waitFor(() => expect(actions.getDashboardAction.mock.calls.length).toBe(calls + 1));
+      expect(actions.getDashboardAction.mock.calls.at(-1)![0]).toMatchObject({ locationIds: ["l2"] });
+      expect(sessionStorage.getItem("loloshop:work-location")).toBe("l2");
+    });
+
+    it("sin tienda asignada ni guardada: pide elegir y no consulta cifras", async () => {
+      setRole("collaborator", null);
+      render(<VentasPage />);
+      expect(await screen.findByText("Elige en qué tienda estás.")).toBeInTheDocument();
+      expect(actions.getDashboardAction).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("card-vendido")).toBeNull();
+      fireEvent.change(screen.getByLabelText("Cambiar tienda"), { target: { value: "l1" } });
+      await screen.findByTestId("card-vendido");
+      expect(actions.getDashboardAction).toHaveBeenCalledWith(expect.objectContaining({ locationIds: ["l1"] }));
+    });
+
+    it("dueño y encargado no ven el selector ni mandan tienda", async () => {
+      setRole("manager", "l1");
+      render(<VentasPage />);
+      await screen.findByTestId("card-vendido");
+      expect(screen.queryByLabelText("Cambiar tienda")).toBeNull();
+      expect(actions.getDashboardAction.mock.calls[0][0]).not.toHaveProperty("locationIds");
+    });
   });
 
   it("el owner ve el selector con Hoy, 7 días, 30 días y Personalizado", async () => {

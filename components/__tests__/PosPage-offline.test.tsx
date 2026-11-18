@@ -156,6 +156,8 @@ function offlineCold(id: StoredIdentity | null, snap: StoredSnapshot | null) {
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  // Tienda elegida antes en esta sesión (sin ella el dueño tiene que elegir).
+  sessionStorage.setItem("loloshop:work-location", "l1");
   online = true;
   m.session.current = { data: null, status: "unauthenticated" };
   m.fetchLocationsAction.mockResolvedValue([{ id: "l1", name: "Centro" }, { id: "l2", name: "Norte" }]);
@@ -190,8 +192,8 @@ describe("/pos sin internet: identidad local", () => {
     render(<POSPage />);
     expect(await screen.findByTestId("scanner")).toBeInTheDocument();
     expect(screen.queryByText("Conéctate e inicia sesión para seguir vendiendo")).toBeNull();
-    // Colaborador: sin selector de tienda; vende en la suya.
-    expect(screen.queryByRole("combobox", { name: "Tienda" })).toBeNull();
+    // Sin red el selector queda fijo en la tienda de la copia.
+    expect(screen.getByRole("combobox", { name: "Cambiar tienda" })).toBeDisabled();
     expect(m.getOfflineSnapshotAction).not.toHaveBeenCalled();
   });
 
@@ -315,20 +317,58 @@ describe("/pos sin internet: tienda", () => {
     const select = await screen.findByDisplayValue("Centro");
     expect(select).not.toBeDisabled();
     goOffline();
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Tienda" })).toBeDisabled());
-    expect(screen.getByRole("combobox", { name: "Tienda" })).toHaveValue("l1");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Cambiar tienda" })).toBeDisabled());
+    expect(screen.getByRole("combobox", { name: "Cambiar tienda" })).toHaveValue("l1");
   });
 
   it("owner que abre sin red queda fijo en la tienda de la copia", async () => {
     offlineCold(identity(H, { userId: "u1", role: "owner", locationId: null }), stored("l2", H, [variant()], "u1"));
     render(<POSPage />);
-    const select = await screen.findByRole("combobox", { name: "Tienda" });
+    const select = await screen.findByRole("combobox", { name: "Cambiar tienda" });
     await waitFor(() => expect(select).toHaveValue("l2"));
     expect(select).toBeDisabled();
     await snapshotRead("l2");
     scan("7501234567890");
     expect(await screen.findByText("Agregado: Playera Guess negro (M) · ×1")).toBeInTheDocument();
     expect(m.fetchLocationsAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("/pos sin internet: tienda de trabajo del colaborador", () => {
+  it("con copia de l1 y tienda elegida l2: el selector queda bloqueado en l1 y la venta en cola lleva l1", async () => {
+    sessionStorage.setItem("loloshop:work-location", "l2");
+    offlineCold(identity(H), stored("l1"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    await snapshotRead("l1");
+    const select = screen.getByRole("combobox", { name: "Cambiar tienda" });
+    expect(select).toBeDisabled();
+    expect(select).toHaveValue("l1");
+    expect(screen.getAllByText(/Tienda guardada en este teléfono/).length).toBeGreaterThan(0);
+    scan("7501234567890");
+    await screen.findByText("Agregado: Playera Guess negro (M) · ×1");
+    fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect((m.enqueueSale.mock.calls[0][0] as QueuedSale).locationId).toBe("l1");
+    expect(m.getSnapshot).not.toHaveBeenCalledWith("l2");
+  });
+
+  it("colaborador en línea que pierde la red: el selector se bloquea con el nombre de su tienda", async () => {
+    m.session.current = {
+      data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l1" } },
+      status: "authenticated",
+    };
+    sessionStorage.setItem("loloshop:work-location", "l2");
+    render(<POSPage />);
+    expect(await screen.findByText("Estás en: Norte")).toBeInTheDocument();
+    await waitFor(() => expect(m.getOfflineSnapshotAction).toHaveBeenCalledWith("l2"));
+    goOffline();
+    const select = screen.getByRole("combobox", { name: "Cambiar tienda" });
+    await waitFor(() => expect(select).toBeDisabled());
+    expect(select).toHaveValue("l2");
+    // El nombre conocido sustituye al texto genérico.
+    expect(screen.getAllByText("Norte").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Tienda guardada en este teléfono")).toBeNull();
   });
 });
 
@@ -424,7 +464,7 @@ describe("/pos copia de otro usuario", () => {
   it("owner que abre sin red solo toma la tienda de una copia suya", async () => {
     offlineCold(identity(H, { userId: "u1", role: "owner", locationId: null }), stored("l2", H, [variant()], "u1"));
     render(<POSPage />);
-    await screen.findByRole("combobox", { name: "Tienda" });
+    await screen.findByRole("combobox", { name: "Cambiar tienda" });
     await waitFor(() => expect(m.getLatestSnapshot).toHaveBeenCalledWith("u1"));
   });
 });
