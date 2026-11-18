@@ -19,10 +19,11 @@ import { SESSION_EXPIRED_TEXT } from "./session-text";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
 import type { InventoryDataSource, ProductSearchHit, VariantMatch, VariantStockRow } from "./data/source";
 import {
-  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
+  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isDeadlock, isTransactionTimeout,
+  uniqueViolationField,
 } from "./data/errors";
 import {
-  validateStockMovement, type StockMovementKind,
+  validateStockMovement, validateTransfer, type StockMovementKind,
 } from "./domain/stock-movement";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
@@ -121,6 +122,94 @@ export async function recordStockMovementAction(input: {
     }
     console.error("recordStockMovementAction", err);
     if (isTransactionTimeout(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
+    return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
+  }
+}
+
+export type TransferResult =
+  | { ok: true; replayed: boolean; fromAvailable: number; toAvailable: number; message: string }
+  | {
+      ok: false;
+      code: "SESSION" | "FORBIDDEN" | "INVALID" | "INSUFFICIENT" | "NOT_FOUND" | "ERROR";
+      message: string;
+      available?: number;
+    };
+
+function transferDoneText(n: number, from: string, to: string, fromAvailable: number, toAvailable: number): string {
+  const moved = n === 1 ? `Traspasada 1 pieza` : `Traspasadas ${n} piezas`;
+  return `${moved} de ${from} a ${to}. Ahora: ${from} ${fromAvailable} · ${to} ${toAvailable}.`;
+}
+
+/** Nombre de la tienda de origen para el texto de faltante; si la consulta falla, un genérico. */
+async function originNameOrGeneric(locationId: string): Promise<string> {
+  try {
+    const name = (await getDataSource().getLocations()).find((l) => l.id === locationId)?.name;
+    if (name) return name;
+  } catch (err) {
+    console.error("transferStockAction origin name", err);
+  }
+  return "la tienda de origen";
+}
+
+/**
+ * Traspaso de piezas de una tienda a otra (salida y entrada en la misma transacción).
+ * Cualquier rol con sesión puede traspasar entre cualquier par de tiendas. El mismo
+ * `requestId` no mueve piezas dos veces: responde con las existencias actuales. Nunca lanza.
+ */
+export async function transferStockAction(input: {
+  variantId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  quantity: number;
+  reason?: string;
+  requestId: string;
+}): Promise<TransferResult> {
+  let fromLocationId = "";
+  try {
+    const user = await currentUserOrNull();
+    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
+
+    const parsed = validateTransfer(input);
+    if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
+    const v = parsed.value;
+    fromLocationId = v.fromLocationId;
+
+    assertCanOperate(user, v.fromLocationId);
+    assertCanOperate(user, v.toLocationId);
+
+    const res = await getDataSource().transferStock({
+      variantId: v.variantId,
+      fromLocationId: v.fromLocationId,
+      toLocationId: v.toLocationId,
+      quantity: v.quantity,
+      notes: v.reason,
+      requestId: v.requestId,
+      userId: user.id,
+    });
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return {
+      ok: true,
+      replayed: res.replayed,
+      fromAvailable: res.fromAvailable,
+      toAvailable: res.toAvailable,
+      message: transferDoneText(v.quantity, res.fromName, res.toName, res.fromAvailable, res.toAvailable),
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { ok: false, code: "FORBIDDEN", message: err.message };
+    if (err instanceof InsufficientStockError) {
+      return {
+        ok: false,
+        code: "INSUFFICIENT",
+        available: err.available,
+        message: `Solo hay ${err.available} en ${await originNameOrGeneric(fromLocationId)}.`,
+      };
+    }
+    if (err instanceof StockTargetNotFoundError) {
+      return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
+    }
+    console.error("transferStockAction", err);
+    if (isTransactionTimeout(err) || isDeadlock(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
     return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
   }
 }
