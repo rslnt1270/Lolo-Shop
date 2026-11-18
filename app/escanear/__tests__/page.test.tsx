@@ -3,6 +3,7 @@ import { cleanup, render, screen, fireEvent, waitFor, within } from "@testing-li
 
 const lookup = vi.fn();
 const record = vi.fn();
+const transfer = vi.fn();
 const createProductAction = vi.fn();
 const fetchLocations = vi.fn();
 let sessionUser: Record<string, unknown> = { id: "u1", role: "collaborator", locationId: "loc-1" };
@@ -13,6 +14,7 @@ vi.mock("next-auth/react", () => ({
 vi.mock("@/lib/actions", () => ({
   lookupCodeAction: (...a: unknown[]) => lookup(...a),
   recordStockMovementAction: (...a: unknown[]) => record(...a),
+  transferStockAction: (...a: unknown[]) => transfer(...a),
   createProductAction: (...a: unknown[]) => createProductAction(...a),
   searchProductsAction: vi.fn().mockResolvedValue([]),
   addVariantAction: vi.fn(),
@@ -73,7 +75,7 @@ async function fillForm() {
 
 describe("/escanear: flujo de alta por lote", () => {
   beforeEach(() => {
-    [lookup, record, createProductAction, fetchLocations].forEach((m) => m.mockReset());
+    [lookup, record, transfer, createProductAction, fetchLocations].forEach((m) => m.mockReset());
     sessionUser = { id: "u1", role: "collaborator", locationId: "loc-1" };
     lookup.mockResolvedValue({ found: false, code: "750999" });
     record.mockResolvedValue({ ok: true, available: 1, replayed: false });
@@ -251,7 +253,7 @@ describe("/escanear: flujo de alta por lote", () => {
       expect(screen.getByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/login");
     });
 
-    it("prenda fuera de tu tienda: avisa sin nombrar otra tienda y no ofrece traspasar", async () => {
+    it("prenda fuera de tu tienda: avisa sin nombrar otra tienda", async () => {
       lookup.mockResolvedValue({
         found: true,
         product: { ...existingProduct, variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-9", available: 4 }] }] },
@@ -260,9 +262,36 @@ describe("/escanear: flujo de alta por lote", () => {
       await renderPage();
       fireEvent.click(screen.getByText("simular-escaneo"));
       expect(await screen.findByText("Esta prenda no está en tu tienda")).toBeInTheDocument();
-      expect(screen.queryByText(/otra tienda/i)).toBeNull();
-      expect(screen.queryByRole("button", { name: /registrar traspaso/i })).toBeNull();
-      expect(screen.queryByRole("button", { name: /traspas/i })).toBeNull();
+    });
+
+    it("prenda con piezas en otra tienda: traspasa a la tienda de trabajo y refresca las cifras", async () => {
+      const prod = (a: number, b: number) => ({
+        ...existingProduct,
+        variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-1", available: a }, { locationId: "loc-A", available: b }] }],
+      });
+      lookup.mockResolvedValueOnce({ found: true, product: prod(0, 3), variantId: "v1" });
+      transfer.mockResolvedValue({ ok: true, replayed: false, fromAvailable: 1, toAvailable: 2, message: "Traspasadas 2 piezas de Tienda A a Lomas. Ahora: Tienda A 1 · Lomas 2." });
+      await renderPage();
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText("Playera X");
+      expect((screen.getByLabelText("De") as HTMLSelectElement).value).toBe("loc-A");
+      lookup.mockResolvedValueOnce({ found: true, product: prod(2, 1), variantId: "v1" });
+      fireEvent.change(screen.getByLabelText("A"), { target: { value: "loc-1" } });
+      fireEvent.change(screen.getByLabelText("Piezas"), { target: { value: "2" } });
+      fireEvent.click(screen.getByRole("button", { name: "Traspasar 2 piezas" }));
+      await screen.findByText(/Traspasadas 2 piezas de Tienda A a Lomas/);
+      expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ fromLocationId: "loc-A", toLocationId: "loc-1", quantity: 2 }));
+      await waitFor(() => expect(screen.getByText("2 pzas")).toBeTruthy());
+    });
+
+    it("cambiar de tienda con una prenda en pantalla la descarta", async () => {
+      lookup.mockResolvedValue({ found: true, product: productWithRow(2), variantId: "v1" });
+      await renderPage();
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText("Playera X");
+      fireEvent.change(screen.getByLabelText("Cambiar tienda"), { target: { value: "loc-A" } });
+      await waitFor(() => expect(screen.queryByText("Playera X")).toBeNull());
+      expect(screen.queryByRole("button", { name: /sumar/i })).toBeNull();
     });
 
     it("el precio usa el formato de pesos: $350.50 y $1,250", async () => {

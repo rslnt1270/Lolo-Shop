@@ -1,6 +1,6 @@
 "use client";
 import { formatPrice } from "@/lib/public/format";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +13,8 @@ import { NewProductForm, type CreatedInfo } from "@/components/products/NewProdu
 import { ExistingProductSearch } from "@/components/products/ExistingProductSearch";
 import { AddSizeForm } from "@/components/products/AddSizeForm";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
+import { TransferStock } from "@/components/inventory/TransferStock";
+import { useOnline } from "@/lib/offline/use-offline-pos";
 import { sortSizes } from "@/lib/domain/sizes";
 import { SavedCheck } from "@/components/products/SavedCheck";
 import { lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
@@ -72,6 +74,33 @@ export default function EscanearPage() {
     enabled: status === "authenticated",
   });
   const { locations, locationId } = work;
+  const online = useOnline();
+
+  // Si cambia la tienda de trabajo con una prenda en pantalla, se descarta: sus cifras eran de la otra tienda.
+  const lastLocationRef = useRef(locationId);
+  useEffect(() => {
+    const previous = lastLocationRef.current;
+    lastLocationRef.current = locationId;
+    // La primera elección (de "" a una tienda, al cargar la lista) no descarta nada.
+    if (!previous || previous === locationId) return;
+    setScannedCode(null);
+    setFound(null);
+    setNewCode(undefined);
+    setLookupError("");
+    setAltaStep("ask");
+    setAddSize(null);
+  }, [locationId]);
+
+  /** Tras un traspaso, vuelve a consultar la prenda para mostrar cifras al día (sin ocultar el mensaje). */
+  const refreshFound = async () => {
+    if (!scannedCode || !locationId) return;
+    try {
+      const result = await lookupCodeAction(scannedCode, locationId);
+      if (result.found) setFound(result);
+    } catch {
+      /* el mensaje del traspaso ya se mostró; las cifras se actualizan al volver a escanear */
+    }
+  };
 
   const reset = () => {
     setScannedCode(null);
@@ -285,6 +314,25 @@ export default function EscanearPage() {
                       reset();
                     }}
                   />
+                )}
+                {variant && (
+                  <details className="rounded-lg border border-gray-200 p-3">
+                    <summary className="flex min-h-[44px] cursor-pointer items-center text-sm font-semibold text-turquesa-texto">
+                      Traspasar a otra tienda
+                    </summary>
+                    <div className="pt-2">
+                      <TransferStock
+                        variantId={variant.id}
+                        title={found.product.title}
+                        size={variant.size || variant.title}
+                        inventory={variant.inventory}
+                        locations={locations}
+                        defaultFrom={locationId}
+                        online={online}
+                        onDone={() => void refreshFound()}
+                      />
+                    </div>
+                  </details>
                 )}
                 <Button variant="outline" onClick={() => setAddSize({ product: toSearchHit(found.product), code: null })} className="w-full">
                   Agregar talla

@@ -23,6 +23,8 @@ import { PublishControl } from "./PublishControl";
 import { withSession } from "@/lib/client/with-session";
 import { ActionErrorText } from "@/components/sales/session-expired";
 import { Button } from "@/components/ui/Button";
+import { TransferStock } from "@/components/inventory/TransferStock";
+import { useOnline } from "@/lib/offline/use-offline-pos";
 
 interface Props {
   product: Product;
@@ -58,6 +60,8 @@ const isActive = (x: { isActive?: boolean }) => x.isActive !== false;
 export function ProductAdminSheet({ product, locations, role, onClose, onChanged }: Props) {
   const canEditData = role === "owner" || role === "manager";
   const canEditPrice = canEditData || role === "collaborator";
+  const online = useOnline();
+  const [transferOpen, setTransferOpen] = useState<string | null>(null);
 
   const [brands, setBrands] = useState<BrandOption[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
@@ -582,8 +586,7 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-borde-control/40 text-xs">
-                  {/* El servidor ya recorta el stock del colaborador a su tienda; aquí solo se omiten las tiendas sin filas. */}
-                  {locations.filter((loc) => role !== "collaborator" || product.variants.some((v) => v.inventory.some((l) => l.locationId === loc.id))).map((loc) => {
+                  {locations.map((loc) => {
                     const cells = product.variants.map((v) => v.inventory.find((l) => l.locationId === loc.id)?.available);
                     const total = cells.reduce<number>((sum, n) => sum + (n ?? 0), 0);
                     return (
@@ -604,6 +607,39 @@ export function ProductAdminSheet({ product, locations, role, onClose, onChanged
             <p className="pt-1 text-[11px] leading-snug text-tinta/70">
               Solo lectura. Para sumar piezas usa Escanear.
             </p>
+            <div className="space-y-2 border-t border-borde-control/30 pt-2.5">
+              {product.variants.filter(isActive).map((v) => {
+                const label = v.size || v.title;
+                const open = transferOpen === v.id;
+                return (
+                  <div key={v.id}>
+                    <Button
+                      variant="outline"
+                      aria-label={`Traspasar talla ${label}`}
+                      aria-expanded={open}
+                      onClick={() => setTransferOpen(open ? null : v.id)}
+                      className="w-full"
+                    >
+                      {`Traspasar talla ${label}`}
+                    </Button>
+                    {open && (
+                      <div className="pt-2">
+                        <TransferStock
+                          variantId={v.id}
+                          title={product.title}
+                          size={label}
+                          inventory={v.inventory}
+                          locations={locations}
+                          defaultFrom=""
+                          online={online}
+                          onDone={() => onChanged()}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </section>
 
           {canEditData && (
