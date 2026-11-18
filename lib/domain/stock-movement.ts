@@ -44,7 +44,7 @@ export function validateReason(raw: unknown, required: boolean): string | null {
   return text;
 }
 
-const fail = (message: string): StockMovementValidation => ({ ok: false, message });
+const fail = (message: string): { ok: false; message: string } => ({ ok: false, message });
 
 export function validateStockMovement(input: unknown): StockMovementValidation {
   if (!input || typeof input !== "object") return fail("Datos del movimiento inválidos.");
@@ -75,6 +75,56 @@ export function validateStockMovement(input: unknown): StockMovementValidation {
       locationId: i.locationId,
       kind: "restock",
       delta: q,
+      reason,
+      requestId: i.requestId,
+    },
+  };
+}
+
+export interface ValidTransfer {
+  variantId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  quantity: number;
+  reason: string | null;
+  requestId: string;
+}
+
+export type TransferValidation =
+  | { ok: true; value: ValidTransfer }
+  | { ok: false; message: string };
+
+/** Traspaso de piezas entre dos tiendas: misma cantidad (1–200) y motivo opcional. */
+export function validateTransfer(input: unknown): TransferValidation {
+  if (!input || typeof input !== "object") return fail("Datos del movimiento inválidos.");
+  const i = input as Record<string, unknown>;
+
+  if (typeof i.variantId !== "string" || !i.variantId) return fail("Falta la prenda.");
+  if (typeof i.fromLocationId !== "string" || !i.fromLocationId) return fail("Falta la tienda.");
+  if (typeof i.toLocationId !== "string" || !i.toLocationId) return fail("Falta la tienda.");
+  if (i.fromLocationId === i.toLocationId) return fail("Elige otra tienda de destino.");
+  if (typeof i.requestId !== "string" || !UUID_RE.test(i.requestId)) {
+    return fail("Identificador de la operación inválido.");
+  }
+  const q = i.quantity;
+  if (typeof q !== "number" || !Number.isInteger(q) || q < MIN_STOCK_QUANTITY || q > MAX_STOCK_QUANTITY) {
+    return fail(`La cantidad debe ser un entero entre ${MIN_STOCK_QUANTITY} y ${MAX_STOCK_QUANTITY}.`);
+  }
+
+  let reason: string | null;
+  try {
+    reason = validateReason(i.reason, false);
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "Motivo inválido.");
+  }
+
+  return {
+    ok: true,
+    value: {
+      variantId: i.variantId,
+      fromLocationId: i.fromLocationId,
+      toLocationId: i.toLocationId,
+      quantity: q,
       reason,
       requestId: i.requestId,
     },
