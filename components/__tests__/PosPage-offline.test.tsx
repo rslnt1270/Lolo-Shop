@@ -353,6 +353,42 @@ describe("/pos sin internet: tienda de trabajo del colaborador", () => {
     expect(m.getSnapshot).not.toHaveBeenCalledWith("l2");
   });
 
+  it("tienda de siempre l1 y solo copia de l2: abre sin red bloqueado en l2 y la venta en cola lleva l2", async () => {
+    offlineCold(identity(H), stored("l2"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    await snapshotRead("l2");
+    const select = screen.getByRole("combobox", { name: "Cambiar tienda" });
+    expect(select).toBeDisabled();
+    expect(select).toHaveValue("l2");
+    scan("7501234567890");
+    await screen.findByText("Agregado: Playera Guess negro (M) · ×1");
+    fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect((m.enqueueSale.mock.calls[0][0] as QueuedSale).locationId).toBe("l2");
+    expect(m.getSnapshot).not.toHaveBeenCalledWith("l1");
+  });
+
+  it("tienda de siempre l1 con copias de l1 y l2 (l2 la más reciente): queda en l2", async () => {
+    const older = stored("l1", 3 * H);
+    const latest = stored("l2", H);
+    offlineCold(identity(H), latest);
+    m.getSnapshot.mockImplementation(async (loc: string) => (loc === "l1" ? older : loc === "l2" ? latest : null));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    await snapshotRead("l2");
+    expect(m.getLatestSnapshot).toHaveBeenCalledWith("u2");
+    const select = screen.getByRole("combobox", { name: "Cambiar tienda" });
+    expect(select).toBeDisabled();
+    expect(select).toHaveValue("l2");
+    scan("7501234567890");
+    await screen.findByText("Agregado: Playera Guess negro (M) · ×1");
+    fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
+    await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
+    expect((m.enqueueSale.mock.calls[0][0] as QueuedSale).locationId).toBe("l2");
+    expect(m.getSnapshot).not.toHaveBeenCalledWith("l1");
+  });
+
   it("colaborador en línea que pierde la red: el selector se bloquea con el nombre de su tienda", async () => {
     m.session.current = {
       data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l1" } },

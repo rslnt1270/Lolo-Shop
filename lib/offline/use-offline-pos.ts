@@ -109,6 +109,8 @@ export function useOfflinePos({ online, sessionUser, locationId }: UseOfflinePos
   const [storedIdentity, setStoredIdentity] = useState<StoredIdentity | null>(null);
   const [identityChecked, setIdentityChecked] = useState(false);
   const [latestLocationId, setLatestLocationId] = useState<string | null>(null);
+  /** Usuario cuya copia más reciente ya se buscó (antes de eso, sin red no se elige tienda). */
+  const [latestCheckedFor, setLatestCheckedFor] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<StoredSnapshot | null>(null);
   const [snapshotChecked, setSnapshotChecked] = useState(false);
   /** Tiendas cuya copia el servidor rechazó por tamaño: sin internet no se vende ahí. */
@@ -120,8 +122,13 @@ export function useOfflinePos({ online, sessionUser, locationId }: UseOfflinePos
 
   const identity = validIdentity(storedIdentity, now);
   const identityUserId = identity?.userId ?? null;
+  // Sin red y sin tienda elegida: la tienda de la copia más reciente del usuario (la tienda de
+  // siempre ya no basta: el colaborador pudo trabajar en otra). Se espera a saber cuál es.
   const effectiveLocationId =
-    locationId || (!online && identity ? (identity.locationId ?? latestLocationId ?? "") : "");
+    locationId ||
+    (!online && identity && latestCheckedFor === identity.userId
+      ? (latestLocationId ?? identity.locationId ?? "")
+      : "");
 
   const mountedRef = useRef(true);
   const locationRef = useRef(effectiveLocationId);
@@ -159,13 +166,19 @@ export function useOfflinePos({ online, sessionUser, locationId }: UseOfflinePos
     void saveIdentity(record);
   }, []);
 
-  // Tienda de la copia más reciente de este usuario (owner o manager sin tienda que abre sin red).
+  // Tienda de la copia más reciente de este usuario (cualquier rol que abre sin red).
   useEffect(() => {
     setLatestLocationId(null);
+    setLatestCheckedFor(null);
     if (identityUserId === null) return;
     let cancelled = false;
     void getLatestSnapshot(identityUserId).then((s) => {
-      if (!cancelled && s) setLatestLocationId((prev) => prev ?? s.locationId);
+      if (cancelled) return;
+      if (s) setLatestLocationId((prev) => prev ?? s.locationId);
+      setLatestCheckedFor(identityUserId);
+    }, () => {
+      // Sin almacenamiento: se sigue con la tienda de siempre.
+      if (!cancelled) setLatestCheckedFor(identityUserId);
     });
     return () => {
       cancelled = true;
