@@ -57,6 +57,8 @@ const OFFLINE_STORAGE_TEXT =
   "Este teléfono no pudo guardar datos sin internet (modo privado o sin espacio). Las ventas sin internet podrían no guardarse.";
 
 const SAVED_STORE_TEXT = "Tienda guardada en este teléfono";
+const OFFLINE_LOCK_TEXT = "Sin internet: se usa la tienda de la copia guardada.";
+const LOCATIONS_ERROR_TEXT = "No pudimos cargar las tiendas. Revisa tu conexión.";
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
@@ -174,7 +176,9 @@ export default function POSPage() {
   // Tiendas que no cargan: se avisa (la sesión vencida, con enlace a iniciar sesión).
   useEffect(() => {
     if (work.status === "session") setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
-    else if (work.status === "error") setNotice({ kind: "error", text: "No pudimos cargar las tiendas. Revisa tu conexión." });
+    else if (work.status === "error") setNotice({ kind: "error", text: LOCATIONS_ERROR_TEXT });
+    // Al cargar tras un reintento se quita solo ese aviso (otro aviso más reciente se respeta).
+    else if (work.status === "ready") setNotice((n) => (n?.text === LOCATIONS_ERROR_TEXT ? null : n));
   }, [work.status]);
 
   const { add, quantityOf, clearAvailability } = draft;
@@ -771,9 +775,14 @@ export default function POSPage() {
       : null;
   const canDiscard = role === "owner" || role === "manager";
   // Sin red el selector queda fijo en la tienda de la copia, aunque la lista no haya cargado.
-  const knownName = work.locations.find((l) => l.id === locationId)?.name ?? null;
-  const pickerLocations =
-    !online && locationId && !knownName ? [{ id: locationId, name: SAVED_STORE_TEXT }] : work.locations;
+  // Al abrir sin red la lista no carga: se usan los nombres guardados de la última carga.
+  const nameSource = work.locations.length > 0 ? work.locations : work.cachedLocations;
+  const knownName = nameSource.find((l) => l.id === locationId)?.name ?? null;
+  const pickerLocations = online
+    ? work.locations
+    : locationId && !knownName
+      ? [{ id: locationId, name: SAVED_STORE_TEXT }]
+      : nameSource;
   const discardSale = async (id: string) => {
     const ok = user ? await discardQueued(id, { currentUserId: user.id, role: user.role }) : false;
     await sync.refresh();
@@ -881,7 +890,7 @@ export default function POSPage() {
               locations={pickerLocations}
               onChange={work.choose}
               disabled={lock !== null || submitting || !online}
-              lockedLabel={online ? undefined : (knownName ?? SAVED_STORE_TEXT)}
+              lockedLabel={online ? undefined : OFFLINE_LOCK_TEXT}
             />
             {work.status === "error" && (
               <Button variant="outline" onClick={work.retry} className="mt-2">

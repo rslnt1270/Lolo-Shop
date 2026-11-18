@@ -4,7 +4,12 @@ import { renderHook, waitFor, act } from "@testing-library/react";
 const fetchLocationsAction = vi.fn();
 vi.mock("@/lib/actions", () => ({ fetchLocationsAction: () => fetchLocationsAction() }));
 
-import { pickWorkLocation, useWorkLocation, WORK_LOCATION_KEY } from "@/lib/client/use-work-location";
+import {
+  LOCATIONS_CACHE_KEY,
+  pickWorkLocation,
+  useWorkLocation,
+  WORK_LOCATION_KEY,
+} from "@/lib/client/use-work-location";
 
 const LOCS = [
   { id: "a", name: "Alva", type: "store" },
@@ -13,6 +18,7 @@ const LOCS = [
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
   fetchLocationsAction.mockReset();
   vi.restoreAllMocks();
 });
@@ -93,5 +99,45 @@ describe("useWorkLocation", () => {
     renderHook(() => useWorkLocation({ assigned: "a", enabled: false }));
     await Promise.resolve();
     expect(fetchLocationsAction).not.toHaveBeenCalled();
+  });
+});
+
+describe("useWorkLocation: nombres guardados para abrir sin red", () => {
+  it("al cargar guarda {id, name} en localStorage", async () => {
+    fetchLocationsAction.mockResolvedValue(LOCS);
+    const { result } = renderHook(() => useWorkLocation({ assigned: "a", enabled: true }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(JSON.parse(localStorage.getItem(LOCATIONS_CACHE_KEY) ?? "null")).toEqual([
+      { id: "a", name: "Alva" },
+      { id: "l", name: "Lomas" },
+    ]);
+    expect(result.current.cachedLocations).toEqual([
+      { id: "a", name: "Alva" },
+      { id: "l", name: "Lomas" },
+    ]);
+  });
+  it("deshabilitado (sin red) expone los nombres guardados sin pedirlos al servidor", async () => {
+    localStorage.setItem(LOCATIONS_CACHE_KEY, JSON.stringify([{ id: "a", name: "Club Alva" }]));
+    const { result } = renderHook(() => useWorkLocation({ assigned: null, enabled: false }));
+    await waitFor(() => expect(result.current.cachedLocations).toEqual([{ id: "a", name: "Club Alva" }]));
+    expect(fetchLocationsAction).not.toHaveBeenCalled();
+    expect(result.current.locations).toEqual([]);
+  });
+  it("caché dañada o con forma inválida se ignora sin lanzar", async () => {
+    localStorage.setItem(LOCATIONS_CACHE_KEY, "{no es json");
+    const { result } = renderHook(() => useWorkLocation({ assigned: null, enabled: false }));
+    expect(result.current.cachedLocations).toEqual([]);
+    localStorage.setItem(LOCATIONS_CACHE_KEY, JSON.stringify([{ id: 1 }, { id: "b", name: "Bosques" }]));
+    const again = renderHook(() => useWorkLocation({ assigned: null, enabled: false }));
+    await waitFor(() => expect(again.result.current.cachedLocations).toEqual([{ id: "b", name: "Bosques" }]));
+  });
+  it("sin localStorage disponible la carga sigue", async () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("cuota");
+    });
+    fetchLocationsAction.mockResolvedValue(LOCS);
+    const { result } = renderHook(() => useWorkLocation({ assigned: "a", enabled: true }));
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(result.current.locationId).toBe("a");
   });
 });

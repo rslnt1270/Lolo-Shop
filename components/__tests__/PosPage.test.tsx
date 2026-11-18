@@ -510,6 +510,15 @@ describe("POSPage", () => {
     await screen.findByDisplayValue("Centro");
   });
 
+  it("fetchLocationsAction falla y el reintento carga: el aviso de tiendas se quita", async () => {
+    actions.fetchLocationsAction.mockRejectedValueOnce(new Error("red"));
+    render(<POSPage />);
+    await screen.findByText("No pudimos cargar las tiendas. Revisa tu conexión.");
+    fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
+    await screen.findByDisplayValue("Centro");
+    expect(screen.queryByText("No pudimos cargar las tiendas. Revisa tu conexión.")).toBeNull();
+  });
+
   it("sin sesión: aviso con enlace a iniciar sesión", () => {
     session.value = { data: null, status: "unauthenticated" };
     render(<POSPage />);

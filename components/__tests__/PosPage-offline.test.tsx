@@ -156,6 +156,7 @@ function offlineCold(id: StoredIdentity | null, snap: StoredSnapshot | null) {
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  localStorage.clear();
   // Tienda elegida antes en esta sesión (sin ella el dueño tiene que elegir).
   sessionStorage.setItem("loloshop:work-location", "l1");
   online = true;
@@ -344,13 +345,34 @@ describe("/pos sin internet: tienda de trabajo del colaborador", () => {
     const select = screen.getByRole("combobox", { name: "Cambiar tienda" });
     expect(select).toBeDisabled();
     expect(select).toHaveValue("l1");
-    expect(screen.getAllByText(/Tienda guardada en este teléfono/).length).toBeGreaterThan(0);
+    // Sin nombres guardados: el texto genérico aparece una sola vez (cabecera) y el aviso del bloqueo es otro.
+    expect(screen.getByText("Estás en: Tienda guardada en este teléfono")).toBeInTheDocument();
+    expect(screen.getAllByText(/Tienda guardada en este teléfono/)).toHaveLength(2); // cabecera + opción del select
+    expect(screen.getByText("Sin internet: se usa la tienda de la copia guardada.")).toBeInTheDocument();
     scan("7501234567890");
     await screen.findByText("Agregado: Playera Guess negro (M) · ×1");
     fireEvent.click(screen.getByRole("button", { name: /^cobrar/i }));
     await waitFor(() => expect(m.enqueueSale).toHaveBeenCalledTimes(1));
     expect((m.enqueueSale.mock.calls[0][0] as QueuedSale).locationId).toBe("l1");
     expect(m.getSnapshot).not.toHaveBeenCalledWith("l2");
+  });
+
+  it("abre sin red con nombres guardados: muestra \"Estás en: Club Alva\" y el selector bloqueado", async () => {
+    localStorage.setItem(
+      "loloshop:locations-cache",
+      JSON.stringify([{ id: "l1", name: "Club Alva" }, { id: "l2", name: "Lomas" }]),
+    );
+    offlineCold(identity(H), stored("l1"));
+    render(<POSPage />);
+    await screen.findByTestId("scanner");
+    await snapshotRead("l1");
+    expect(await screen.findByText("Estás en: Club Alva")).toBeInTheDocument();
+    const select = screen.getByRole("combobox", { name: "Cambiar tienda" });
+    expect(select).toBeDisabled();
+    expect(select).toHaveValue("l1");
+    expect(screen.queryByText(/Tienda guardada en este teléfono/)).toBeNull();
+    expect(screen.getByText("Sin internet: se usa la tienda de la copia guardada.")).toBeInTheDocument();
+    expect(m.fetchLocationsAction).not.toHaveBeenCalled();
   });
 
   it("tienda de siempre l1 y solo copia de l2: abre sin red bloqueado en l2 y la venta en cola lleva l2", async () => {
