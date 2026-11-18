@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
 import { getPublicCatalog } from "../public-projection";
+import { InsufficientStockError, StockTargetNotFoundError } from "../errors";
 
 describe("FixtureDataSource", () => {
   const ds = new FixtureDataSource();
@@ -186,5 +187,80 @@ describe("FixtureDataSource: catálogo público y departamentos", () => {
       expect((await f.searchProducts("ls-pla-gue-m-bla")).map((h) => h.title)).toEqual(["Playera Guess"]);
       expect(await f.searchProducts("zzzz-no-existe")).toEqual([]);
     });
+  });
+});
+
+describe("FixtureDataSource.transferStock", () => {
+  const base = {
+    variantId: "var-1",
+    fromLocationId: "loc-1",
+    toLocationId: "loc-2",
+    quantity: 2,
+    notes: null,
+    userId: "user-1",
+  };
+
+  it("mueve piezas y registra salida y entrada TRANSFER con sufijos y notas", async () => {
+    const ds = new FixtureDataSource();
+    const res = await ds.transferStock({ ...base, requestId: "r-1" });
+    expect(res).toEqual({ fromAvailable: 1, toAvailable: 7, fromName: "Tienda 1", toName: "Tienda 2", replayed: false });
+    expect(ds.movements.map((m) => [m.type, m.delta, m.locationId, m.requestId, m.notes, m.userId])).toEqual([
+      ["TRANSFER", -2, "loc-1", "r-1:out", "A Tienda 2", "user-1"],
+      ["TRANSFER", 2, "loc-2", "r-1:in", "De Tienda 1", "user-1"],
+    ]);
+  });
+
+  it("con motivo, las notas lo agregan tras dos puntos", async () => {
+    const ds = new FixtureDataSource();
+    await ds.transferStock({ ...base, notes: "Alta en tienda equivocada", requestId: "r-2" });
+    expect(ds.movements.map((m) => m.notes)).toEqual([
+      "A Tienda 2: Alta en tienda equivocada",
+      "De Tienda 1: Alta en tienda equivocada",
+    ]);
+  });
+
+  it("faltante: InsufficientStockError y nada cambia", async () => {
+    const ds = new FixtureDataSource();
+    const err = await ds.transferStock({ ...base, variantId: "var-2", requestId: "r-3" }).catch((e) => e);
+    expect(err).toBeInstanceOf(InsufficientStockError);
+    expect(err).toMatchObject({ available: 1, requested: 2 });
+    expect(ds.movements).toHaveLength(0);
+    const v = (await ds.getProductByVariantId("var-2"))!.variant;
+    expect(v.inventory).toEqual([
+      { locationId: "loc-1", available: 1 },
+      { locationId: "loc-2", available: 0 },
+    ]);
+  });
+
+  it("entrada en destino sin fila la crea", async () => {
+    const ds = new FixtureDataSource();
+    await ds.createLocation({ name: "Lomas" });
+    const lomas = (await ds.getLocations()).find((l) => l.name === "Lomas")!.id;
+    const res = await ds.transferStock({ ...base, toLocationId: lomas, requestId: "r-4" });
+    expect(res).toMatchObject({ fromAvailable: 1, toAvailable: 2, toName: "Lomas" });
+  });
+
+  it("mismo requestId: la segunda es replayed y no mueve otra vez", async () => {
+    const ds = new FixtureDataSource();
+    await ds.transferStock({ ...base, requestId: "r-5" });
+    expect(await ds.transferStock({ ...base, requestId: "r-5" })).toEqual({
+      fromAvailable: 1,
+      toAvailable: 7,
+      fromName: "Tienda 1",
+      toName: "Tienda 2",
+      replayed: true,
+    });
+    expect(ds.movements).toHaveLength(2);
+  });
+
+  it("tienda o talla inexistente: StockTargetNotFoundError", async () => {
+    const ds = new FixtureDataSource();
+    await expect(ds.transferStock({ ...base, toLocationId: "loc-x", requestId: "r-6" })).rejects.toBeInstanceOf(
+      StockTargetNotFoundError,
+    );
+    await expect(ds.transferStock({ ...base, variantId: "var-x", requestId: "r-7" })).rejects.toBeInstanceOf(
+      StockTargetNotFoundError,
+    );
+    expect(ds.movements).toHaveLength(0);
   });
 });

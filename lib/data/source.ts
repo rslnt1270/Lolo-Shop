@@ -101,6 +101,35 @@ export interface RecordStockMovementData {
   userId: string;
 }
 
+/** Traspaso de piezas de una tienda a otra; los datos llegan ya validados (`validateTransfer`). */
+export interface TransferStockData {
+  variantId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  /** Piezas a mover, > 0. */
+  quantity: number;
+  /** Motivo ya validado, o null. */
+  notes: string | null;
+  /** UUID base de idempotencia; los movimientos usan `${requestId}:out` y `${requestId}:in`. */
+  requestId: string;
+  userId: string;
+}
+
+/** Existencias de ambas tiendas tras el traspaso (o actuales si es un replay) y sus nombres. */
+export interface TransferStockResult {
+  fromAvailable: number;
+  toAvailable: number;
+  fromName: string;
+  toName: string;
+  replayed: boolean;
+}
+
+/** Notas de los dos movimientos de un traspaso: "A {destino}[: motivo]" y "De {origen}[: motivo]". */
+export function transferNotes(fromName: string, toName: string, reason: string | null): { out: string; in: string } {
+  const tail = reason ? `: ${reason}` : "";
+  return { out: `A ${toName}${tail}`, in: `De ${fromName}${tail}` };
+}
+
 /** Una entrada del historial de precios de una talla. */
 export interface PriceChangeEntry {
   oldPrice: number;
@@ -278,6 +307,15 @@ export interface InventoryDataSource {
    * con el stock actual, sin aplicar el cambio otra vez.
    */
   recordStockMovement(data: RecordStockMovementData): Promise<{ available: number; replayed: boolean }>;
+  /**
+   * Traspaso atómico entre tiendas: en una sola transacción, un `Movement`
+   * TRANSFER de salida (−n, notas "A {destino}[: motivo]") y otro de entrada
+   * (+n, notas "De {origen}[: motivo]"). Si el origen no tiene n piezas (o no
+   * tiene fila) lanza `InsufficientStockError` y no escribe nada. Tienda o talla
+   * inexistente → `StockTargetNotFoundError`. Un `requestId` ya registrado
+   * devuelve `replayed: true` con las existencias actuales, sin mover otra vez.
+   */
+  transferStock(data: TransferStockData): Promise<TransferStockResult>;
   /**
   /**
    * Crea producto + N variantes (`title` = talla) + N filas de inventario en
