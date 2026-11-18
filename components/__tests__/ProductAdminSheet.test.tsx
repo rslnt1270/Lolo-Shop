@@ -10,6 +10,8 @@ const products = vi.hoisted(() => ({
   setProductPublishedAction: vi.fn(),
 }));
 vi.mock("@/lib/products/actions", () => products);
+const transfer = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/actions", () => ({ transferStockAction: transfer }));
 vi.mock("@/lib/catalog/actions", () => ({
   listBrandsAction: vi.fn().mockResolvedValue([
     { id: "b1", name: "Guess", slug: "guess" },
@@ -314,7 +316,8 @@ describe("ProductAdminSheet", () => {
     expect(within(lomas).getAllByRole("cell").map((c) => c.textContent)).toEqual(["Lomas", "3", "1", "4"]);
     const club = within(table).getByRole("row", { name: /ClubAlva/ });
     expect(within(club).getAllByRole("cell").map((c) => c.textContent)).toEqual(["ClubAlva", "—", "4", "4"]);
-    expect(screen.getByText("Solo lectura. Para sumar piezas usa Escanear.")).toBeInTheDocument();
+    expect(screen.getByText("Para sumar piezas usa Escanear.")).toBeInTheDocument();
+    expect(screen.queryByText(/Solo lectura. Para sumar/)).toBeNull();
     expect(within(table).queryAllByRole("textbox")).toHaveLength(0);
   });
 
@@ -341,17 +344,26 @@ describe("ProductAdminSheet", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
-  it("el colaborador ve en Stock por tienda solo su tienda", async () => {
-    // El servidor ya recortó: solo llegan filas de l1.
-    const scoped: Product = {
-      ...product,
-      variants: product.variants.map((v) => ({ ...v, inventory: v.inventory.filter((l) => l.locationId === "l1") })),
-    };
-    open("collaborator", scoped);
+  it("el colaborador ve todas las tiendas en Stock por tienda", async () => {
+    open("collaborator");
     const table = await screen.findByRole("table", { name: "Stock por tienda" });
     expect(within(table).getByRole("row", { name: /Lomas/ })).toBeInTheDocument();
-    expect(within(table).queryByRole("row", { name: /ClubAlva/ })).toBeNull();
-    expect(within(table).queryByRole("row", { name: /Almacén/ })).toBeNull();
+    expect(within(table).getByRole("row", { name: /ClubAlva/ })).toBeInTheDocument();
+    expect(within(table).getByRole("row", { name: /Almacén/ })).toBeInTheDocument();
+  });
+
+  it("cada talla abre su formulario de traspaso y lo manda con la talla correcta", async () => {
+    transfer.mockResolvedValue({ ok: true, replayed: false, fromAvailable: 0, toAvailable: 5, message: "Traspasada 1 pieza de Lomas a ClubAlva. Ahora: Lomas 0 · ClubAlva 5." });
+    const { onChanged } = open("collaborator");
+    await screen.findByRole("table", { name: "Stock por tienda" });
+    expect(screen.queryByLabelText("De")).toBeNull();
+    const btn = screen.getByRole("button", { name: "Traspasar talla L" });
+    expect(btn.className).toMatch(/min-h-(\[44px\]|11)/);
+    fireEvent.click(btn);
+    expect(within(screen.getByLabelText("De")).getAllByRole("option").map((o) => o.textContent)).toEqual(["Lomas", "ClubAlva"]);
+    fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(transfer).toHaveBeenCalledWith(expect.objectContaining({ variantId: "v2", quantity: 1 }));
   });
 
   it("la ficha muestra Tipo, Estilo y Para según el departamento", async () => {

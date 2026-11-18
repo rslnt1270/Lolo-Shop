@@ -1,6 +1,6 @@
 "use client";
 import { formatPrice } from "@/lib/public/format";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/Button";
@@ -13,20 +13,17 @@ import { NewProductForm, type CreatedInfo } from "@/components/products/NewProdu
 import { ExistingProductSearch } from "@/components/products/ExistingProductSearch";
 import { AddSizeForm } from "@/components/products/AddSizeForm";
 import { SumToMyStore } from "@/components/inventory/SumToMyStore";
+import { TransferStock } from "@/components/inventory/TransferStock";
+import { useOnline } from "@/lib/offline/use-offline-pos";
 import { sortSizes } from "@/lib/domain/sizes";
 import { SavedCheck } from "@/components/products/SavedCheck";
-import {
-  lookupCodeAction,
-  fetchLocationsAction,
-  type LookupCodeResult,
-} from "@/lib/actions";
+import { lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
+import { useWorkLocation } from "@/lib/client/use-work-location";
+import { WorkLocationPicker } from "@/components/layout/WorkLocationPicker";
+import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
 import { isValidGtin } from "@/lib/domain/barcode";
 
 type Found = Extract<LookupCodeResult, { found: true }>;
-type LocationOption = { id: string; name: string };
-
-const LOCATION_KEY = "loloshop:escanear:location";
-
 /** Tallas activas del producto (para "Agregar talla" desde la tarjeta). */
 function toSearchHit(product: Product): ProductSearchHit {
   const sizes = product.variants.filter((v) => v.isActive !== false).map((v) => v.size || v.title);
@@ -71,54 +68,54 @@ export default function EscanearPage() {
   const [createdCount, setCreatedCount] = useState(0);
   const [lastCreated, setLastCreated] = useState<CreatedInfo | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
-  const [locations, setLocations] = useState<LocationOption[]>([]);
-  const [chosenLocation, setChosenLocation] = useState("");
+  // Todos los roles eligen en qué tienda están (la asignada solo es la sugerencia inicial).
+  const work = useWorkLocation({
+    assigned: session?.user?.locationId ?? null,
+    enabled: status === "authenticated",
+  });
+  const { locations, locationId } = work;
+  const online = useOnline();
 
-  const role = session?.user?.role;
-  // Misma regla que el servidor (`isStoreBound`): colaborador, o manager con tienda.
-  const storeBound = role === "collaborator" || (role === "manager" && !!session?.user?.locationId);
-  const locationId = storeBound ? (session?.user?.locationId ?? "") : chosenLocation;
+  // Sube cada vez que la prenda en pantalla se descarta o cambia: una consulta tardía de antes se ignora.
+  const viewSeqRef = useRef(0);
+  const viewRef = useRef({ scannedCode, locationId });
+  viewRef.current = { scannedCode, locationId };
 
+  // Si cambia la tienda de trabajo con una prenda en pantalla, se descarta: sus cifras eran de la otra tienda.
+  const lastLocationRef = useRef(locationId);
   useEffect(() => {
-    if (status !== "authenticated") return;
-    let cancelled = false;
-    fetchLocationsAction()
-      .then((res) => {
-        if (cancelled) return;
-        const list = res ?? [];
-        setLocations(list.map((l) => ({ id: l.id, name: l.name })));
-        // Con tienda fija solo se necesita el nombre para "Registrando en".
-        if (storeBound) return;
-        let saved = "";
-        try {
-          saved = sessionStorage.getItem(LOCATION_KEY) ?? "";
-        } catch {
-          /* sin storage */
-        }
-        const pick = list.find((l) => l.id === saved) ?? list[0];
-        if (pick) setChosenLocation(pick.id);
-      })
-      .catch(() => {
-        if (!cancelled && !storeBound) {
-          setIsError(true);
-          setMessage("No se pudieron cargar las tiendas. Recarga la página.");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status, storeBound]);
+    const previous = lastLocationRef.current;
+    lastLocationRef.current = locationId;
+    // La primera elección (de "" a una tienda, al cargar la lista) no descarta nada.
+    if (!previous || previous === locationId) return;
+    viewSeqRef.current += 1;
+    setScannedCode(null);
+    setFound(null);
+    setNewCode(undefined);
+    setLookupError("");
+    setAltaStep("ask");
+    setAddSize(null);
+  }, [locationId]);
 
-  const chooseLocation = (id: string) => {
-    setChosenLocation(id);
+  /** Tras un traspaso, vuelve a consultar la prenda para mostrar cifras al día (sin ocultar el mensaje). */
+  const refreshFound = async () => {
+    if (!scannedCode || !locationId) return;
+    const seq = viewSeqRef.current;
+    const code = scannedCode;
+    const loc = locationId;
     try {
-      sessionStorage.setItem(LOCATION_KEY, id);
+      const result = await lookupCodeAction(code, loc);
+      // Si mientras tanto tocó "Escanear otro", escaneó otra prenda o cambió de tienda, no se restaura.
+      const stale =
+        seq !== viewSeqRef.current || viewRef.current.scannedCode !== code || viewRef.current.locationId !== loc;
+      if (!stale && result.found) setFound(result);
     } catch {
-      /* sin storage */
+      /* el mensaje del traspaso ya se mostró; las cifras se actualizan al volver a escanear */
     }
   };
 
   const reset = () => {
+    viewSeqRef.current += 1;
     setScannedCode(null);
     setFound(null);
     setNewCode(undefined);
@@ -128,6 +125,7 @@ export default function EscanearPage() {
   };
 
   const handleScan = useCallback(async (code: string) => {
+    viewSeqRef.current += 1;
     setScannedCode(code);
     setMessage("");
     setIsError(false);
@@ -162,10 +160,6 @@ export default function EscanearPage() {
     return <main className="p-4 text-center">Inicia sesión para escanear productos.</main>;
   }
 
-  if (role === "collaborator" && !session.user.locationId) {
-    return <main className="p-4 text-center">Tu usuario no tiene una tienda asignada. Pide al dueño que te la asigne.</main>;
-  }
-
   const variant = found?.product.variants.find((v) => v.id === found.variantId) ?? found?.product.variants[0];
   const stockHere = variant ? (variant.inventory.find((l) => l.locationId === locationId)?.available ?? 0) : null;
   const showScanner = !scannedCode && newCode === undefined;
@@ -185,26 +179,27 @@ export default function EscanearPage() {
         )}
       </div>
 
-      {!storeBound && (
-        <div>
-          <label htmlFor="tienda" className="block text-sm font-medium text-gray-700">
-            Tienda
-          </label>
-          <select
-            id="tienda"
-            value={chosenLocation}
-            onChange={(e) => chooseLocation(e.target.value)}
-            className="mt-1 block min-h-[44px] w-full rounded-md border border-gray-200 bg-white px-3 text-sm"
-          >
-            {locations.length === 0 && <option value="">Cargando tiendas…</option>}
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div>
+        <WorkLocationPicker
+          value={locationId}
+          locations={locations}
+          onChange={work.choose}
+          disabled={work.status !== "ready"}
+        />
+        {work.status === "error" && (
+          <div role="alert" className="mt-2 space-y-2 text-sm text-agotado">
+            <p>No se pudieron cargar las tiendas.</p>
+            <Button variant="outline" onClick={work.retry}>
+              Reintentar
+            </Button>
+          </div>
+        )}
+        {work.status === "session" && (
+          <p role="alert" className="mt-2 text-sm text-agotado">
+            {SESSION_EXPIRED_TEXT} <LoginLink />
+          </p>
+        )}
+      </div>
 
       {showScanner && (
         <>
@@ -334,6 +329,25 @@ export default function EscanearPage() {
                     }}
                   />
                 )}
+                {variant && (
+                  <details className="rounded-lg border border-gray-200 p-3">
+                    <summary className="flex min-h-[44px] cursor-pointer items-center text-sm font-semibold text-turquesa-texto">
+                      Traspasar a otra tienda
+                    </summary>
+                    <div className="pt-2">
+                      <TransferStock
+                        variantId={variant.id}
+                        title={found.product.title}
+                        size={variant.size || variant.title}
+                        inventory={variant.inventory}
+                        locations={locations}
+                        defaultFrom={locationId}
+                        online={online}
+                        onDone={() => void refreshFound()}
+                      />
+                    </div>
+                  </details>
+                )}
                 <Button variant="outline" onClick={() => setAddSize({ product: toSearchHit(found.product), code: null })} className="w-full">
                   Agregar talla
                 </Button>
@@ -369,7 +383,7 @@ export default function EscanearPage() {
             <NewProductForm
               scannedCode={newCode}
               locationId={locationId}
-              locationName={locations.find((l) => l.id === locationId)?.name}
+              locationName={work.locationName ?? undefined}
               initialMode={entryMode}
               onModeChange={setEntryMode}
               onSuccess={(info) => {

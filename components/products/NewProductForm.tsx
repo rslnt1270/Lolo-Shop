@@ -17,6 +17,7 @@ import {
   createBrandAction, createColorAction, listBrandsAction, listColorsAction, listDepartmentsAction, listProductTypesAction,
 } from "@/lib/catalog/actions";
 import type { BrandOption, DepartmentOption, ProductTypeOption } from "@/lib/catalog/actions";
+import { typeSingular } from "@/lib/domain/product-types-catalog";
 import { typesForDepartment, validateClassification, type Audience } from "@/lib/domain/product-taxonomy";
 import { ClassificationFields, type ClassificationValue } from "./ClassificationFields";
 import { LoginLink, SESSION_EXPIRED_TEXT } from "@/components/sales/session-expired";
@@ -493,15 +494,17 @@ export function NewProductForm({
   const showColor = colorApplies({ departmentSlug: selectedDepartment?.slug ?? null, typeSlug: selectedType?.slug ?? null });
 
   // Título sugerido = tipo + marca + color; deja de sincronizarse tras la primera edición manual.
+  const typeSlug = selectedType?.slug;
+  const typeName = selectedType?.name;
   useEffect(() => {
     if (titleEdited) return;
     const suggested = buildSuggestedTitle({
-      typeName: selectedType?.name ?? "",
+      typeName: typeSlug && typeName ? typeSingular(typeSlug, typeName) : "",
       brand: brand?.name ?? "",
       color: showColor ? resolveColorLabel(colorText, colors) : null,
     });
     setFormData((prev) => (prev.title === suggested ? prev : { ...prev, title: suggested }));
-  }, [titleEdited, selectedType?.name, brand?.name, showColor, colorText, colors]);
+  }, [titleEdited, typeSlug, typeName, brand?.name, showColor, colorText, colors]);
 
   const changeDepartment = (departmentId: string) => {
     const dept = departments.find((d) => d.id === departmentId) ?? null;

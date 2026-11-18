@@ -52,6 +52,8 @@ const scan = (code: string) => act(() => actions.onScan.current!(code));
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  // Tienda elegida antes en esta sesión (sin ella el dueño tiene que elegir).
+  sessionStorage.setItem("loloshop:work-location", "l1");
   actions.fetchLocationsAction.mockResolvedValue([{ id: "l1", name: "Centro" }]);
   actions.lookupCodeAction.mockResolvedValue(found("v1", "M", { available: 5, sold: false }));
 });
@@ -480,7 +482,7 @@ describe("/pos escaneo continuo", () => {
     actions.lookupCodeAction.mockReturnValueOnce(new Promise((r) => (resolve = r)));
     scan("222");
     await screen.findByText("Buscando 222…");
-    fireEvent.change(document.getElementById("tienda")!, { target: { value: "l2" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Cambiar tienda" }), { target: { value: "l2" } });
     await act(async () => resolve(found("v2", "L", { available: 3, sold: false }, "Camisa")));
     await waitFor(() => expect(screen.queryByText("Buscando 222…")).toBeNull());
     expect(screen.queryByText("Camisa")).toBeNull();
@@ -585,7 +587,7 @@ describe("/pos escaneo continuo", () => {
       expect(screen.getByRole("button", { name: /quitar playera/i })).toBeDisabled();
       expect(screen.getByLabelText("Tarjeta")).toBeDisabled();
       expect(screen.getByLabelText("WhatsApp")).toBeDisabled();
-      expect(document.getElementById("tienda")).toBeDisabled();
+      expect(screen.getByRole("combobox", { name: "Cambiar tienda" })).toBeDisabled();
       await act(async () => resolve({ ok: false, code: "UNAVAILABLE", message: "Lento." }));
       const b = await screen.findByRole("button", { name: /ya revisé en ventas/i });
       expect(b).toBeEnabled();

@@ -27,21 +27,16 @@ export function scopeDashboardQuery(
   today: string,
 ): DashboardQuery {
   if (user.role === "collaborator") {
-    return {
-      from: today,
-      to: today,
-      locationIds: user.locationId ? [user.locationId] : [],
-      pendingScope: "range",
-    };
+    // Hoy y una sola tienda: la que eligió (la acción valida que exista). Nunca "all" ni otro rango.
+    const asked = Array.isArray(requested.locationIds) ? requested.locationIds[0] : undefined;
+    const id = typeof asked === "string" && asked.trim() !== "" ? asked : null;
+    return { from: today, to: today, locationIds: id ? [id] : [], pendingScope: "range" };
   }
 
   let from = isBusinessDate(requested.from) ? requested.from : addDays(today, -(DEFAULT_RANGE_DAYS - 1));
   let to = isBusinessDate(requested.to) ? requested.to : today;
   if (from > to) [from, to] = [to, from];
 
-  if (user.role === "manager" && user.locationId) {
-    return { from, to, locationIds: [user.locationId], pendingScope: "all_dates" };
-  }
   const ids = requested.locationIds;
   // Viene del cliente: solo se conservan textos no vacíos.
   const clean = Array.isArray(ids)

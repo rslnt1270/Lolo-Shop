@@ -51,16 +51,15 @@ describe("recordStockMovementAction", () => {
     expect(source.movements.length).toBe(before);
   });
 
-  it("restock del colaborador de L en otra tienda -> FORBIDDEN", async () => {
-    getCurrentUser.mockResolvedValue(user("collaborator", locA));
+  it.each([
+    ["collaborator", "A"],
+    ["collaborator", null],
+    ["manager", "A"],
+  ])("restock de %s (tienda asignada %s) en otra tienda -> ok y suma en esa tienda", async (role, assigned) => {
+    getCurrentUser.mockResolvedValue(user(role, assigned === "A" ? locA : null));
+    const before = (await levelOf(variantId, locB)) ?? 0;
     const r = await recordStockMovementAction({ variantId, locationId: locB, kind: "restock", quantity: 1, requestId: rid() });
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-  });
-
-  it("manager con tienda operando en otra -> FORBIDDEN", async () => {
-    getCurrentUser.mockResolvedValue(user("manager", locA));
-    const r = await recordStockMovementAction({ variantId, locationId: locB, kind: "restock", quantity: 1, requestId: rid() });
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(r).toMatchObject({ ok: true, available: before + 1 });
   });
 
   it("sesión vencida -> SESSION", async () => {

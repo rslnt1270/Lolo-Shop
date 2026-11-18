@@ -3,13 +3,14 @@ import {
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
+  type TransferStockData, type TransferStockResult, transferNotes,
   type UpdateVariantPriceResult, type VariantMatch, type StockAt, type VariantStockRow,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery,
 } from "./source";
 import { isAudience } from "../domain/product-taxonomy";
 import { MOVEMENT_TYPE_LABEL, type MovementType } from "../domain/types";
 import { mexicoRangeToUtc } from "../domain/movement-scope";
-import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError } from "./errors";
+import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, TransferRequestConflictError } from "./errors";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -411,6 +412,95 @@ export class PrismaDataSource implements InventoryDataSource {
         if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
           // Carrera: otro intento con el mismo requestId ganó; la transacción se revirtió.
           return { available: await currentAvailable(this.db), replayed: true };
+        }
+        if (err.code === "P2003") throw new StockTargetNotFoundError();
+      }
+      throw err;
+    }
+  }
+
+  async transferStock(data: TransferStockData): Promise<TransferStockResult> {
+    const { variantId, fromLocationId, toLocationId, quantity: n, notes, requestId, userId } = data;
+    if (!Number.isInteger(n) || n <= 0) throw new Error("El traspaso debe ser de un entero positivo de piezas.");
+    const outId = `${requestId}:out`;
+    const inId = `${requestId}:in`;
+    const levelOf = async (client: Pick<PrismaClient, "inventoryLevel">, locationId: string) =>
+      (await client.inventoryLevel.findUnique({ where: { variantId_locationId: { variantId, locationId } } }))
+        ?.available ?? 0;
+    const names = async (client: Pick<PrismaClient, "location" | "variant">) => {
+      const [locs, variant] = await Promise.all([
+        client.location.findMany({ where: { id: { in: [fromLocationId, toLocationId] } }, select: { id: true, name: true } }),
+        client.variant.findUnique({ where: { id: variantId }, select: { id: true } }),
+      ]);
+      const fromName = locs.find((l) => l.id === fromLocationId)?.name;
+      const toName = locs.find((l) => l.id === toLocationId)?.name;
+      if (!variant || fromName === undefined || toName === undefined) throw new StockTargetNotFoundError();
+      return { fromName, toName };
+    };
+    /** Un reintento solo es el mismo traspaso si coinciden talla, origen, destino y piezas. */
+    const assertSameTransfer = async (client: Pick<PrismaClient, "movement">) => {
+      const rows = await client.movement.findMany({
+        where: { requestId: { in: [outId, inId] } },
+        select: { requestId: true, variantId: true, locationId: true, delta: true },
+      });
+      const out = rows.find((r) => r.requestId === outId);
+      const entry = rows.find((r) => r.requestId === inId);
+      if (
+        !out || out.variantId !== variantId || out.locationId !== fromLocationId || out.delta !== -n ||
+        entry?.locationId !== toLocationId
+      ) {
+        throw new TransferRequestConflictError();
+      }
+    };
+    const current = async (client: Pick<PrismaClient, "inventoryLevel">, loc: { fromName: string; toName: string }) => ({
+      fromAvailable: await levelOf(client, fromLocationId),
+      toAvailable: await levelOf(client, toLocationId),
+      ...loc,
+    });
+
+    try {
+      return await this.db.$transaction(async (tx) => {
+        const loc = await names(tx);
+        const existing = await tx.movement.findUnique({ where: { requestId: outId }, select: { id: true } });
+        if (existing) {
+          await assertSameTransfer(tx);
+          return { ...(await current(tx, loc)), replayed: true };
+        }
+
+        const text = transferNotes(loc.fromName, loc.toName, notes);
+        // Igual que recordStockMovement: la salida va primero para que su
+        // requestId único serialice los reintentos (P2002 -> replayed) antes del descuento.
+        await tx.movement.create({
+          data: { variantId, locationId: fromLocationId, userId, delta: -n, type: "TRANSFER", notes: text.out, requestId: outId },
+        });
+        // Atómico: solo resta si alcanza; sin fila no hay salida. El error revierte la salida.
+        const res = await tx.inventoryLevel.updateMany({
+          where: { variantId, locationId: fromLocationId, available: { gte: n } },
+          data: { available: { decrement: n } },
+        });
+        if (res.count === 0) throw new InsufficientStockError(variantId, await levelOf(tx, fromLocationId), n);
+
+        await tx.movement.create({
+          data: { variantId, locationId: toLocationId, userId, delta: n, type: "TRANSFER", notes: text.in, requestId: inId },
+        });
+        const to = await tx.inventoryLevel.upsert({
+          where: { variantId_locationId: { variantId, locationId: toLocationId } },
+          update: { available: { increment: n } },
+          create: { variantId, locationId: toLocationId, available: n },
+        });
+        return {
+          fromAvailable: await levelOf(tx, fromLocationId),
+          toAvailable: to.available,
+          ...loc,
+          replayed: false,
+        };
+      }, INVENTORY_TX_OPTIONS);
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
+          // Carrera: otro intento con el mismo requestId ganó; la transacción se revirtió.
+          await assertSameTransfer(this.db);
+          return { ...(await current(this.db, await names(this.db))), replayed: true };
         }
         if (err.code === "P2003") throw new StockTargetNotFoundError();
       }

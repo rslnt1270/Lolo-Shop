@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
+import { getDataSource } from "@/lib/data/get-source";
 import { getSalesSource } from "@/lib/data/get-sales-source";
 import type { DashboardData, DashboardQuery } from "@/lib/data/sales-source";
 import { UnauthenticatedError } from "@/lib/auth/errors";
@@ -26,7 +27,14 @@ export async function getDashboardAction(
 ): Promise<{ query: DashboardQuery; data: DashboardData } | { error: "session_expired" }> {
   const user = await sessionUser();
   if (!user) return { error: "session_expired" };
-  const query = scopeDashboardQuery(user, requested, businessDateMx(new Date()));
+  let asked = requested;
+  if (user.role === "collaborator") {
+    // La tienda viene del cliente: solo se conserva si existe; si no, no muestra nada.
+    const id = Array.isArray(requested.locationIds) ? requested.locationIds[0] : undefined;
+    const known = typeof id === "string" && (await getDataSource().getLocations()).some((l) => l.id === id);
+    asked = { ...requested, locationIds: known ? [id] : [] };
+  }
+  const query = scopeDashboardQuery(user, asked, businessDateMx(new Date()));
   const data = await getSalesSource().getDashboard(query);
   // Las ventas por aprobar son del dueño: a los demás roles no les llega el número ni el importe.
   return { query, data: user.role === "owner" ? data : { ...data, pendingReviewCount: 0, pendingReviewTotal: 0 } };

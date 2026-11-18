@@ -95,6 +95,18 @@ export class SaleRequestConflictError extends Error {
   }
 }
 
+/**
+ * Reintento de traspaso con un `requestId` ya registrado pero con otra talla,
+ * otras tiendas u otro número de piezas: no es la misma operación y no se
+ * mueve nada.
+ */
+export class TransferRequestConflictError extends Error {
+  constructor(message = "Este traspaso ya se registró con otros datos.") {
+    super(message);
+    this.name = "TransferRequestConflictError";
+  }
+}
+
 /** Texto para el operador cuando la transacción vence o no consigue conexión a tiempo. */
 export const DB_TIMEOUT_TEXT = "La base tardó en responder; reintenta.";
 
@@ -105,4 +117,16 @@ export const DB_TIMEOUT_TEXT = "La base tardó en responder; reintenta.";
 export function isTransactionTimeout(err: unknown): boolean {
   const code = !!err && typeof err === "object" ? (err as { code?: unknown }).code : undefined;
   return code === "P2028" || code === "P2024";
+}
+
+/**
+ * Interbloqueo o conflicto de escritura: P2034 de Prisma, o SQLSTATE 40P01 (`deadlock detected`)
+ * en `meta` o en el mensaje. Postgres aborta y revierte la transacción: no se escribió nada y basta reintentar.
+ */
+export function isDeadlock(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: unknown; meta?: unknown; message?: unknown };
+  if (e.code === "P2034") return true;
+  if (e.meta && typeof e.meta === "object" && (e.meta as { code?: unknown }).code === "40P01") return true;
+  return typeof e.message === "string" && e.message.includes("40P01");
 }

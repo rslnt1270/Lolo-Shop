@@ -111,12 +111,11 @@ describe.skipIf(!hasTestDb)("createProductAction: color, descripción, fotos y e
     expect(await testPrisma.product.count()).toBe(1);
   });
 
-  it("colaborador solo da de alta en su tienda (rol y tienda releídos de la base)", async () => {
+  it("colaborador da de alta en la tienda elegida aunque tenga otra asignada (rol releído de la base)", async () => {
     session.userId = (await testPrisma.user.create({
       data: { username: "colab", password: "x", role: "collaborator", locationId: store },
     })).id;
-    expect(await createProductAction(input({ locationId: otherStore }))).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(await createProductAction(input({ locationId: store }))).toMatchObject({ ok: true });
+    expect(await createProductAction(input({ locationId: otherStore }))).toMatchObject({ ok: true });
   });
 
   it("review: alta con foto subida y fallo posterior no deja producto a medias", async () => {

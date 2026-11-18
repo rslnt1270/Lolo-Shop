@@ -137,7 +137,7 @@ describe("NewProductForm (alta): orden y referencia", () => {
     fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "t1" } });
     await pickBrand();
     fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosa" } });
-    expect(screen.getByLabelText(/título/i)).toHaveValue("Playeras ALO rosa");
+    expect(screen.getByLabelText(/título/i)).toHaveValue("Playera ALO rosa");
     fireEvent.change(screen.getByLabelText(/título/i), { target: { value: "Mi playera" } });
     fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "negro" } });
     expect(screen.getByLabelText(/título/i)).toHaveValue("Mi playera");
@@ -364,7 +364,7 @@ describe("NewProductForm (alta): guardado", () => {
     await pickBrand();
     await screen.findByRole("option", { name: "Rosa", hidden: true }).catch(() => null);
     fireEvent.change(screen.getByLabelText(/^color/i), { target: { value: "rosas" } });
-    await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveValue("Playeras ALO rosa"));
+    await waitFor(() => expect(screen.getByLabelText(/título/i)).toHaveValue("Playera ALO rosa"));
   });
 
   it("color que ya está en la lista con otra forma no llama createColorAction", async () => {

@@ -51,6 +51,8 @@ const searchFor = (q: string) =>
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  // Tienda elegida antes en esta sesión (sin ella el dueño tiene que elegir).
+  sessionStorage.setItem("loloshop:work-location", "l1");
   actions.fetchLocationsAction.mockResolvedValue([{ id: "l1", name: "Centro" }]);
   actions.searchProductsAction.mockResolvedValue([hit]);
   actions.listVariantStockAtAction.mockResolvedValue([

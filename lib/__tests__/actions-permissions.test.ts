@@ -10,6 +10,7 @@ const createLocation = vi.fn();
 const updateProductImage = vi.fn();
 const updateProductBackImage = vi.fn();
 const productFindUnique = vi.fn();
+const recordStockMovement = vi.fn();
 
 vi.mock("@/lib/auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -24,6 +25,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/data/get-source", () => ({
   getDataSource: () => ({
     createProduct, getProductByBarcode, getLocations, getProducts, createLocation, updateProductImage, updateProductBackImage,
+    recordStockMovement,
   }),
 }));
 vi.mock("@/lib/image/upload", async (orig) => ({
@@ -34,6 +36,7 @@ vi.mock("@/lib/auth/password", () => ({ changePassword: vi.fn() }));
 
 import {
   createLocationAction, createProductAction, fetchProductsAction, fetchLocationsAction, setProductBackImageAction,
+  recordStockMovementAction,
   type CreateProductInput,
 } from "../actions";
 import { ForbiddenError, UnauthenticatedError } from "../auth/errors";
@@ -52,6 +55,7 @@ beforeEach(() => {
   getLocations.mockReset().mockResolvedValue([{ id: "loc-clubalva", name: "A" }, { id: "loc-lomas", name: "B" }]);
   productFindUnique.mockReset();
   updateProductBackImage.mockReset().mockResolvedValue(undefined);
+  recordStockMovement.mockReset().mockResolvedValue({ available: 3, replayed: false });
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => { vi.unstubAllEnvs(); });
@@ -62,14 +66,34 @@ describe("rol y tienda salen de la base, no del JWT", () => {
     await expect(createLocationAction({ name: "Nueva" })).rejects.toBeInstanceOf(ForbiddenError);
     expect(createLocation).not.toHaveBeenCalled();
   });
-  it("la base dice colaborador de otra tienda: createProductAction → FORBIDDEN", async () => {
+  it("colaborador de otra tienda da de alta en loc-clubalva: no FORBIDDEN", async () => {
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-lomas"));
-    expect(await createProductAction(input)).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(createProduct).not.toHaveBeenCalled();
+    expect(await createProductAction(input)).not.toMatchObject({ code: "FORBIDDEN" });
   });
-  it("manager con tienda loc-lomas y alta en loc-clubalva → FORBIDDEN", async () => {
+  it("manager con tienda loc-lomas y alta en loc-clubalva: no FORBIDDEN", async () => {
     getCurrentUser.mockResolvedValue(user("manager", "loc-lomas"));
-    expect(await createProductAction(input)).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(await createProductAction(input)).not.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
+describe("tienda de trabajo: colaborador y encargado operan en cualquier tienda", () => {
+  const move = (locationId: string) => recordStockMovementAction({
+    variantId: "v1", locationId, kind: "restock", quantity: 1, requestId: crypto.randomUUID(),
+  });
+  it("colaborador con tienda A registra entrada en B → ok", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", "loc-clubalva"));
+    expect(await move("loc-lomas")).toEqual({ ok: true, available: 3, replayed: false });
+    expect(recordStockMovement).toHaveBeenCalledWith(expect.objectContaining({ locationId: "loc-lomas", userId: "u1" }));
+  });
+  it("colaborador sin tienda asignada registra entrada en A → ok", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", null));
+    expect(await move("loc-clubalva")).toMatchObject({ ok: true });
+  });
+  it("sin tienda elegida → INVALID o FORBIDDEN con texto claro, sin escribir", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", "loc-clubalva"));
+    const r = await move("");
+    expect(r.ok).toBe(false);
+    expect(recordStockMovement).not.toHaveBeenCalled();
   });
 });
 

@@ -1,7 +1,8 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth/current-user";
-import { UnauthenticatedError } from "@/lib/auth/errors";
+import { ForbiddenError, UnauthenticatedError } from "@/lib/auth/errors";
+import { assertCanOperate } from "@/lib/auth/permissions";
 import { getSalesSource } from "@/lib/data/get-sales-source";
 import { MAX_CANCEL_REASON_LENGTH, validateNewSale } from "@/lib/domain/sale";
 import prisma from "@/lib/prisma";
@@ -28,12 +29,12 @@ export async function createSaleAction(input: unknown): Promise<SaleActionResult
   if (!parsed.ok) return fail("INVALID", parsed.message);
   const sale = parsed.value;
 
-  // Colaborador: solo su tienda. Manager con tienda asignada: solo esa (como R13).
-  // Owner y manager sin tienda pueden vender en cualquiera.
-  const storeBound =
-    user.role === "collaborator" || (user.role === "manager" && !!user.locationId);
-  if (storeBound && sale.locationId !== user.locationId) {
-    return fail("FORBIDDEN", "Solo puedes vender en tu tienda.");
+  // Cualquier rol vende en la tienda elegida; si no existe, la llave foránea responde (P2003 → INVALID).
+  try {
+    assertCanOperate(user, sale.locationId);
+  } catch (err) {
+    if (err instanceof ForbiddenError) return fail("FORBIDDEN", err.message);
+    throw err;
   }
 
   try {
@@ -77,14 +78,7 @@ export async function confirmSalePaymentAction(
   }
   if (typeof saleId !== "string" || !saleId) return fail("INVALID", "La venta no es válida.");
   try {
-    // El encargado con tienda solo confirma cobros de esa tienda (R13).
-    if (user.role === "manager" && user.locationId) {
-      const target = await prisma.sale.findUnique({ where: { id: saleId }, select: { locationId: true } });
-      if (!target) return fail("NOT_FOUND", "La venta no existe.");
-      if (target.locationId !== user.locationId) {
-        return fail("FORBIDDEN", "Solo puedes confirmar pagos de tu tienda.");
-      }
-    }
+    // El encargado, con o sin tienda asignada, confirma cobros de cualquier tienda (D5 del traspaso).
     const sale = await getSalesSource().confirmPayment(saleId, user.id, reference);
     revalidatePath("/ventas");
     return { ok: true, sale };

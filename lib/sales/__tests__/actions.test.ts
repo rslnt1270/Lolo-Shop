@@ -71,17 +71,27 @@ describe("sesión", () => {
 });
 
 describe("createSaleAction", () => {
-  it("collaborator en otra tienda: FORBIDDEN", async () => {
+  it("collaborator con tienda A vende en B: ok, sin FORBIDDEN", async () => {
     as("collaborator", "A");
     const r = await createSaleAction(input());
-    expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Solo puedes vender en tu tienda." });
-    expect(source.createSale).not.toHaveBeenCalled();
+    expect(r.ok).toBe(true);
+    expect(source.createSale).toHaveBeenCalledWith(expect.objectContaining({ locationId: "B" }), "u1");
   });
-  it("manager con tienda A vende en B: FORBIDDEN (misma regla que R13)", async () => {
+  it("collaborator sin tienda asignada vende en B: ok", async () => {
+    as("collaborator", null);
+    expect((await createSaleAction(input())).ok).toBe(true);
+  });
+  it("manager con tienda A vende en B: no devuelve FORBIDDEN", async () => {
     as("manager", "A");
     const r = await createSaleAction(input());
-    expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Solo puedes vender en tu tienda." });
-    expect(source.createSale).not.toHaveBeenCalled();
+    expect(r).not.toMatchObject({ code: "FORBIDDEN" });
+    expect(r.ok).toBe(true);
+  });
+  it("tienda que no existe (llave foránea P2003): error controlado, no excepción", async () => {
+    as("collaborator", "A");
+    source.createSale.mockRejectedValue(prismaError("P2003"));
+    const r = await createSaleAction(input({ locationId: "no-existe" }));
+    expect(r).toEqual({ ok: false, code: "INVALID", message: "La tienda o la prenda ya no existe." });
   });
   it("manager con tienda B vende en B: ok", async () => {
     as("manager", "B");
@@ -235,25 +245,24 @@ describe("confirmSalePaymentAction", () => {
   it("manager con tienda confirma una venta de su tienda", async () => {
     as("manager", "B");
     expect((await confirmSalePaymentAction("s1")).ok).toBe(true);
-    expect(saleFindUnique).toHaveBeenCalledWith({ where: { id: "s1" }, select: { locationId: true } });
+    expect(source.confirmPayment).toHaveBeenCalledWith("s1", "u1", undefined);
   });
-  it("manager con tienda no confirma ventas de otra tienda: FORBIDDEN", async () => {
+  it("manager asignado a A confirma un pago de la tienda B (D5: queda libre)", async () => {
     as("manager", "A");
-    expect(await confirmSalePaymentAction("s1")).toEqual({
-      ok: false,
-      code: "FORBIDDEN",
-      message: "Solo puedes confirmar pagos de tu tienda.",
-    });
-    expect(source.confirmPayment).not.toHaveBeenCalled();
+    source.confirmPayment.mockResolvedValue(sale({ locationId: "B" }));
+    const r = await confirmSalePaymentAction("s1");
+    expect(r).toMatchObject({ ok: true, sale: { locationId: "B" } });
+    expect(source.confirmPayment).toHaveBeenCalledWith("s1", "u1", undefined);
+    expect(saleFindUnique).not.toHaveBeenCalled();
   });
   it("manager con tienda y venta inexistente: NOT_FOUND", async () => {
     as("manager", "A");
-    saleFindUnique.mockResolvedValue(null);
+    source.confirmPayment.mockRejectedValue(new SalesRuleError("La venta no existe."));
     expect(await confirmSalePaymentAction("nope")).toMatchObject({ ok: false, code: "NOT_FOUND" });
-    expect(source.confirmPayment).not.toHaveBeenCalled();
   });
   it.each([
     ["manager sin tienda", "manager", null],
+    ["manager con tienda", "manager", "A"],
     ["owner", "owner", null],
   ])("%s confirma ventas de cualquier tienda sin consultar la tienda", async (_l, role, loc) => {
     as(role, loc);

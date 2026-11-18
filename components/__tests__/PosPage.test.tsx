@@ -60,7 +60,18 @@ async function readyWithOneLine() {
   await screen.findByText("Playera");
 }
 
+/** Colaborador con tienda de siempre l2 y sin tienda elegida en esta sesión. */
+function asCollaborator() {
+  session.value = {
+    data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
+    status: "authenticated",
+  };
+  sessionStorage.removeItem("loloshop:work-location");
+}
+
 async function scan(code: string) {
+  // La tienda de trabajo llega con la lista de tiendas: se escanea ya con ella elegida.
+  await screen.findByText(/^Estás en:/);
   fireEvent.change(screen.getByLabelText(/código del producto/i), { target: { value: code } });
   fireEvent.click(screen.getByRole("button", { name: /usar este código/i }));
   await waitFor(() => expect(actions.lookupCodeAction).toHaveBeenCalledWith(code, expect.any(String)));
@@ -69,6 +80,8 @@ async function scan(code: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
+  // Tienda elegida antes en esta sesión (sin ella el dueño tiene que elegir).
+  sessionStorage.setItem("loloshop:work-location", "l1");
   session.value = {
     data: { user: { id: "u1", name: "Lolo", role: "owner", locationId: null } },
     status: "authenticated",
@@ -97,25 +110,51 @@ describe("POSPage", () => {
     expect(screen.getByRole("button", { name: /^cobrar/i })).toBeEnabled();
   });
 
-  it("owner y manager ven selector de tienda; el collaborator no", async () => {
+  it("todos los roles ven el selector de tienda; el colaborador arranca en su tienda de siempre", async () => {
     const { unmount } = render(<POSPage />);
-    expect(await screen.findByRole("combobox", { name: /tienda/i })).toBeInTheDocument();
+    expect(await screen.findByText("Estás en: Centro")).toBeInTheDocument();
     unmount();
+    asCollaborator();
+    render(<POSPage />);
+    expect(await screen.findByText("Estás en: Plaza")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Cambiar tienda" })).toBeEnabled();
+  });
+
+  it("colaborador sin tienda asignada ya no queda bloqueado; con tienda guardada vende en ella", async () => {
     session.value = {
-      data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
+      data: { user: { id: "u3", name: "Colab", role: "collaborator", locationId: null } },
       status: "authenticated",
     };
+    sessionStorage.setItem("loloshop:work-location", "l2");
+    actions.createSaleAction.mockResolvedValue({ ok: true, sale: { number: 7 } });
     render(<POSPage />);
-    await screen.findByRole("button", { name: /^cobrar/i });
-    expect(screen.queryByRole("combobox", { name: /tienda/i })).not.toBeInTheDocument();
-    expect(actions.fetchLocationsAction).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Estás en: Plaza")).toBeInTheDocument();
+    expect(screen.queryByText(/no tiene una tienda asignada/i)).toBeNull();
+    await scan("111");
+    expect(actions.lookupCodeAction).toHaveBeenCalledWith("111", "l2");
+    await screen.findByText("Playera");
+    cobrar();
+    await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalled());
+    expect(actions.createSaleAction.mock.calls[0][0].locationId).toBe("l2");
+  });
+
+  it("colaborador cambia de tienda y la venta sale con la elegida", async () => {
+    asCollaborator();
+    actions.createSaleAction.mockResolvedValue({ ok: true, sale: { number: 8 } });
+    render(<POSPage />);
+    await screen.findByText("Estás en: Plaza");
+    fireEvent.change(screen.getByRole("combobox", { name: "Cambiar tienda" }), { target: { value: "l1" } });
+    expect(screen.getByText("Estás en: Centro")).toBeInTheDocument();
+    expect(sessionStorage.getItem("loloshop:work-location")).toBe("l1");
+    await scan("111");
+    await screen.findByText("Playera");
+    cobrar();
+    await waitFor(() => expect(actions.createSaleAction).toHaveBeenCalled());
+    expect(actions.createSaleAction.mock.calls[0][0].locationId).toBe("l1");
   });
 
   it("el collaborator no edita el precio y vende en su tienda", async () => {
-    session.value = {
-      data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
-      status: "authenticated",
-    };
+    asCollaborator();
     actions.createSaleAction.mockResolvedValue({ ok: true, sale: { number: 5 } });
     render(<POSPage />);
     await scan("111");
@@ -184,10 +223,7 @@ describe("POSPage", () => {
   });
 
   it("PRICE_CHANGED: actualiza el renglón, avisa y el siguiente Cobrar usa otro clientRequestId", async () => {
-    session.value = {
-      data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
-      status: "authenticated",
-    };
+    asCollaborator();
     actions.createSaleAction
       .mockResolvedValueOnce({
         ok: false,
@@ -213,10 +249,7 @@ describe("POSPage", () => {
   });
 
   it("error de red y luego PRICE_CHANGED: el id no se renueva (el primer cobro pudo registrarse) y el siguiente cobro lo reutiliza", async () => {
-    session.value = {
-      data: { user: { id: "u2", name: "Colab", role: "collaborator", locationId: "l2" } },
-      status: "authenticated",
-    };
+    asCollaborator();
     actions.createSaleAction
       .mockRejectedValueOnce(new Error("network"))
       .mockResolvedValueOnce({
@@ -475,6 +508,15 @@ describe("POSPage", () => {
     await screen.findByText(/no pudimos cargar las tiendas/i);
     fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
     await screen.findByDisplayValue("Centro");
+  });
+
+  it("fetchLocationsAction falla y el reintento carga: el aviso de tiendas se quita", async () => {
+    actions.fetchLocationsAction.mockRejectedValueOnce(new Error("red"));
+    render(<POSPage />);
+    await screen.findByText("No pudimos cargar las tiendas. Revisa tu conexión.");
+    fireEvent.click(screen.getByRole("button", { name: /reintentar/i }));
+    await screen.findByDisplayValue("Centro");
+    expect(screen.queryByText("No pudimos cargar las tiendas. Revisa tu conexión.")).toBeNull();
   });
 
   it("sin sesión: aviso con enlace a iniciar sesión", () => {

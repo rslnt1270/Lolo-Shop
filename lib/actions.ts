@@ -6,7 +6,6 @@ import { ForbiddenError } from "./auth/errors";
 import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
-import { scopeInventory, scopeLocations, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
 import {
   validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
@@ -20,10 +19,11 @@ import { SESSION_EXPIRED_TEXT } from "./session-text";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
 import type { InventoryDataSource, ProductSearchHit, VariantMatch, VariantStockRow } from "./data/source";
 import {
-  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isTransactionTimeout, uniqueViolationField,
+  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, TransferRequestConflictError, isDeadlock, isTransactionTimeout,
+  uniqueViolationField,
 } from "./data/errors";
 import {
-  validateStockMovement, type StockMovementKind,
+  validateStockMovement, validateTransfer, type StockMovementKind,
 } from "./domain/stock-movement";
 import { uploadImage, ImageUploadError } from "./image/upload";
 import { changePassword, type ChangePasswordResult } from "./auth/password";
@@ -31,13 +31,13 @@ import { changePassword, type ChangePasswordResult } from "./auth/password";
 export async function fetchProductsAction(): Promise<Product[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return (await getDataSource().getProducts()).map((p) => scopeInventory(p, user));
+  return getDataSource().getProducts();
 }
 
 export async function fetchLocationsAction(): Promise<Location[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return scopeLocations(await getDataSource().getLocations(), user);
+  return getDataSource().getLocations();
 }
 
 export async function createLocationAction(data: { name: string; type?: LocationType }): Promise<Location> {
@@ -53,15 +53,13 @@ export async function createLocationAction(data: { name: string; type?: Location
 export async function getProductByBarcodeAction(code: string): Promise<VariantMatch | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  const match = await getDataSource().getProductByBarcode(code);
-  return match && scopeVariantMatch(match, user);
+  return getDataSource().getProductByBarcode(code);
 }
 
 export async function getProductByVariantIdAction(id: string): Promise<VariantMatch | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  const match = await getDataSource().getProductByVariantId(id);
-  return match && scopeVariantMatch(match, user);
+  return getDataSource().getProductByVariantId(id);
 }
 
 export type StockMovementResult =
@@ -128,6 +126,97 @@ export async function recordStockMovementAction(input: {
   }
 }
 
+export type TransferResult =
+  | { ok: true; replayed: boolean; fromAvailable: number; toAvailable: number; message: string }
+  | {
+      ok: false;
+      code: "SESSION" | "FORBIDDEN" | "INVALID" | "INSUFFICIENT" | "NOT_FOUND" | "ERROR";
+      message: string;
+      available?: number;
+    };
+
+function transferDoneText(n: number, from: string, to: string, fromAvailable: number, toAvailable: number): string {
+  const moved = n === 1 ? `Traspasada 1 pieza` : `Traspasadas ${n} piezas`;
+  return `${moved} de ${from} a ${to}. Ahora: ${from} ${fromAvailable} · ${to} ${toAvailable}.`;
+}
+
+/** Nombre de la tienda de origen para el texto de faltante; si la consulta falla, un genérico. */
+async function originNameOrGeneric(locationId: string): Promise<string> {
+  try {
+    const name = (await getDataSource().getLocations()).find((l) => l.id === locationId)?.name;
+    if (name) return name;
+  } catch (err) {
+    console.error("transferStockAction origin name", err);
+  }
+  return "la tienda de origen";
+}
+
+/**
+ * Traspaso de piezas de una tienda a otra (salida y entrada en la misma transacción).
+ * Cualquier rol con sesión puede traspasar entre cualquier par de tiendas. El mismo
+ * `requestId` no mueve piezas dos veces: responde con las existencias actuales. Nunca lanza.
+ */
+export async function transferStockAction(input: {
+  variantId: string;
+  fromLocationId: string;
+  toLocationId: string;
+  quantity: number;
+  reason?: string;
+  requestId: string;
+}): Promise<TransferResult> {
+  let fromLocationId = "";
+  try {
+    const user = await currentUserOrNull();
+    if (!user) return { ok: false, code: "SESSION", message: SESSION_EXPIRED_TEXT };
+
+    const parsed = validateTransfer(input);
+    if (!parsed.ok) return { ok: false, code: "INVALID", message: parsed.message };
+    const v = parsed.value;
+    fromLocationId = v.fromLocationId;
+
+    assertCanOperate(user, v.fromLocationId);
+    assertCanOperate(user, v.toLocationId);
+
+    const res = await getDataSource().transferStock({
+      variantId: v.variantId,
+      fromLocationId: v.fromLocationId,
+      toLocationId: v.toLocationId,
+      quantity: v.quantity,
+      notes: v.reason,
+      requestId: v.requestId,
+      userId: user.id,
+    });
+    revalidatePath("/catalogo");
+    revalidatePath("/productos");
+    return {
+      ok: true,
+      replayed: res.replayed,
+      fromAvailable: res.fromAvailable,
+      toAvailable: res.toAvailable,
+      message: transferDoneText(v.quantity, res.fromName, res.toName, res.fromAvailable, res.toAvailable),
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { ok: false, code: "FORBIDDEN", message: err.message };
+    if (err instanceof InsufficientStockError) {
+      return {
+        ok: false,
+        code: "INSUFFICIENT",
+        available: err.available,
+        message: `Solo hay ${err.available} en ${await originNameOrGeneric(fromLocationId)}.`,
+      };
+    }
+    if (err instanceof StockTargetNotFoundError) {
+      return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
+    }
+    if (err instanceof TransferRequestConflictError) {
+      return { ok: false, code: "INVALID", message: "Esta operación ya se registró con otros datos. Vuelve a intentarlo." };
+    }
+    console.error("transferStockAction", err);
+    if (isTransactionTimeout(err) || isDeadlock(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };
+    return { ok: false, code: "ERROR", message: "No se pudo registrar. Intenta de nuevo." };
+  }
+}
+
 export type LookupCodeResult =
   | { found: true; product: Product; variantId: string; stock?: { available: number; sold: boolean } }
   | { found: false; code: string; error?: string };
@@ -146,9 +235,8 @@ export async function lookupCodeAction(raw: string, locationId?: string): Promis
     }
     const store = typeof locationId === "string" && locationId ? locationId : null;
     if (store) assertCanOperate(user, store);
-    const rawMatch = await getDataSource().getProductByBarcode(code);
-    if (!rawMatch) return { found: false, code };
-    const match = scopeVariantMatch(rawMatch, user);
+    const match = await getDataSource().getProductByBarcode(code);
+    if (!match) return { found: false, code };
     const base = { found: true as const, product: withVariant(match), variantId: match.variant.id };
     if (!store) return base;
     try {
@@ -168,7 +256,7 @@ export async function lookupCodeAction(raw: string, locationId?: string): Promis
 export type { VariantStockRow } from "./data/source";
 
 /**
- * Tallas de un producto con sus piezas en una tienda. `null` sin sesión; `[]` si la tienda no es del usuario
+ * Tallas de un producto con sus piezas en una tienda. `null` sin sesión; `[]` si falta la tienda elegida
  * o si la consulta falla. Única puerta del cliente a `listVariantStockAt`.
  */
 export async function listVariantStockAtAction(productId: string, locationId: string): Promise<VariantStockRow[] | null> {
@@ -332,7 +420,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
     }
 
     const ds = getDataSource();
-    // Permiso antes que catálogos: un colaborador de otra tienda no consulta nada más.
+    // Permiso antes que catálogos: sin tienda elegida no se consulta nada más.
     try {
       assertCanOperate(user, typeof input.locationId === "string" ? input.locationId : "");
     } catch (err) {
@@ -489,7 +577,7 @@ export async function addVariantAction(input: AddVariantInput): Promise<CreatePr
           userId: user.id,
         });
         revalidateProducts("addVariantAction");
-        return { ok: true, product: withVariant(scopeVariantMatch(match, user)), variantId: match.variant.id, sku: match.variant.sku };
+        return { ok: true, product: withVariant(match), variantId: match.variant.id, sku: match.variant.sku };
       } catch (err) {
         if (err instanceof InventoryRuleError) return { ok: false, code: "INVALID", message: err.message };
         const field = uniqueViolationField(err);

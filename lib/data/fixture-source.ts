@@ -4,6 +4,7 @@ import {
   type AddVariantData, type CreatedProduct, type CreateLocationData, type CreateProductData, type InventoryDataSource, type MergeProductsResult,
   type AssignProductTypeResult, type StockByTypeRow,
   type PriceChangeEntry, type ProductPatch, type ProductSearchHit, type RecordStockMovementData,
+  type TransferStockData, type TransferStockResult, transferNotes,
   type UpdateVariantPriceResult, type VariantMatch, type StockAt, type VariantStockRow,
   MOVEMENT_PAGE_SIZE, type MovementPage, type MovementQuery, type MovementRow,
 } from "./source";
@@ -18,7 +19,8 @@ import { UNIQUE_SIZE, normalizeSize, sortSizes } from "@/lib/domain/sizes";
 import { stripTrailingSize, trailingSize } from "@/lib/domain/size-duplicates";
 import { normalizePublicCode } from "@/lib/domain/public-code";
 import {
-  InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, UniqueConstraintError,
+  InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, TransferRequestConflictError,
+  UniqueConstraintError,
 } from "./errors";
 
 function cloneProducts(products: Product[]): Product[] {
@@ -219,6 +221,44 @@ export class FixtureDataSource implements InventoryDataSource {
     }
     this.log({ variantId, locationId, type, delta, notes, requestId, userId });
     return { available: current + delta, replayed: false };
+  }
+
+  async transferStock(data: TransferStockData): Promise<TransferStockResult> {
+    const { variantId, fromLocationId, toLocationId, quantity: n, notes, requestId, userId } = data;
+    if (!Number.isInteger(n) || n <= 0) throw new Error("El traspaso debe ser de un entero positivo de piezas.");
+    const match = await this.getProductByVariantId(variantId);
+    const fromName = this.locations.find((l) => l.id === fromLocationId)?.name;
+    const toName = this.locations.find((l) => l.id === toLocationId)?.name;
+    if (!match || fromName === undefined || toName === undefined) throw new StockTargetNotFoundError();
+
+    const inv = match.variant.inventory;
+    const levelOf = (locationId: string) => inv.find((l) => l.locationId === locationId)?.available ?? 0;
+    const out = this.movements.find((m) => m.requestId === `${requestId}:out`);
+    if (out) {
+      const entry = this.movements.find((m) => m.requestId === `${requestId}:in`);
+      if (
+        out.variantId !== variantId || out.locationId !== fromLocationId || out.delta !== -n ||
+        entry?.locationId !== toLocationId
+      ) {
+        throw new TransferRequestConflictError();
+      }
+      return { fromAvailable: levelOf(fromLocationId), toAvailable: levelOf(toLocationId), fromName, toName, replayed: true };
+    }
+
+    const from = inv.find((l) => l.locationId === fromLocationId);
+    // Sin fila o sin piezas suficientes: no se crea fila ni Movement.
+    if (!from || from.available < n) throw new InsufficientStockError(variantId, from?.available ?? 0, n);
+    from.available -= n;
+    const to = inv.find((l) => l.locationId === toLocationId);
+    if (to) to.available += n;
+    else inv.push({ locationId: toLocationId, available: n });
+
+    const text = transferNotes(fromName, toName, notes);
+    this.log(
+      { variantId, locationId: fromLocationId, type: "TRANSFER", delta: -n, notes: text.out, requestId: `${requestId}:out`, userId },
+      { variantId, locationId: toLocationId, type: "TRANSFER", delta: n, notes: text.in, requestId: `${requestId}:in`, userId },
+    );
+    return { fromAvailable: levelOf(fromLocationId), toAvailable: levelOf(toLocationId), fromName, toName, replayed: false };
   }
 
   /** Mismas reglas de unicidad que Prisma: barcode y sku únicos en toda la base (también dentro del envío). */

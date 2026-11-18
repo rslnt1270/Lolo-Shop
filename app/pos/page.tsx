@@ -8,7 +8,9 @@ import { SaleCart, type PendingScan } from "@/components/sales/SaleCart";
 import { Button } from "@/components/ui/Button";
 import { SaleProductSearch } from "@/components/sales/SaleProductSearch";
 import { PaymentPicker } from "@/components/sales/PaymentPicker";
-import { fetchLocationsAction, lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
+import { lookupCodeAction, type LookupCodeResult } from "@/lib/actions";
+import { useWorkLocation } from "@/lib/client/use-work-location";
+import { WorkLocationPicker } from "@/components/layout/WorkLocationPicker";
 import { createSaleAction } from "@/lib/sales/actions";
 import { isValidGtin, normalizeCode } from "@/lib/domain/barcode";
 import type { VariantMatch } from "@/lib/data/source";
@@ -31,7 +33,6 @@ import {
   useOfflinePos, useOnline, useRevalidatedSession,
 } from "@/lib/offline/use-offline-pos";
 
-type LocationOption = { id: string; name: string };
 type Notice = { kind: "ok" | "error"; text: string; login?: boolean };
 type ApplyOutcome = { added: number; rejected: string | null; ok: string; title?: string; shortReason?: string };
 type StockError = { message: string; signature: string; variantId?: string };
@@ -54,6 +55,10 @@ const UNCERTAIN_NOT_QUEUED_TEXT =
   "No se pudo registrar la venta ni guardarla en este teléfono. Reintenta el cobro o verifica en Ventas.";
 const OFFLINE_STORAGE_TEXT =
   "Este teléfono no pudo guardar datos sin internet (modo privado o sin espacio). Las ventas sin internet podrían no guardarse.";
+
+const SAVED_STORE_TEXT = "Tienda guardada en este teléfono";
+const OFFLINE_LOCK_TEXT = "Sin internet: se usa la tienda de la copia guardada.";
+const LOCATIONS_ERROR_TEXT = "No pudimos cargar las tiendas. Revisa tu conexión.";
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
@@ -93,15 +98,12 @@ function syncNoticeFor(summary: SyncSummary, pendingCount: number, online: boole
   if (!parts.length) return null;
   return { kind, text: parts.join(" "), ...(login ? { login: true } : {}) };
 }
-const LOCATION_KEY = "loloshop:pos:location";
 
 export default function POSPage() {
   const { data: session, status } = useSession();
   const draft = useSaleDraft();
   const { lines } = draft;
 
-  const [locations, setLocations] = useState<LocationOption[]>([]);
-  const [chosenLocation, setChosenLocation] = useState("");
   const [channel, setChannel] = useState<SaleChannel>("store");
   const [method, setMethod] = useState<PaymentMethod>("cash");
   const [alias, setAlias] = useState("");
@@ -117,8 +119,6 @@ export default function POSPage() {
   // Resultados que llegaron con un cobro en curso (o incierto): esperan para no alterar el carrito que se cobra.
   const heldRef = useRef(new Map<string, Extract<LookupCodeResult, { found: true }>>());
   const [cameraReady, setCameraReady] = useState(false);
-  const [locationsFailed, setLocationsFailed] = useState(false);
-  const [locationsAttempt, setLocationsAttempt] = useState(0);
   const submittingRef = useRef(false);
   // Carrito bloqueado: "uncertain" = no sabemos si la venta se registró; "conflict" = el id ya era otra venta.
   const [lock, setLockState] = useState<"uncertain" | "conflict" | null>(null);
@@ -146,18 +146,16 @@ export default function POSPage() {
   // next-auth no recupera una sesión que quedó en null sin red: al volver la conexión se pregunta al servidor.
   const revalidated = useRevalidatedSession({ online, status, sessionUser });
   const serverUser = sessionUser ?? revalidated.user;
-  const offline = useOfflinePos({
-    online,
-    sessionUser: serverUser,
-    locationId: serverUser?.role === "collaborator" ? (serverUser.locationId ?? "") : chosenLocation,
-  });
+  const hasServerSession = serverUser !== null;
+  // Todos los roles eligen tienda; se carga con la sesión ya conocida (la asignada es la sugerencia).
+  const work = useWorkLocation({ assigned: serverUser?.locationId ?? null, enabled: hasServerSession });
+  // Sin red, useOfflinePos cae a la tienda de la copia cuando no hay tienda elegida (como hoy).
+  const offline = useOfflinePos({ online, sessionUser: serverUser, locationId: work.locationId });
   // Sin conexión (o mientras se confirma la sesión al volver) manda la identidad local (≤ 12 h).
   const localUser =
     offline.identity && { id: offline.identity.userId, role: offline.identity.role, locationId: offline.identity.locationId };
   const user = online ? (serverUser ?? (revalidated.pending ? localUser : null)) : localUser;
-  const hasServerSession = serverUser !== null;
   const role = user?.role;
-  const isCollaborator = role === "collaborator";
   const canEditPrice = role === "owner" || role === "manager";
   const locationId = offline.locationId;
   const onlineRef = useRef(online);
@@ -175,47 +173,13 @@ export default function POSPage() {
     if (sync.lastSummary && sync.lastSummary.sent.length > 0) offlineRef.current.refreshSnapshot();
   }, [sync.lastSummary]);
 
+  // Tiendas que no cargan: se avisa (la sesión vencida, con enlace a iniciar sesión).
   useEffect(() => {
-    if (!hasServerSession || isCollaborator) return;
-    let cancelled = false;
-    setLocationsFailed(false);
-    fetchLocationsAction()
-      .then((res) => {
-        if (cancelled) return;
-        if (res == null) {
-          setLocationsFailed(true);
-          setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
-          return;
-        }
-        const list = res;
-        setLocations(list.map((l) => ({ id: l.id, name: l.name })));
-        let saved = "";
-        try {
-          saved = sessionStorage.getItem(LOCATION_KEY) ?? "";
-        } catch {
-          /* sin storage */
-        }
-        const pick = list.find((l) => l.id === saved) ?? list[0];
-        if (pick) setChosenLocation(pick.id);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setLocationsFailed(true);
-        setNotice({ kind: "error", text: "No pudimos cargar las tiendas. Revisa tu conexión." });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [hasServerSession, isCollaborator, locationsAttempt]);
-
-  const chooseLocation = (id: string) => {
-    setChosenLocation(id);
-    try {
-      sessionStorage.setItem(LOCATION_KEY, id);
-    } catch {
-      /* sin storage */
-    }
-  };
+    if (work.status === "session") setNotice({ kind: "error", text: SESSION_EXPIRED_TEXT, login: true });
+    else if (work.status === "error") setNotice({ kind: "error", text: LOCATIONS_ERROR_TEXT });
+    // Al cargar tras un reintento se quita solo ese aviso (otro aviso más reciente se respeta).
+    else if (work.status === "ready") setNotice((n) => (n?.text === LOCATIONS_ERROR_TEXT ? null : n));
+  }, [work.status]);
 
   const { add, quantityOf, clearAvailability } = draft;
   const locationRef = useRef(locationId);
@@ -794,13 +758,6 @@ export default function POSPage() {
   if (!user) {
     return <StaffLoadState state="session" retry={() => {}} />;
   }
-  if (isCollaborator && !user.locationId) {
-    return (
-      <main className="p-4 text-center">
-        Tu usuario no tiene una tienda asignada. Pide al dueño que te la asigne.
-      </main>
-    );
-  }
 
   const queueCount = sync.pendingCount + sync.otherUserCount;
   const attentionCount = sync.needsAttention.length;
@@ -817,6 +774,15 @@ export default function POSPage() {
       ? syncNoticeFor(sync.lastSummary, sync.pendingCount, online)
       : null;
   const canDiscard = role === "owner" || role === "manager";
+  // Sin red el selector queda fijo en la tienda de la copia, aunque la lista no haya cargado.
+  // Al abrir sin red la lista no carga: se usan los nombres guardados de la última carga.
+  const nameSource = work.locations.length > 0 ? work.locations : work.cachedLocations;
+  const knownName = nameSource.find((l) => l.id === locationId)?.name ?? null;
+  const pickerLocations = online
+    ? work.locations
+    : locationId && !knownName
+      ? [{ id: locationId, name: SAVED_STORE_TEXT }]
+      : nameSource;
   const discardSale = async (id: string) => {
     const ok = user ? await discardQueued(id, { currentUserId: user.id, role: user.role }) : false;
     await sync.refresh();
@@ -918,39 +884,20 @@ export default function POSPage() {
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:items-start">
         <section aria-label="Agregar prendas" className="space-y-4 rounded-2xl border border-borde-control/40 bg-white p-4">
-          {!isCollaborator && (
-            <div>
-              <label htmlFor="tienda" className="block text-sm font-semibold text-tinta">
-                Tienda
-              </label>
-              <select
-                id="tienda"
-                value={locationId}
-                disabled={lock !== null || submitting || !online}
-                onChange={(e) => chooseLocation(e.target.value)}
-                className="mt-1 block min-h-[44px] w-full rounded-lg border border-borde-control bg-white px-3 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-turquesa-texto"
-              >
-                {!online && locationId && !locations.some((l) => l.id === locationId) ? (
-                  // Sin conexión no hay lista de tiendas: queda fija la de la copia.
-                  <option value={locationId}>Tienda guardada en este teléfono</option>
-                ) : (
-                  locations.length === 0 && (
-                    <option value="">{locationsFailed ? "No se cargaron las tiendas" : "Cargando tiendas…"}</option>
-                  )
-                )}
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-              {locationsFailed && (
-                <Button variant="outline" onClick={() => setLocationsAttempt((n) => n + 1)} className="mt-2">
-                  Reintentar
-                </Button>
-              )}
-            </div>
-          )}
+          <div>
+            <WorkLocationPicker
+              value={locationId}
+              locations={pickerLocations}
+              onChange={work.choose}
+              disabled={lock !== null || submitting || !online}
+              lockedLabel={online ? undefined : OFFLINE_LOCK_TEXT}
+            />
+            {work.status === "error" && (
+              <Button variant="outline" onClick={work.retry} className="mt-2">
+                Reintentar
+              </Button>
+            )}
+          </div>
           <Scanner
             continuous
             onScan={handleScan}

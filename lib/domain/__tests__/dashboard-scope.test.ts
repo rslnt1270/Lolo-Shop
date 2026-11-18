@@ -4,17 +4,21 @@ import { scopeDashboardQuery } from "../dashboard-scope";
 const today = "2026-11-05";
 
 describe("scopeDashboardQuery", () => {
-  it("collaborator: solo hoy y su tienda aunque pida otro rango y all", () => {
+  it("collaborator: solo hoy y la tienda pedida (no la asignada) aunque pida otro rango", () => {
     const q = scopeDashboardQuery(
       { role: "collaborator", locationId: "A" },
-      { from: "2026-10-01", to: "2026-11-05", locationIds: "all" },
+      { locationIds: ["B"], from: "2026-01-01" },
       today,
     );
-    expect(q).toEqual({ from: today, to: today, locationIds: ["A"], pendingScope: "range" });
+    expect(q).toEqual({ from: today, to: today, locationIds: ["B"], pendingScope: "range" });
   });
 
-  it("collaborator sin tienda no ve ninguna", () => {
+  it("collaborator con all o sin locationIds pedido: ninguna tienda", () => {
+    expect(scopeDashboardQuery({ role: "collaborator", locationId: "A" }, { locationIds: "all" }, today).locationIds).toEqual([]);
+    expect(scopeDashboardQuery({ role: "collaborator", locationId: "A" }, {}, today).locationIds).toEqual([]);
     expect(scopeDashboardQuery({ role: "collaborator", locationId: null }, {}, today).locationIds).toEqual([]);
+    expect(scopeDashboardQuery({ role: "collaborator", locationId: null }, { locationIds: [""] }, today).locationIds).toEqual([]);
+    expect(scopeDashboardQuery({ role: "collaborator", locationId: null }, { locationIds: [5] as unknown as string[] }, today).locationIds).toEqual([]);
   });
 
   it("owner sin petición: últimos 30 días terminando hoy y all", () => {
@@ -33,10 +37,12 @@ describe("scopeDashboardQuery", () => {
     ).toEqual({ from: "2026-10-01", to: "2026-10-31", locationIds: ["B"], pendingScope: "all_dates", recentSalesDate: today });
   });
 
-  it("manager de A que pide all recibe [A]; ids ajenos se descartan", () => {
+  it("encargado con tienda A que pide B y un rango recibe B y el rango, sin recentSalesDate", () => {
     const m = { role: "manager" as const, locationId: "A" };
-    expect(scopeDashboardQuery(m, { locationIds: "all" }, today).locationIds).toEqual(["A"]);
-    expect(scopeDashboardQuery(m, { locationIds: ["B"] }, today).locationIds).toEqual(["A"]);
+    const q = scopeDashboardQuery(m, { locationIds: ["B"], from: "2026-10-01", to: "2026-10-31" }, today);
+    expect(q).toEqual({ from: "2026-10-01", to: "2026-10-31", locationIds: ["B"], pendingScope: "all_dates" });
+    expect(q).not.toHaveProperty("recentSalesDate");
+    expect(scopeDashboardQuery(m, { locationIds: "all" }, today).locationIds).toBe("all");
   });
 
   it("manager sin tienda recibe all", () => {
