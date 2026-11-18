@@ -82,4 +82,16 @@ describe("tienda pedida por el colaborador", () => {
     expect(getLocations).not.toHaveBeenCalled();
     expect(sent().locationIds).toEqual(["zzz"]);
   });
+  it("el encargado con tienda no consulta las tiendas y recibe el rango pedido y todas las tiendas", async () => {
+    getCurrentUser.mockResolvedValue({ id: "u", role: "manager", locationId: "A" });
+    await getDashboardAction({ from: "2026-10-01", to: "2026-10-31" });
+    expect(getLocations).not.toHaveBeenCalled();
+    expect(sent()).toMatchObject({ from: "2026-10-01", to: "2026-10-31", locationIds: "all" });
+  });
+  it("el encargado con tienda puede pedir otra tienda", async () => {
+    getCurrentUser.mockResolvedValue({ id: "u", role: "manager", locationId: "A" });
+    await getDashboardAction({ locationIds: ["B"] });
+    expect(getLocations).not.toHaveBeenCalled();
+    expect(sent().locationIds).toEqual(["B"]);
+  });
 });

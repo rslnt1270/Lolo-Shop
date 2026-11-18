@@ -78,14 +78,7 @@ export async function confirmSalePaymentAction(
   }
   if (typeof saleId !== "string" || !saleId) return fail("INVALID", "La venta no es válida.");
   try {
-    // El encargado con tienda solo confirma cobros de esa tienda (R13).
-    if (user.role === "manager" && user.locationId) {
-      const target = await prisma.sale.findUnique({ where: { id: saleId }, select: { locationId: true } });
-      if (!target) return fail("NOT_FOUND", "La venta no existe.");
-      if (target.locationId !== user.locationId) {
-        return fail("FORBIDDEN", "Solo puedes confirmar pagos de tu tienda.");
-      }
-    }
+    // El encargado, con o sin tienda asignada, confirma cobros de cualquier tienda (D5 del traspaso).
     const sale = await getSalesSource().confirmPayment(saleId, user.id, reference);
     revalidatePath("/ventas");
     return { ok: true, sale };
