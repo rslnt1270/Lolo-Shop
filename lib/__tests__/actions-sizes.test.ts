@@ -132,7 +132,7 @@ describe("addVariantAction", () => {
     expect(await add(productId, { locationId: "" })).toMatchObject({ ok: false, code: "FORBIDDEN", message: "Elige en qué tienda estás." });
   });
 
-  it("addVariantAction: el colaborador recibe el producto solo con el inventario de su tienda", async () => {
+  it("addVariantAction: el colaborador recibe el producto con el inventario de todas las tiendas (#39)", async () => {
     const productId = await productWithM();
     expect(await add(productId, { size: "S", locationId: "loc-2", initialStock: 4 })).toMatchObject({ ok: true });
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-1"));
@@ -141,8 +141,8 @@ describe("addVariantAction", () => {
     if (!r.ok) return;
     const rows = r.product.variants.flatMap((v) => v.inventory);
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every((l) => l.locationId === "loc-1")).toBe(true);
-    expect(JSON.stringify(r)).not.toContain("loc-2");
+    expect(rows.some((l) => l.locationId === "loc-1")).toBe(true);
+    expect(rows.some((l) => l.locationId === "loc-2")).toBe(true);
   });
 
   it("el colaborador sí agrega la talla (con precio) en su tienda", async () => {

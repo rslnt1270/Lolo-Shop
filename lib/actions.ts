@@ -6,7 +6,6 @@ import { ForbiddenError } from "./auth/errors";
 import { assertCanOperate, currentUserOrNull } from "./auth/permissions";
 import { getPublicCatalog, type PublicProduct } from "@/lib/data/public-projection";
 import { getDataSource } from "./data/get-source";
-import { scopeInventory, scopeLocations, scopeVariantMatch } from "./domain/inventory-scope";
 import type { Location, LocationType, Product } from "./domain/types";
 import {
   validateNewProduct, validateSizeRow, type EntryMode, type SizeRowInput,
@@ -31,13 +30,13 @@ import { changePassword, type ChangePasswordResult } from "./auth/password";
 export async function fetchProductsAction(): Promise<Product[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return (await getDataSource().getProducts()).map((p) => scopeInventory(p, user));
+  return getDataSource().getProducts();
 }
 
 export async function fetchLocationsAction(): Promise<Location[] | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  return scopeLocations(await getDataSource().getLocations(), user);
+  return getDataSource().getLocations();
 }
 
 export async function createLocationAction(data: { name: string; type?: LocationType }): Promise<Location> {
@@ -53,15 +52,13 @@ export async function createLocationAction(data: { name: string; type?: Location
 export async function getProductByBarcodeAction(code: string): Promise<VariantMatch | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  const match = await getDataSource().getProductByBarcode(code);
-  return match && scopeVariantMatch(match, user);
+  return getDataSource().getProductByBarcode(code);
 }
 
 export async function getProductByVariantIdAction(id: string): Promise<VariantMatch | null> {
   const user = await currentUserOrNull();
   if (!user) return null;
-  const match = await getDataSource().getProductByVariantId(id);
-  return match && scopeVariantMatch(match, user);
+  return getDataSource().getProductByVariantId(id);
 }
 
 export type StockMovementResult =
@@ -146,9 +143,8 @@ export async function lookupCodeAction(raw: string, locationId?: string): Promis
     }
     const store = typeof locationId === "string" && locationId ? locationId : null;
     if (store) assertCanOperate(user, store);
-    const rawMatch = await getDataSource().getProductByBarcode(code);
-    if (!rawMatch) return { found: false, code };
-    const match = scopeVariantMatch(rawMatch, user);
+    const match = await getDataSource().getProductByBarcode(code);
+    if (!match) return { found: false, code };
     const base = { found: true as const, product: withVariant(match), variantId: match.variant.id };
     if (!store) return base;
     try {
@@ -489,7 +485,7 @@ export async function addVariantAction(input: AddVariantInput): Promise<CreatePr
           userId: user.id,
         });
         revalidateProducts("addVariantAction");
-        return { ok: true, product: withVariant(scopeVariantMatch(match, user)), variantId: match.variant.id, sku: match.variant.sku };
+        return { ok: true, product: withVariant(match), variantId: match.variant.id, sku: match.variant.sku };
       } catch (err) {
         if (err instanceof InventoryRuleError) return { ok: false, code: "INVALID", message: err.message };
         const field = uniqueViolationField(err);

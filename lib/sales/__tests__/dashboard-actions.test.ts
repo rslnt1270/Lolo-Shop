@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getCurrentUser = vi.fn();
+const getLocations = vi.fn();
 const source = { getDashboard: vi.fn(), getLowStockThreshold: vi.fn(), setLowStockThreshold: vi.fn() };
 vi.mock("@/lib/auth/current-user", () => ({ getCurrentUser: () => getCurrentUser() }));
 vi.mock("@/lib/data/get-sales-source", () => ({ getSalesSource: () => source }));
+vi.mock("@/lib/data/get-source", () => ({ getDataSource: () => ({ getLocations }) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { getDashboardAction, getLowStockThresholdAction, setLowStockThresholdAction } from "../dashboard-actions";
@@ -50,5 +52,34 @@ describe("pendingReviewCount solo para el dueño", () => {
     const res = await getDashboardAction({});
     expect((res as { data: { pendingReviewCount: number } }).data.pendingReviewCount).toBe(3);
     expect((res as { data: { pendingReviewTotal: number } }).data.pendingReviewTotal).toBe(500);
+  });
+});
+
+describe("tienda pedida por el colaborador", () => {
+  beforeEach(() => {
+    getLocations.mockResolvedValue([{ id: "A" }, { id: "B" }]);
+    source.getDashboard.mockResolvedValue({ pendingReviewCount: 0, pendingReviewTotal: 0 });
+    getCurrentUser.mockResolvedValue({ id: "u", role: "collaborator", locationId: "A" });
+  });
+  const sent = () => source.getDashboard.mock.calls[0][0];
+
+  it("conserva un id que existe", async () => {
+    await getDashboardAction({ locationIds: ["B"] });
+    expect(sent().locationIds).toEqual(["B"]);
+  });
+  it("id inexistente: la consulta llega con [] y no lanza", async () => {
+    await expect(getDashboardAction({ locationIds: ["zzz"], from: "2020-01-01" })).resolves.toHaveProperty("data");
+    expect(sent().locationIds).toEqual([]);
+    expect(sent().from).toBe(sent().to);
+  });
+  it("sin id pedido: []", async () => {
+    await getDashboardAction({});
+    expect(sent().locationIds).toEqual([]);
+  });
+  it("el dueño no consulta las tiendas", async () => {
+    getCurrentUser.mockResolvedValue({ id: "u", role: "owner", locationId: null });
+    await getDashboardAction({ locationIds: ["zzz"] });
+    expect(getLocations).not.toHaveBeenCalled();
+    expect(sent().locationIds).toEqual(["zzz"]);
   });
 });

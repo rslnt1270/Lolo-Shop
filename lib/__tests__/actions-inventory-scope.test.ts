@@ -32,28 +32,25 @@ beforeEach(() => {
   getProductByVariantId.mockReset().mockResolvedValue({ product: product(), variant: variant() });
 });
 
-describe("recorte de stock por tienda", () => {
-  it("lookupCodeAction de un colaborador de loc-1 no trae la fila de loc-2", async () => {
+describe("existencias de todas las tiendas (#39)", () => {
+  it("lookupCodeAction de un colaborador de loc-1 trae las filas de todas las tiendas", async () => {
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-1"));
     const r = await lookupCodeAction("123");
-    expect(r.found && r.product.variants[0].inventory).toEqual([{ locationId: "loc-1", available: 3 }]);
-    expect(JSON.stringify(r)).not.toContain("loc-2");
+    expect(r.found && r.product.variants[0].inventory).toEqual(inv());
   });
 
-  it("fetchProductsAction de un colaborador no trae filas de otra tienda", async () => {
+  it("fetchProductsAction y las búsquedas por código del colaborador no recortan filas", async () => {
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-1"));
-    const r = await fetchProductsAction();
-    expect(JSON.stringify(r)).not.toContain("loc-2");
+    expect((await fetchProductsAction())?.[0].variants[0].inventory).toEqual(inv());
     const m1 = await getProductByBarcodeAction("123");
     const m2 = await getProductByVariantIdAction("v1");
-    expect(JSON.stringify([m1, m2])).not.toContain("loc-2");
+    expect(m1?.variant.inventory).toEqual(inv());
+    expect(m2?.product.variants[0].inventory).toEqual(inv());
   });
 
-  it("sesión vieja de owner con rol colaborador en la base: se recorta", async () => {
-    // getCurrentUser relee la base: devuelve collaborator aunque el JWT diga owner.
-    getCurrentUser.mockResolvedValue(user("collaborator", "loc-2"));
-    const r = await fetchProductsAction();
-    expect(r?.[0].variants[0].inventory).toEqual([{ locationId: "loc-2", available: 5 }]);
+  it("colaborador sin tienda también ve todas las filas", async () => {
+    getCurrentUser.mockResolvedValue(user("collaborator", null));
+    expect((await fetchProductsAction())?.[0].variants[0].inventory).toHaveLength(2);
   });
 
   it("owner y manager ven todas las tiendas", async () => {
@@ -63,16 +60,11 @@ describe("recorte de stock por tienda", () => {
     expect((await fetchProductsAction())?.[0].variants[0].inventory).toHaveLength(2);
   });
 
-  it("fetchLocationsAction: el colaborador recibe solo su tienda", async () => {
+  it("fetchLocationsAction: el colaborador recibe todas las tiendas, con o sin tienda asignada", async () => {
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-1"));
-    const r = await fetchLocationsAction();
-    expect(r?.map((l) => l.id)).toEqual(["loc-1"]);
-    expect(JSON.stringify(r)).not.toContain("Norte");
-  });
-
-  it("colaborador sin tienda recibe []", async () => {
+    expect((await fetchLocationsAction())?.map((l) => l.id)).toEqual(["loc-1", "loc-2"]);
     getCurrentUser.mockResolvedValue(user("collaborator", null));
-    expect(await fetchLocationsAction()).toEqual([]);
+    expect(await fetchLocationsAction()).toHaveLength(2);
   });
 
   it("owner y manager reciben todas", async () => {
@@ -80,10 +72,5 @@ describe("recorte de stock por tienda", () => {
     expect(await fetchLocationsAction()).toHaveLength(2);
     getCurrentUser.mockResolvedValue(user("manager", "loc-1"));
     expect(await fetchLocationsAction()).toHaveLength(2);
-  });
-
-  it("fetchLocationsAction: sesión vieja de owner con rol colaborador en la base → solo su tienda", async () => {
-    getCurrentUser.mockResolvedValue(user("collaborator", "loc-2"));
-    expect((await fetchLocationsAction())?.map((l) => l.id)).toEqual(["loc-2"]);
   });
 });
