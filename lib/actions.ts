@@ -19,7 +19,7 @@ import { SESSION_EXPIRED_TEXT } from "./session-text";
 import { normalizeCode, generateInternalSku } from "./domain/barcode";
 import type { InventoryDataSource, ProductSearchHit, VariantMatch, VariantStockRow } from "./data/source";
 import {
-  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, isDeadlock, isTransactionTimeout,
+  DB_TIMEOUT_TEXT, InsufficientStockError, InventoryRuleError, StockTargetNotFoundError, TransferRequestConflictError, isDeadlock, isTransactionTimeout,
   uniqueViolationField,
 } from "./data/errors";
 import {
@@ -207,6 +207,9 @@ export async function transferStockAction(input: {
     }
     if (err instanceof StockTargetNotFoundError) {
       return { ok: false, code: "NOT_FOUND", message: "No encontramos la prenda o la tienda." };
+    }
+    if (err instanceof TransferRequestConflictError) {
+      return { ok: false, code: "INVALID", message: "Esta operación ya se registró con otros datos. Vuelve a intentarlo." };
     }
     console.error("transferStockAction", err);
     if (isTransactionTimeout(err) || isDeadlock(err)) return { ok: false, code: "ERROR", message: DB_TIMEOUT_TEXT };

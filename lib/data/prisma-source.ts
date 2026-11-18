@@ -10,7 +10,7 @@ import {
 import { isAudience } from "../domain/product-taxonomy";
 import { MOVEMENT_TYPE_LABEL, type MovementType } from "../domain/types";
 import { mexicoRangeToUtc } from "../domain/movement-scope";
-import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError } from "./errors";
+import { InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, TransferRequestConflictError } from "./errors";
 import type { Location, Product, Variant } from "../domain/types";
 import prisma from "../prisma";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -437,6 +437,21 @@ export class PrismaDataSource implements InventoryDataSource {
       if (!variant || fromName === undefined || toName === undefined) throw new StockTargetNotFoundError();
       return { fromName, toName };
     };
+    /** Un reintento solo es el mismo traspaso si coinciden talla, origen, destino y piezas. */
+    const assertSameTransfer = async (client: Pick<PrismaClient, "movement">) => {
+      const rows = await client.movement.findMany({
+        where: { requestId: { in: [outId, inId] } },
+        select: { requestId: true, variantId: true, locationId: true, delta: true },
+      });
+      const out = rows.find((r) => r.requestId === outId);
+      const entry = rows.find((r) => r.requestId === inId);
+      if (
+        !out || out.variantId !== variantId || out.locationId !== fromLocationId || out.delta !== -n ||
+        entry?.locationId !== toLocationId
+      ) {
+        throw new TransferRequestConflictError();
+      }
+    };
     const current = async (client: Pick<PrismaClient, "inventoryLevel">, loc: { fromName: string; toName: string }) => ({
       fromAvailable: await levelOf(client, fromLocationId),
       toAvailable: await levelOf(client, toLocationId),
@@ -447,7 +462,10 @@ export class PrismaDataSource implements InventoryDataSource {
       return await this.db.$transaction(async (tx) => {
         const loc = await names(tx);
         const existing = await tx.movement.findUnique({ where: { requestId: outId }, select: { id: true } });
-        if (existing) return { ...(await current(tx, loc)), replayed: true };
+        if (existing) {
+          await assertSameTransfer(tx);
+          return { ...(await current(tx, loc)), replayed: true };
+        }
 
         const text = transferNotes(loc.fromName, loc.toName, notes);
         // Igual que recordStockMovement: la salida va primero para que su
@@ -481,6 +499,7 @@ export class PrismaDataSource implements InventoryDataSource {
       if (err instanceof Prisma.PrismaClientKnownRequestError) {
         if (err.code === "P2002" && /request_?id/i.test(String(err.meta?.target ?? ""))) {
           // Carrera: otro intento con el mismo requestId ganó; la transacción se revirtió.
+          await assertSameTransfer(this.db);
           return { ...(await current(this.db, await names(this.db))), replayed: true };
         }
         if (err.code === "P2003") throw new StockTargetNotFoundError();

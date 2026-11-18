@@ -95,6 +95,18 @@ export class SaleRequestConflictError extends Error {
   }
 }
 
+/**
+ * Reintento de traspaso con un `requestId` ya registrado pero con otra talla,
+ * otras tiendas u otro número de piezas: no es la misma operación y no se
+ * mueve nada.
+ */
+export class TransferRequestConflictError extends Error {
+  constructor(message = "Este traspaso ya se registró con otros datos.") {
+    super(message);
+    this.name = "TransferRequestConflictError";
+  }
+}
+
 /** Texto para el operador cuando la transacción vence o no consigue conexión a tiempo. */
 export const DB_TIMEOUT_TEXT = "La base tardó en responder; reintenta.";
 

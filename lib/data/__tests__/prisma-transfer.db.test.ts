@@ -5,7 +5,7 @@ import { hasTestDb, testPrisma } from "../../../test/db/setup";
 import { getTestDatabaseUrl } from "../../../test/db/guard";
 import { resetDb } from "../../../test/db/reset";
 import { PrismaDataSource } from "../prisma-source";
-import { InsufficientStockError, StockTargetNotFoundError } from "../errors";
+import { InsufficientStockError, StockTargetNotFoundError, TransferRequestConflictError } from "../errors";
 import type { TransferStockData } from "../source";
 
 // Dos clientes con su propio pool, como dos tabletas traspasando a la vez.
@@ -140,6 +140,52 @@ describe.skipIf(!hasTestDb)("PrismaDataSource.transferStock", () => {
     });
     expect(await available(w.alva)).toBe(1);
     expect(await available(w.lomas)).toBe(2);
+    expect(await testPrisma.movement.count()).toBe(2);
+  });
+
+  it("mismo requestId con otros datos: TransferRequestConflictError y nada cambia", async () => {
+    await setStock(w.alva, 5);
+    await setStock(w.lomas, 5);
+    const bodega = (await testPrisma.location.create({ data: { name: "Bodega" } })).id;
+    const requestId = randomUUID();
+    await ds.transferStock(transfer({ requestId }));
+    for (const over of [
+      { quantity: 1 },
+      { toLocationId: bodega },
+      { fromLocationId: w.lomas, toLocationId: w.alva },
+    ]) {
+      const err = await ds.transferStock(transfer({ ...over, requestId })).catch((e) => e);
+      expect(err).toBeInstanceOf(TransferRequestConflictError);
+    }
+    expect(await available(w.alva)).toBe(3);
+    expect(await available(w.lomas)).toBe(7);
+    expect(await available(bodega)).toBeNull();
+    expect(await testPrisma.movement.count()).toBe(2);
+  });
+
+  it("mismo requestId en paralelo con otras piezas: uno se registra y el otro es TransferRequestConflictError", async () => {
+    await setStock(w.alva, 5);
+    const requestId = randomUUID();
+    const results = await Promise.allSettled([
+      dsA.transferStock(transfer({ requestId, quantity: 2 })),
+      dsB.transferStock(transfer({ requestId, quantity: 1 })),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(rejected.reason).toBeInstanceOf(TransferRequestConflictError);
+    expect(await testPrisma.movement.count()).toBe(2);
+    expect((await testPrisma.movement.aggregate({ _sum: { delta: true } }))._sum.delta).toBe(0);
+  });
+
+  it("mismo requestId con otra talla: TransferRequestConflictError", async () => {
+    await setStock(w.alva, 3);
+    const product = await testPrisma.variant.findUniqueOrThrow({ where: { id: V1 }, select: { productId: true } });
+    const v2 = (await testPrisma.variant.create({ data: { productId: product.productId, title: "L", sku: "SKU-T-L", price: 300 } })).id;
+    const requestId = randomUUID();
+    await ds.transferStock(transfer({ requestId }));
+    await expect(ds.transferStock(transfer({ requestId, variantId: v2 }))).rejects.toBeInstanceOf(
+      TransferRequestConflictError,
+    );
     expect(await testPrisma.movement.count()).toBe(2);
   });
 

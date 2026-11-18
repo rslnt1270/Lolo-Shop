@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { FixtureDataSource } from "../fixture-source";
 import { getPublicCatalog } from "../public-projection";
-import { InsufficientStockError, StockTargetNotFoundError } from "../errors";
+import { InsufficientStockError, StockTargetNotFoundError, TransferRequestConflictError } from "../errors";
 
 describe("FixtureDataSource", () => {
   const ds = new FixtureDataSource();
@@ -250,6 +250,26 @@ describe("FixtureDataSource.transferStock", () => {
       toName: "Tienda 2",
       replayed: true,
     });
+    expect(ds.movements).toHaveLength(2);
+  });
+
+  it("mismo requestId con otros datos (piezas, destino, origen o talla): TransferRequestConflictError y nada cambia", async () => {
+    const ds = new FixtureDataSource();
+    await ds.createLocation({ name: "Lomas" });
+    const lomas = (await ds.getLocations()).find((l) => l.name === "Lomas")!.id;
+    await ds.transferStock({ ...base, requestId: "r-8" });
+    const before = JSON.stringify((await ds.getProductByVariantId("var-1"))!.variant.inventory);
+    for (const over of [
+      { quantity: 1 },
+      { toLocationId: lomas },
+      { fromLocationId: "loc-2", toLocationId: "loc-1" },
+      { variantId: "var-2" },
+    ]) {
+      await expect(ds.transferStock({ ...base, ...over, requestId: "r-8" })).rejects.toBeInstanceOf(
+        TransferRequestConflictError,
+      );
+    }
+    expect(JSON.stringify((await ds.getProductByVariantId("var-1"))!.variant.inventory)).toBe(before);
     expect(ds.movements).toHaveLength(2);
   });
 

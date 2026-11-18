@@ -93,6 +93,19 @@ describe("transferStockAction", () => {
     expect(await levelOf(alva)).toBe(1);
   });
 
+  it("mismo requestId con otras piezas -> INVALID 'Esta operación ya se registró con otros datos…' sin mover de nuevo", async () => {
+    const requestId = rid();
+    expect((await transferStockAction({ ...base(), requestId })).ok).toBe(true);
+    const r = await transferStockAction({ ...base(), quantity: 1, requestId });
+    expect(r).toEqual({
+      ok: false,
+      code: "INVALID",
+      message: "Esta operación ya se registró con otros datos. Vuelve a intentarlo.",
+    });
+    expect(await levelOf(alva)).toBe(1);
+    expect(await levelOf(lomas)).toBe(2);
+  });
+
   it("origen igual a destino -> INVALID 'Elige otra tienda de destino.' y no escribe", async () => {
     const spy = vi.spyOn(source, "transferStock");
     const r = await transferStockAction({ ...base(), toLocationId: alva });

@@ -19,7 +19,8 @@ import { UNIQUE_SIZE, normalizeSize, sortSizes } from "@/lib/domain/sizes";
 import { stripTrailingSize, trailingSize } from "@/lib/domain/size-duplicates";
 import { normalizePublicCode } from "@/lib/domain/public-code";
 import {
-  InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, UniqueConstraintError,
+  InsufficientStockError, InventoryRuleError, ProductNotFoundError, StockTargetNotFoundError, TransferRequestConflictError,
+  UniqueConstraintError,
 } from "./errors";
 
 function cloneProducts(products: Product[]): Product[] {
@@ -232,7 +233,15 @@ export class FixtureDataSource implements InventoryDataSource {
 
     const inv = match.variant.inventory;
     const levelOf = (locationId: string) => inv.find((l) => l.locationId === locationId)?.available ?? 0;
-    if (this.movements.some((m) => m.requestId === `${requestId}:out`)) {
+    const out = this.movements.find((m) => m.requestId === `${requestId}:out`);
+    if (out) {
+      const entry = this.movements.find((m) => m.requestId === `${requestId}:in`);
+      if (
+        out.variantId !== variantId || out.locationId !== fromLocationId || out.delta !== -n ||
+        entry?.locationId !== toLocationId
+      ) {
+        throw new TransferRequestConflictError();
+      }
       return { fromAvailable: levelOf(fromLocationId), toAvailable: levelOf(toLocationId), fromName, toName, replayed: true };
     }
 
