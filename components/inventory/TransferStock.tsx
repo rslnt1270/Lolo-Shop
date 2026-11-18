@@ -19,7 +19,7 @@ export interface TransferStockProps {
 }
 
 const control =
-  "mt-1 block min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto";
+  "mt-1 block min-h-[44px] w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 focus:border-turquesa-texto focus:outline-none focus:ring-2 focus:ring-turquesa-texto disabled:bg-gray-100 disabled:text-gray-500";
 
 /** "Traspasar 2 piezas" / "Traspasar 1 pieza"; sin número válido, genérico. */
 export function transferLabel(n: number | null): string {
@@ -30,7 +30,8 @@ export function transferLabel(n: number | null): string {
 /**
  * Mueve piezas de una talla de una tienda a otra. El `requestId` se conserva
  * en los reintentos (un doble toque o un tiempo agotado no mueven dos veces) y
- * se renueva tras un éxito o al cambiar origen, destino o piezas.
+ * se renueva tras un éxito o cuando cambian origen, destino o piezas (también
+ * si el origen cambia solo porque llegaron existencias nuevas).
  */
 export function TransferStock({ variantId, title, size, inventory, locations, defaultFrom, online, onDone }: TransferStockProps) {
   const [fromPick, setFromPick] = useState("");
@@ -42,6 +43,8 @@ export function TransferStock({ variantId, title, size, inventory, locations, de
   const [sessionExpired, setSessionExpired] = useState(false);
   const [done, setDone] = useState("");
   const requestIdRef = useRef<string | null>(null);
+  /** Datos con los que se generó `requestIdRef`: si cambian, el reintento es otra operación. */
+  const signatureRef = useRef("");
   const busyRef = useRef(false);
   const ids = { from: useId(), to: useId(), qty: useId(), reason: useId() };
 
@@ -55,10 +58,6 @@ export function TransferStock({ variantId, title, size, inventory, locations, de
   const max = Math.min(MAX_STOCK_QUANTITY, stock(from));
   const typed = qty.trim() === "" ? Number.NaN : Number(qty);
   const valid = Number.isInteger(typed) && typed >= 1 && typed <= max;
-
-  const renew = () => {
-    if (!busyRef.current) requestIdRef.current = null;
-  };
 
   if (origins.length === 0 || destinations.length === 0) {
     return (
@@ -82,7 +81,11 @@ export function TransferStock({ variantId, title, size, inventory, locations, de
     setSessionExpired(false);
     busyRef.current = true;
     setPending(true);
-    requestIdRef.current ??= crypto.randomUUID();
+    const signature = `${variantId}|${from}|${to}|${typed}`;
+    if (requestIdRef.current === null || signatureRef.current !== signature) {
+      requestIdRef.current = crypto.randomUUID();
+      signatureRef.current = signature;
+    }
     let result: TransferResult;
     try {
       result = withSession(
@@ -114,15 +117,15 @@ export function TransferStock({ variantId, title, size, inventory, locations, de
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label htmlFor={ids.from} className="block text-sm font-medium text-gray-700">De</label>
-          <select id={ids.from} value={from} className={control}
-            onChange={(e) => { setFromPick(e.target.value); setQty("1"); renew(); }}>
+          <select id={ids.from} value={from} className={control} disabled={pending}
+            onChange={(e) => { setFromPick(e.target.value); setQty("1"); }}>
             {origins.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
         <div>
           <label htmlFor={ids.to} className="block text-sm font-medium text-gray-700">A</label>
-          <select id={ids.to} value={to} className={control}
-            onChange={(e) => { setToPick(e.target.value); renew(); }}>
+          <select id={ids.to} value={to} className={control} disabled={pending}
+            onChange={(e) => setToPick(e.target.value)}>
             {destinations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
         </div>
@@ -131,13 +134,13 @@ export function TransferStock({ variantId, title, size, inventory, locations, de
         <div>
           <label htmlFor={ids.qty} className="block text-sm font-medium text-gray-700">Piezas</label>
           <input id={ids.qty} type="number" inputMode="numeric" min="1" max={max} step="1" value={qty}
-            onChange={(e) => { setQty(e.target.value); renew(); }}
+            disabled={pending} onChange={(e) => setQty(e.target.value)}
             className={`${control} font-mono`} />
         </div>
         <div>
           <label htmlFor={ids.reason} className="block text-sm font-medium text-gray-700">Motivo (opcional)</label>
           <input id={ids.reason} type="text" maxLength={120} autoComplete="off" value={reason}
-            onChange={(e) => setReason(e.target.value)} className={control} />
+            disabled={pending} onChange={(e) => setReason(e.target.value)} className={control} />
         </div>
       </div>
       <Button onClick={() => void submit()} loading={pending} disabled={!online} className="w-full">

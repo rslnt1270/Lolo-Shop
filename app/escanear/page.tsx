@@ -76,6 +76,11 @@ export default function EscanearPage() {
   const { locations, locationId } = work;
   const online = useOnline();
 
+  // Sube cada vez que la prenda en pantalla se descarta o cambia: una consulta tardía de antes se ignora.
+  const viewSeqRef = useRef(0);
+  const viewRef = useRef({ scannedCode, locationId });
+  viewRef.current = { scannedCode, locationId };
+
   // Si cambia la tienda de trabajo con una prenda en pantalla, se descarta: sus cifras eran de la otra tienda.
   const lastLocationRef = useRef(locationId);
   useEffect(() => {
@@ -83,6 +88,7 @@ export default function EscanearPage() {
     lastLocationRef.current = locationId;
     // La primera elección (de "" a una tienda, al cargar la lista) no descarta nada.
     if (!previous || previous === locationId) return;
+    viewSeqRef.current += 1;
     setScannedCode(null);
     setFound(null);
     setNewCode(undefined);
@@ -94,15 +100,22 @@ export default function EscanearPage() {
   /** Tras un traspaso, vuelve a consultar la prenda para mostrar cifras al día (sin ocultar el mensaje). */
   const refreshFound = async () => {
     if (!scannedCode || !locationId) return;
+    const seq = viewSeqRef.current;
+    const code = scannedCode;
+    const loc = locationId;
     try {
-      const result = await lookupCodeAction(scannedCode, locationId);
-      if (result.found) setFound(result);
+      const result = await lookupCodeAction(code, loc);
+      // Si mientras tanto tocó "Escanear otro", escaneó otra prenda o cambió de tienda, no se restaura.
+      const stale =
+        seq !== viewSeqRef.current || viewRef.current.scannedCode !== code || viewRef.current.locationId !== loc;
+      if (!stale && result.found) setFound(result);
     } catch {
       /* el mensaje del traspaso ya se mostró; las cifras se actualizan al volver a escanear */
     }
   };
 
   const reset = () => {
+    viewSeqRef.current += 1;
     setScannedCode(null);
     setFound(null);
     setNewCode(undefined);
@@ -112,6 +125,7 @@ export default function EscanearPage() {
   };
 
   const handleScan = useCallback(async (code: string) => {
+    viewSeqRef.current += 1;
     setScannedCode(code);
     setMessage("");
     setIsError(false);

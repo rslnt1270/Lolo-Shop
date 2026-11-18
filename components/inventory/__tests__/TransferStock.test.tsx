@@ -14,7 +14,7 @@ const locations = [
 
 function setup(over: Partial<React.ComponentProps<typeof TransferStock>> = {}) {
   const onDone = vi.fn();
-  render(
+  const view = (o: Partial<React.ComponentProps<typeof TransferStock>>) => (
     <TransferStock
       variantId="v1"
       title="Playera lisa"
@@ -24,10 +24,11 @@ function setup(over: Partial<React.ComponentProps<typeof TransferStock>> = {}) {
       defaultFrom="l1"
       online
       onDone={onDone}
-      {...over}
-    />,
+      {...o}
+    />
   );
-  return { onDone };
+  const { rerender } = render(view(over));
+  return { onDone, rerender: (o: Partial<React.ComponentProps<typeof TransferStock>>) => rerender(view({ ...over, ...o })) };
 }
 const options = (label: string) =>
   within(screen.getByLabelText(label)).getAllByRole("option").map((o) => o.textContent);
@@ -80,6 +81,45 @@ describe("TransferStock", () => {
     fireEvent.click(screen.getByRole("button", { name: "Traspasar 2 piezas" }));
     await waitFor(() => expect(transfer).toHaveBeenCalledTimes(2));
     expect(transfer.mock.calls[1][0].requestId).not.toBe(transfer.mock.calls[0][0].requestId);
+  });
+
+  it("falla, cambia el destino y reintenta: requestId nuevo", async () => {
+    transfer.mockResolvedValue({ ok: false, code: "ERROR", message: "Falló." });
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+    await screen.findByText("Falló.");
+    fireEvent.change(screen.getByLabelText("A"), { target: { value: "l3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+    await waitFor(() => expect(transfer).toHaveBeenCalledTimes(2));
+    expect(transfer.mock.calls[1][0].toLocationId).toBe("l3");
+    expect(transfer.mock.calls[1][0].requestId).not.toBe(transfer.mock.calls[0][0].requestId);
+  });
+
+  it("el origen cambia por existencias nuevas (sin tocar el selector): requestId nuevo", async () => {
+    transfer.mockResolvedValue({ ok: false, code: "ERROR", message: "Falló." });
+    const { rerender } = setup();
+    fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+    await screen.findByText("Falló.");
+    // Otra persona dejó Lomas en 0: el origen derivado pasa a Club Alva.
+    rerender({ inventory: [{ locationId: "l1", available: 0 }, { locationId: "l2", available: 1 }] });
+    expect((screen.getByLabelText("De") as HTMLSelectElement).value).toBe("l2");
+    fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+    await waitFor(() => expect(transfer).toHaveBeenCalledTimes(2));
+    expect(transfer.mock.calls[1][0].fromLocationId).toBe("l2");
+    expect(transfer.mock.calls[1][0].requestId).not.toBe(transfer.mock.calls[0][0].requestId);
+  });
+
+  it("mientras traspasa, tiendas, piezas y motivo quedan deshabilitados", async () => {
+    let release: (v: unknown) => void = () => {};
+    transfer.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+    for (const label of ["De", "A", "Piezas", /Motivo/]) {
+      expect((screen.getByLabelText(label) as HTMLInputElement).disabled).toBe(true);
+    }
+    release({ ok: false, code: "ERROR", message: "Tiempo agotado." });
+    await screen.findByText("Tiempo agotado.");
+    expect((screen.getByLabelText("A") as HTMLSelectElement).disabled).toBe(false);
   });
 
   it("INSUFFICIENT muestra el mensaje tal cual", async () => {

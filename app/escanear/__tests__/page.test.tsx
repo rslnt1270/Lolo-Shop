@@ -284,6 +284,45 @@ describe("/escanear: flujo de alta por lote", () => {
       await waitFor(() => expect(screen.getByText("2 pzas")).toBeTruthy());
     });
 
+    /** Prenda con piezas en loc-A; traspasa 1 a Lomas y deja la consulta posterior en espera. */
+    async function transferWithPendingRefresh() {
+      const prod = {
+        ...existingProduct,
+        variants: [{ ...existingProduct.variants[0], inventory: [{ locationId: "loc-1", available: 0 }, { locationId: "loc-A", available: 3 }] }],
+      };
+      lookup.mockResolvedValueOnce({ found: true, product: prod, variantId: "v1" });
+      transfer.mockResolvedValue({ ok: true, replayed: false, fromAvailable: 2, toAvailable: 1, message: "Traspasada 1 pieza de Tienda A a Lomas. Ahora: Tienda A 2 · Lomas 1." });
+      let release: (v: unknown) => void = () => {};
+      await renderPage();
+      fireEvent.click(screen.getByText("simular-escaneo"));
+      await screen.findByText("Playera X");
+      lookup.mockImplementationOnce(() => new Promise((r) => { release = r; }));
+      fireEvent.change(screen.getByLabelText("A"), { target: { value: "loc-1" } });
+      fireEvent.click(screen.getByRole("button", { name: "Traspasar 1 pieza" }));
+      await screen.findByText(/Traspasada 1 pieza de Tienda A a Lomas/);
+      await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+      return () => release({ found: true, product: prod, variantId: "v1" });
+    }
+
+    it("'Cancelar y escanear otro' antes de que vuelva la consulta tras traspasar: la prenda no regresa", async () => {
+      const finish = await transferWithPendingRefresh();
+      fireEvent.click(screen.getByRole("button", { name: "Cancelar y escanear otro" }));
+      expect(screen.queryByText("Playera X")).toBeNull();
+      finish();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByText("Playera X")).toBeNull();
+      expect(screen.getByTestId("scanner")).toBeTruthy();
+    });
+
+    it("cambiar de tienda antes de que vuelva la consulta tras traspasar: la prenda no regresa", async () => {
+      const finish = await transferWithPendingRefresh();
+      fireEvent.change(screen.getByLabelText("Cambiar tienda"), { target: { value: "loc-B" } });
+      await waitFor(() => expect(screen.queryByText("Playera X")).toBeNull());
+      finish();
+      await new Promise((r) => setTimeout(r, 0));
+      expect(screen.queryByText("Playera X")).toBeNull();
+    });
+
     it("cambiar de tienda con una prenda en pantalla la descarta", async () => {
       lookup.mockResolvedValue({ found: true, product: productWithRow(2), variantId: "v1" });
       await renderPage();
