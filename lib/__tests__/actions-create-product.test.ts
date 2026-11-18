@@ -60,17 +60,21 @@ describe("createProductAction", () => {
     expect(createProduct).not.toHaveBeenCalled();
   });
 
-  it("colaborador no da de alta en otra tienda → FORBIDDEN", async () => {
+  it("colaborador con otra tienda asignada da de alta en la tienda elegida", async () => {
     getCurrentUser.mockResolvedValue(session("collaborator", "loc-2"));
-    const r = await createProductAction(input);
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(!r.ok && r.message).toMatch(/tu tienda/);
-    expect(createProduct).not.toHaveBeenCalled();
+    expect(await createProductAction(input)).toMatchObject({ ok: true });
   });
 
-  it("colaborador sin tienda asignada → FORBIDDEN", async () => {
+  it("colaborador sin tienda asignada da de alta en la tienda elegida", async () => {
     getCurrentUser.mockResolvedValue(session("collaborator", null));
-    expect(await createProductAction(input)).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(await createProductAction(input)).toMatchObject({ ok: true });
+  });
+
+  it("sin tienda elegida → FORBIDDEN \"Elige en qué tienda estás.\" sin escribir", async () => {
+    getCurrentUser.mockResolvedValue(session("collaborator", "loc-1"));
+    const r = await createProductAction({ ...input, locationId: "" });
+    expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Elige en qué tienda estás." });
+    expect(createProduct).not.toHaveBeenCalled();
   });
 
   it("colaborador en su tienda sí puede", async () => {

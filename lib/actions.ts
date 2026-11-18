@@ -168,7 +168,7 @@ export async function lookupCodeAction(raw: string, locationId?: string): Promis
 export type { VariantStockRow } from "./data/source";
 
 /**
- * Tallas de un producto con sus piezas en una tienda. `null` sin sesión; `[]` si la tienda no es del usuario
+ * Tallas de un producto con sus piezas en una tienda. `null` sin sesión; `[]` si falta la tienda elegida
  * o si la consulta falla. Única puerta del cliente a `listVariantStockAt`.
  */
 export async function listVariantStockAtAction(productId: string, locationId: string): Promise<VariantStockRow[] | null> {
@@ -332,7 +332,7 @@ export async function createProductAction(input: CreateProductInput): Promise<Cr
     }
 
     const ds = getDataSource();
-    // Permiso antes que catálogos: un colaborador de otra tienda no consulta nada más.
+    // Permiso antes que catálogos: sin tienda elegida no se consulta nada más.
     try {
       assertCanOperate(user, typeof input.locationId === "string" ? input.locationId : "");
     } catch (err) {

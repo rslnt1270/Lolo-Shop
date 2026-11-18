@@ -120,10 +120,16 @@ describe("addVariantAction", () => {
     expect(await add(productId, { barcode: "etq-m" })).toMatchObject({ ok: false, code: "DUPLICATE", duplicateBarcode: "ETQ-M" });
   });
 
-  it("colaborador en otra tienda → FORBIDDEN", async () => {
+  it("colaborador con otra tienda asignada agrega talla en la tienda elegida → ok", async () => {
     const productId = await productWithM();
     getCurrentUser.mockResolvedValue(user("collaborator", "loc-2"));
-    expect(await add(productId)).toMatchObject({ ok: false, code: "FORBIDDEN" });
+    expect(await add(productId)).toMatchObject({ ok: true });
+  });
+
+  it("sin tienda elegida → FORBIDDEN", async () => {
+    const productId = await productWithM();
+    getCurrentUser.mockResolvedValue(user("collaborator", "loc-2"));
+    expect(await add(productId, { locationId: "" })).toMatchObject({ ok: false, code: "FORBIDDEN", message: "Elige en qué tienda estás." });
   });
 
   it("addVariantAction: el colaborador recibe el producto solo con el inventario de su tienda", async () => {

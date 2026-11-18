@@ -154,9 +154,9 @@ describe("createProductAction: clasificación", () => {
     expect(spy.mock.calls[0][0]).toMatchObject({ category: "Tenis", audience: "nino" });
   });
 
-  it("un colaborador de otra tienda sigue recibiendo FORBIDDEN antes de consultar tipos", async () => {
+  it("sin tienda elegida recibe FORBIDDEN antes de consultar tipos", async () => {
     as("collaborator", "loc-2");
-    const r = await create();
+    const r = await create({ locationId: "" });
     expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
     expect(typeFind).not.toHaveBeenCalled();
   });

@@ -97,22 +97,6 @@ describe("getOfflineSnapshotAction", () => {
     await expect(getOfflineSnapshotAction("B")).rejects.toThrow("db caída");
   });
 
-  it("colaborador no baja la copia de otra tienda → forbidden", async () => {
-    as("collaborator", "A");
-    await expect(getOfflineSnapshotAction("B")).resolves.toEqual({ ok: false, reason: "forbidden" });
-    expect(inventory.getOfflineSnapshot).not.toHaveBeenCalled();
-  });
-
-  it("colaborador sin tienda → forbidden", async () => {
-    as("collaborator", null);
-    await expect(getOfflineSnapshotAction("B")).resolves.toEqual({ ok: false, reason: "forbidden" });
-  });
-
-  it("manager con tienda A no baja B → forbidden", async () => {
-    as("manager", "A");
-    await expect(getOfflineSnapshotAction("B")).resolves.toEqual({ ok: false, reason: "forbidden" });
-  });
-
   it.each([[""], [42], [null], [undefined]])("tienda inválida (%s) → forbidden", async (loc) => {
     await expect(getOfflineSnapshotAction(loc as string)).resolves.toEqual({ ok: false, reason: "forbidden" });
     expect(inventory.getOfflineSnapshot).not.toHaveBeenCalled();
@@ -120,10 +104,13 @@ describe("getOfflineSnapshotAction", () => {
 
   it.each([
     ["collaborator", "B"],
+    ["collaborator", "A"],
+    ["collaborator", null],
     ["manager", "B"],
+    ["manager", "A"],
     ["manager", null],
     ["owner", null],
-  ])("%s (tienda %s) baja la copia de B", async (role, loc) => {
+  ])("%s (tienda asignada %s) baja la copia de la tienda elegida B", async (role, loc) => {
     as(role, loc);
     const r = await getOfflineSnapshotAction("B");
     expect(r).toEqual({ ok: true, snapshot: snapshot(), snapshotToken: expect.any(String) });
@@ -237,28 +224,37 @@ describe("submitOfflineSaleAction", () => {
     await expect(submitOfflineSaleAction(input())).rejects.toThrow("db caída");
   });
 
-  it("colaborador en otra tienda → FORBIDDEN", async () => {
+  it("colaborador con tienda A vende en B con copia firmada para (usuario, B) → se registra", async () => {
     as("collaborator", "A");
-    await expect(submitOfflineSaleAction(input())).resolves.toEqual({
-      ok: false,
-      code: "FORBIDDEN",
-      message: "Solo puedes vender en tu tienda.",
-    });
-    expect(sales.createSale).not.toHaveBeenCalled();
+    const r = await submitOfflineSaleAction(input({ snapshotToken: token("u1", "B") }));
+    expect(r.ok).toBe(true);
+    expect(sales.createSale).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: "B" }),
+      "u1",
+      { offline: { soldAt: SOLD_AT, snapshotAt: SNAP_AT }, checkPrice: true, snapshotUnverified: false },
+    );
   });
 
-  it("manager con tienda A vende en B → FORBIDDEN", async () => {
+  it("copia firmada para (usuario, A) y venta en B → el token no vale para B (copia sin verificar)", async () => {
+    as("collaborator", "A");
+    const r = await submitOfflineSaleAction(input({ snapshotToken: token("u1", "A") }));
+    expect(r.ok).toBe(true);
+    const [, , opts] = sales.createSale.mock.calls[0];
+    expect(opts.snapshotUnverified).toBe(true);
+    expect(opts.offline.snapshotAt).not.toBe(SNAP_AT);
+  });
+
+  it("manager con tienda A vende en B → no devuelve FORBIDDEN", async () => {
     as("manager", "A");
     const r = await submitOfflineSaleAction(input());
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(sales.createSale).not.toHaveBeenCalled();
+    expect(r).not.toMatchObject({ code: "FORBIDDEN" });
+    expect(sales.createSale).toHaveBeenCalled();
   });
 
-  it("colaborador sin tienda → FORBIDDEN", async () => {
+  it("colaborador sin tienda asignada → se registra", async () => {
     as("collaborator", null);
     const r = await submitOfflineSaleAction(input());
-    expect(r).toMatchObject({ ok: false, code: "FORBIDDEN" });
-    expect(sales.createSale).not.toHaveBeenCalled();
+    expect(r.ok).toBe(true);
   });
 
   it("soldAt inválido → INVALID", async () => {

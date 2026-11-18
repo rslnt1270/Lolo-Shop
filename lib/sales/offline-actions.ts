@@ -1,7 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { ForbiddenError } from "@/lib/auth/errors";
-import { assertCanOperate, currentUserOrNull, isStoreBound } from "@/lib/auth/permissions";
+import { assertCanOperate, currentUserOrNull } from "@/lib/auth/permissions";
 import { getDataSource } from "@/lib/data/get-source";
 import { getSalesSource } from "@/lib/data/get-sales-source";
 import { isTransactionTimeout } from "@/lib/data/errors";
@@ -53,8 +53,8 @@ const projectVariant = (v: OfflineSnapshotVariant): OfflineSnapshotVariant => ({
 });
 
 /**
- * Copia de precios y existencias de una tienda para vender sin internet. Relee
- * rol y tienda de la base; colaborador y manager con tienda solo bajan la suya.
+ * Copia de precios y existencias de la tienda elegida para vender sin internet.
+ * Cualquier rol baja la de cualquier tienda; la firma la ata a (usuario, tienda).
  * Nunca lanza por sesión, permiso, tamaño o base lenta.
  */
 export async function getOfflineSnapshotAction(locationId: string): Promise<OfflineSnapshotResult> {
@@ -95,12 +95,12 @@ export async function getOfflineSnapshotAction(locationId: string): Promise<Offl
 }
 
 /**
- * Envía una venta cobrada sin internet (spec §8.4). Misma sesión y alcance de
- * tienda que `createSaleAction`; no evalúa `PRICE_CHANGED`: el precio lo verifica
- * `createSale` contra `PriceChange` solo para colaborador y, si no cuadra, la
- * venta queda en revisión del dueño. Reenviar el mismo `clientRequestId`
- * devuelve la venta original (replay). El usuario de la venta es siempre el de
- * la sesión.
+ * Envía una venta cobrada sin internet (spec §8.4). Misma sesión que
+ * `createSaleAction` y cualquier tienda (la atadura es el `snapshotToken`); no
+ * evalúa `PRICE_CHANGED`: el precio lo verifica `createSale` contra `PriceChange`
+ * solo para colaborador y, si no cuadra, la venta queda en revisión del dueño.
+ * Reenviar el mismo `clientRequestId` devuelve la venta original (replay). El
+ * usuario de la venta es siempre el de la sesión.
  *
  * La fecha de la copia sale solo del `snapshotToken` firmado (el `snapshotAt`
  * del cliente se ignora). Sin token válido para este usuario y esta tienda la
@@ -122,13 +122,7 @@ export async function submitOfflineSaleAction(input: unknown): Promise<OfflineSa
   if (!parsed.ok) return fail("INVALID", parsed.message);
   const { soldAt, snapshotAt: serverNow, ...sale } = parsed.value;
 
-  if (user.role === "collaborator" && !user.locationId) {
-    return fail("FORBIDDEN", "No tienes tienda asignada. Pide al dueño que te asigne una.");
-  }
-  if (isStoreBound(user) && sale.locationId !== user.locationId) {
-    return fail("FORBIDDEN", "Solo puedes vender en tu tienda.");
-  }
-
+  // La atadura a la tienda es la firma: la copia vale solo para (usuario, tienda de la venta).
   const signed = verifySnapshotToken(raw?.snapshotToken, { userId: user.id, locationId: sale.locationId });
 
   try {

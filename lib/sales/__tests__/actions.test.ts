@@ -71,17 +71,27 @@ describe("sesión", () => {
 });
 
 describe("createSaleAction", () => {
-  it("collaborator en otra tienda: FORBIDDEN", async () => {
+  it("collaborator con tienda A vende en B: ok, sin FORBIDDEN", async () => {
     as("collaborator", "A");
     const r = await createSaleAction(input());
-    expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Solo puedes vender en tu tienda." });
-    expect(source.createSale).not.toHaveBeenCalled();
+    expect(r.ok).toBe(true);
+    expect(source.createSale).toHaveBeenCalledWith(expect.objectContaining({ locationId: "B" }), "u1");
   });
-  it("manager con tienda A vende en B: FORBIDDEN (misma regla que R13)", async () => {
+  it("collaborator sin tienda asignada vende en B: ok", async () => {
+    as("collaborator", null);
+    expect((await createSaleAction(input())).ok).toBe(true);
+  });
+  it("manager con tienda A vende en B: no devuelve FORBIDDEN", async () => {
     as("manager", "A");
     const r = await createSaleAction(input());
-    expect(r).toEqual({ ok: false, code: "FORBIDDEN", message: "Solo puedes vender en tu tienda." });
-    expect(source.createSale).not.toHaveBeenCalled();
+    expect(r).not.toMatchObject({ code: "FORBIDDEN" });
+    expect(r.ok).toBe(true);
+  });
+  it("tienda que no existe (llave foránea P2003): error controlado, no excepción", async () => {
+    as("collaborator", "A");
+    source.createSale.mockRejectedValue(prismaError("P2003"));
+    const r = await createSaleAction(input({ locationId: "no-existe" }));
+    expect(r).toEqual({ ok: false, code: "INVALID", message: "La tienda o la prenda ya no existe." });
   });
   it("manager con tienda B vende en B: ok", async () => {
     as("manager", "B");

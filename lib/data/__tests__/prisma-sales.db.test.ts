@@ -8,6 +8,7 @@ import { PrismaSalesDataSource } from "../prisma-sales-source";
 import { PrismaDataSource } from "../prisma-source";
 import { InsufficientStockError, SaleRequestConflictError, SalesRuleError } from "../errors";
 import type { NewSaleInput, PaymentMethod } from "@/lib/domain/sale";
+import { mapError } from "@/lib/sales/action-errors";
 
 // Dos clientes con su propio pool, como dos funciones de Vercel atendiendo dos cajas.
 const url = getTestDatabaseUrl() ?? "postgresql://invalid:invalid@127.0.0.1:1/none";
@@ -115,6 +116,28 @@ describe.skipIf(!hasTestDb)("PrismaSalesDataSource", () => {
 
   afterAll(async () => {
     await Promise.all([testPrisma.$disconnect(), cajaA.$disconnect(), cajaB.$disconnect()]);
+  });
+
+  describe("tienda de trabajo (traspaso §5.1)", () => {
+    it("colaborador con tienda B vende en A: descuenta en A", async () => {
+      await setStock(w.v1, w.storeA, 2);
+      const r = await ds.createSale(sale(w.storeA, [one(w.v1)]), w.collab);
+      expect(r.locationId).toBe(w.storeA);
+      expect(await available(w.v1, w.storeA)).toBe(1);
+    });
+
+    it("tienda que no existe: la llave foránea responde P2003 → INVALID controlado, sin venta", async () => {
+      await setStock(w.v1, w.storeA, 2);
+      const err = await ds.createSale(sale(randomUUID(), [one(w.v1)]), w.collab).catch((e: unknown) => e);
+      expect((err as { code?: string }).code).toBe("P2003");
+      expect(mapError(err, "cobrar")).toEqual({
+        ok: false,
+        code: "INVALID",
+        message: "La tienda o la prenda ya no existe.",
+      });
+      expect(await testPrisma.sale.count()).toBe(0);
+      expect(await available(w.v1, w.storeA)).toBe(2);
+    });
   });
 
   describe("criterios de concurrencia (ER §3.1)", () => {

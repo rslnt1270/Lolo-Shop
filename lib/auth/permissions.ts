@@ -5,17 +5,14 @@ import { ForbiddenError, UnauthenticatedError } from "./errors";
 /** Roles que pueden editar el precio de una talla y ver su historial. */
 export const PRICE_EDIT_ROLES = ["owner", "manager", "collaborator"] as const satisfies readonly Role[];
 
-/** Colaborador, o manager con tienda asignada: opera solo en su `locationId`. */
-export function isStoreBound(user: CurrentUser): boolean {
-  return user.role === "collaborator" || (user.role === "manager" && !!user.locationId);
-}
-
-export function assertCanOperate(user: CurrentUser, locationId: string): void {
-  if (user.role === "collaborator" && !user.locationId) {
-    throw new ForbiddenError("No tienes tienda asignada. Pide al dueño que te asigne una.");
-  }
-  if (isStoreBound(user) && user.locationId !== locationId) {
-    throw new ForbiddenError("Solo puedes operar en tu tienda asignada.");
+/**
+ * Cualquier rol opera en la tienda que eligió (spec traspaso §5.1): ya no se compara
+ * con `user.locationId`. Solo exige que haya una tienda elegida; su existencia la
+ * garantiza la llave foránea al escribir (P2003 → `StockTargetNotFoundError` / `NOT_FOUND`).
+ */
+export function assertCanOperate(_user: CurrentUser, locationId: string): void {
+  if (typeof locationId !== "string" || locationId === "") {
+    throw new ForbiddenError("Elige en qué tienda estás.");
   }
 }
 
